@@ -13,8 +13,8 @@ import {
   Check,
   Pause,
   Play,
-  Repeat2,
   Share2,
+  Sparkles,
   TrendingUp,
   Volume2,
   VolumeX,
@@ -31,6 +31,8 @@ interface VideoCardProps {
   isActive: boolean;
   /** карточка в зоне active±1 — только у таких монтируются <video> */
   shouldLoad: boolean;
+  /** следующая за активной — preload="auto" для мгновенного перехода */
+  eagerPreload?: boolean;
   onEnded: () => void;
 }
 
@@ -57,32 +59,52 @@ interface ProgressBarProps {
 
 function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: ProgressBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
+  const fillRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
+  const bufRef = useRef<HTMLDivElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
+  const scrubbingRef = useRef(false);
 
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [buffered, setBuffered] = useState(0);
   const [scrubbing, setScrubbing] = useState(false);
+  const [duration, setDuration] = useState(0);
 
+  /* rAF-цикл активной карточки: мутируем DOM напрямую —
+     ни одного setState на кадр (React не рендерится во время видео) */
   useEffect(() => {
-    if (!active) return; // у неактивных карточек rAF-цикла нет вообще
+    if (!active) return;
     let raf = 0;
-    let lastDur = 0;
+    let lastDur = -1;
     const tick = () => {
       const v = videoRef.current;
       if (v && v.duration > 0) {
-        setProgress(Math.min(v.currentTime / v.duration, 1));
-        setCurrentTime(v.currentTime);
+        const p = Math.min(v.currentTime / v.duration, 1);
+        const pct = (p * 100).toFixed(2);
+        if (fillRef.current) fillRef.current.style.width = `${pct}%`;
+        if (headRef.current) {
+          headRef.current.style.left = `calc(${pct}% - ${scrubbingRef.current ? 9 : 7}px)`;
+        }
+        if (bufRef.current) {
+          try {
+            const b = v.buffered.length > 0
+              ? v.buffered.end(v.buffered.length - 1) / v.duration
+              : 0;
+            bufRef.current.style.width = `${(b * 100).toFixed(1)}%`;
+          } catch {}
+        }
+        if (tipRef.current) {
+          tipRef.current.textContent = `${fmt(v.currentTime)} / ${fmt(v.duration)}`;
+          tipRef.current.style.left = `${pct}%`;
+        }
+        barRef.current?.setAttribute("aria-valuenow", String(Math.round(p * 100)));
+        barRef.current?.setAttribute(
+          "aria-valuetext",
+          `${fmt(v.currentTime)} из ${fmt(v.duration)}`
+        );
         if (v.duration !== lastDur) {
           lastDur = v.duration;
-          setDuration(v.duration);
+          setDuration(v.duration); // один раз на метаданные
         }
-        try {
-          if (v.buffered.length > 0) {
-            setBuffered(v.buffered.end(v.buffered.length - 1) / v.duration);
-          }
-        } catch {}
       }
       raf = requestAnimationFrame(tick);
     };
@@ -100,6 +122,7 @@ function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: Pro
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
     draggingRef.current = true;
+    scrubbingRef.current = true;
     setScrubbing(true);
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     onSeek(ratioFromEvent(e.clientX));
@@ -114,6 +137,7 @@ function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: Pro
 
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     draggingRef.current = false;
+    scrubbingRef.current = false;
     setScrubbing(false);
     onScrubEnd();
     e.stopPropagation();
@@ -133,8 +157,8 @@ function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: Pro
         aria-label="Прогресс видео"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(progress * 100)}
-        aria-valuetext={`${fmt(currentTime)} из ${fmt(duration)}`}
+        aria-valuenow={0}
+        aria-valuetext="0:00"
         tabIndex={-1}
         className={`group relative w-full cursor-pointer touch-none select-none rounded-full transition-all duration-300 ${
           scrubbing ? "h-4" : "h-3"
@@ -148,16 +172,18 @@ function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: Pro
       >
         {/* буфер */}
         <div
+          ref={bufRef}
           aria-hidden
           className="absolute inset-y-0 left-0 rounded-full bg-white/55 transition-[width] duration-300"
-          style={{ width: `${buffered * 100}%` }}
+          style={{ width: "0%" }}
         />
         {/* заливка со свечением */}
         <div
+          ref={fillRef}
           aria-hidden
           className="absolute inset-y-0 left-0 rounded-full"
           style={{
-            width: `${progress * 100}%`,
+            width: "0%",
             background: "#0f141a",
             boxShadow:
               "0 0 14px rgba(16,22,29,.55), 0 0 30px rgba(61,125,184,.35)",
@@ -165,6 +191,7 @@ function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: Pro
         />
         {/* светящаяся головка */}
         <div
+          ref={headRef}
           aria-hidden
           className={`absolute top-1/2 -translate-y-1/2 rounded-full bg-white transition-all duration-300 ${
             scrubbing
@@ -172,18 +199,19 @@ function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: Pro
               : "h-3.5 w-3.5 opacity-90 group-hover:h-4 group-hover:w-4"
           }`}
           style={{
-            left: `calc(${progress * 100}% - ${scrubbing ? 9 : 7}px)`,
+            left: "calc(0% - 7px)",
             boxShadow:
               "0 0 0 3px rgba(255,255,255,.6), 0 0 16px rgba(16,22,29,.55), 0 0 34px rgba(91,155,213,.45)",
           }}
         />
-        {/* время при скрабе */}
+        {/* время при скрабе (текст/позиция — через ref, без ре-рендеров) */}
         {scrubbing && (
           <div
+            ref={tipRef}
             className="nr-glass-deep pointer-events-none absolute -top-9 -translate-x-1/2 rounded-full px-2.5 py-1 font-mono text-[0.65rem] font-bold text-[#0a0a0a]"
-            style={{ left: `${progress * 100}%` }}
+            style={{ left: "0%" }}
           >
-            {fmt(currentTime)} / {fmt(duration)}
+            {fmt(0)} / {fmt(duration)}
           </div>
         )}
       </div>
@@ -197,18 +225,30 @@ export default function VideoCard({
   total,
   isActive,
   shouldLoad,
+  eagerPreload = false,
   onEnded,
 }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const bgVideoRef = useRef<HTMLVideoElement>(null);
+  const bgCanvasRef = useRef<HTMLCanvasElement>(null);
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAction = useRef(0);
+  const lastSnap = useRef(0);
 
   const [muted, setMuted] = useState(true);
   const [statusVisible, setStatusVisible] = useState(false);
   const [pulse, setPulse] = useState<"play" | "pause" | null>(null);
   const [copied, setCopied] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
   const [error, setError] = useState(false);
   const [blocked, setBlocked] = useState(false);
+
+  /* флуд-контроль кнопок: не чаще раза в cooldown мс */
+  const guarded = (cooldownMs: number) => {
+    const now = Date.now();
+    if (now - lastAction.current < cooldownMs) return false;
+    lastAction.current = now;
+    return true;
+  };
 
   /* абсолютный UTM считаем только на клиенте в обработчиках —
      чтобы SSR и клиент рендерили одинаковый HTML (без гидратационных конфликтов) */
@@ -293,29 +333,24 @@ export default function VideoCard({
 
   /* ---------------- события видео ---------------- */
 
-  /* размытый фон живёт в такт главному видео */
-  const syncBg = () => {
-    const main = videoRef.current;
-    const bg = bgVideoRef.current;
-    if (!main || !bg) return;
-    if (Math.abs(bg.currentTime - main.currentTime) > 0.25) {
-      try {
-        bg.currentTime = main.currentTime;
-      } catch {}
-    }
+  /* размытый фон — canvas-снимок кадра вместо второго видеодекодера:
+     drawImage в canvas 64×64 раз в ~1.2с, под CSS blur это неотличимо */
+  const snapBg = (force = false) => {
+    const v = videoRef.current;
+    const c = bgCanvasRef.current;
+    if (!v || !c || !v.videoWidth) return;
+    const now = performance.now();
+    if (!force && now - lastSnap.current < 1200) return;
+    lastSnap.current = now;
+    const ctx = c.getContext("2d");
+    if (!ctx) return;
+    try {
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+    } catch {}
   };
 
-  const onMainPlay = () => {
-    syncBg();
-    bgVideoRef.current?.play().catch(() => {});
-  };
-
-  const onMainPause = () => {
-    syncBg();
-    bgVideoRef.current?.pause();
-  };
-
-  const onMainSeeked = () => syncBg();
+  const onMainPlay = () => snapBg(true);
+  const onMainSeeked = () => snapBg(true);
 
   const handleEnded = () => {
     if (index < total - 1) {
@@ -331,14 +366,10 @@ export default function VideoCard({
     }
   };
 
-  /* ---------------- скраб: мост к ProgressBar ---------------- */
-
   const seekWithBg = useCallback((ratio: number) => {
     const v = videoRef.current;
-    const bg = bgVideoRef.current;
     if (v && v.duration > 0) {
       v.currentTime = ratio * v.duration;
-      if (bg) bg.currentTime = v.currentTime;
     }
   }, []);
 
@@ -346,6 +377,7 @@ export default function VideoCard({
 
   const copyUtm = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!guarded(1200)) return; // флуд-контроль
     const utmUrl = absoluteUtm();
     let ok = false;
     try {
@@ -371,18 +403,18 @@ export default function VideoCard({
     }
   };
 
-  /* ---------------- репост в Threads ---------------- */
+  /* ---------------- репост в Threads (убран) → панель «скоро промпт» ---------------- */
 
-  const openRepost = (e: React.MouseEvent) => {
+  const togglePrompt = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const text = encodeURIComponent(
-      `${post.title ? post.title + " — " : ""}no reality. ${absoluteUtm()}`
-    );
-    window.open(
-      `https://www.threads.net/intent/post?text=${text}`,
-      "_blank",
-      "noopener,noreferrer"
-    );
+    if (!guarded(600)) return;
+    setPromptOpen((open) => {
+      const next = !open;
+      if (next) {
+        setTimeout(() => setPromptOpen(false), 6000); // авто-скрытие
+      }
+      return next;
+    });
   };
 
   /* ---------------- render ---------------- */
@@ -400,13 +432,12 @@ export default function VideoCard({
       data-index={index}
       className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-[#eef5fb]"
     >
-      {/* ---------- размытый фон-клон: только у активной карточки ---------- */}
+      {/* ---------- размытый фон: canvas-снимок кадра (только у активной) ---------- */}
       {isActive && (
-        <video
-          ref={bgVideoRef}
-          src={post.videoUrl}
-          muted
-          playsInline
+        <canvas
+          ref={bgCanvasRef}
+          width={64}
+          height={64}
           aria-hidden
           className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-50 blur-3xl"
         />
@@ -419,11 +450,12 @@ export default function VideoCard({
           muted={muted}
           playsInline
           loop={false}
-          preload={isActive ? "auto" : "metadata"}
+          preload={isActive || eagerPreload ? "auto" : "metadata"}
           onPlay={onMainPlay}
-          onPause={onMainPause}
+          onPause={() => snapBg(true)}
           onSeeked={onMainSeeked}
-          onTimeUpdate={syncBg}
+          onTimeUpdate={() => snapBg(false)}
+          onLoadedData={() => snapBg(true)}
           onEnded={handleEnded}
           onError={() => setError(true)}
           onClick={togglePlay}
@@ -550,7 +582,10 @@ export default function VideoCard({
             href={`https://www.threads.com/@${authorHandle}`}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!guarded(800)) e.preventDefault(); // флуд-контроль
+            }}
             aria-label={`Открыть профиль автора ${post.author} в Threads`}
             className="nr-author-btn nr-anim-hint rounded-full p-[2px] transition-transform duration-300 hover:scale-[1.05] active:scale-95"
           >
@@ -593,7 +628,10 @@ export default function VideoCard({
           href={`/r/${post.utmCode}`}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!guarded(1000)) e.preventDefault(); // флуд-контроль вкладок
+          }}
           aria-label="Открыть это видео в Threads"
           className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.04] active:scale-95 sm:text-[0.78rem]"
         >
@@ -601,16 +639,40 @@ export default function VideoCard({
           threads
         </a>
 
-        {/* репост на своей странице */}
+        {/* play — скоро здесь можно будет смотреть промпт генерации */}
         <button
-          onClick={openRepost}
-          aria-label="Опубликовать этот пост на своей странице в Threads"
+          onClick={togglePrompt}
+          aria-expanded={promptOpen}
+          aria-label="Показать информацию о промпте этого видео"
           className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.04] active:scale-95 sm:text-[0.78rem]"
         >
-          <Repeat2 className="h-4 w-4 text-[#0a0a0a]" />
-          репост
+          <Play className="h-4 w-4 text-[#0a0a0a]" />
+          play
         </button>
       </div>
+
+      {/* ---------- панель «prompt coming soon» ---------- */}
+      {promptOpen && (
+        <div
+          role="dialog"
+          aria-label="Prompt coming soon"
+          onClick={(e) => e.stopPropagation()}
+          className="nr-anim-hint absolute bottom-[7.75rem] right-3 left-3 z-30 sm:left-auto sm:max-w-xs"
+        >
+          <div className="nr-glass-deep rounded-2xl px-4 py-3.5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-[#3d7db8]" />
+              <span className="text-[0.82rem] font-bold tracking-tight text-[#0a0a0a]">
+                Prompt coming soon
+              </span>
+            </div>
+            <p className="mt-1.5 text-[0.75rem] leading-relaxed text-[#10161d]/80">
+              Soon you&apos;ll be able to watch the exact prompt used to generate
+              this video — and reuse it to create your own.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ---------- выразительный прогресс-бар ---------- */}
       <ProgressBar

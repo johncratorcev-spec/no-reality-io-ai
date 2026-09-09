@@ -91,6 +91,8 @@ export default function Feed({ posts }: FeedProps) {
           total={posts.length}
           isActive={i === activeIndex}
           shouldLoad={Math.abs(i - activeIndex) <= 1}
+          /* следующее видео грузим полностью — переход мгновенный */
+          eagerPreload={i === activeIndex + 1}
           onEnded={() => handleEnded(i)}
         />
       ))}

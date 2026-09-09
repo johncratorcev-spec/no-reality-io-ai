@@ -142,3 +142,21 @@ Work Log:
 
 Stage Summary:
 - E2E: фичер первый и играет (180с, readyState 4), кнопка @the_fawkeskin (href верный), nr-desc-shimmer + background-clip:text + nr-boost-panel-glow применены; лента 18 карточек; клавиатура (после фокуса контейнера) и автопереходы ок; последний новый (76JKeMPf, 20с) играет; все 6 новых /r/ → 302 на верные посты; мобильный 390px без переполнений; tsc(src)/eslint/dev.log чистые.
+
+---
+Task ID: 8
+Agent: Super Z (main agent)
+Task: Авто-джоба обновления ссылок; Repost→Play («скоро промпт»); rate limit/DDoS-защита; клиентский перфоманс.
+
+Work Log:
+- HTTP-извлечение из Threads закрыто логин-стеной → джоба использует agent-browser: scripts/refresh_links.py (lockfile, порог 48ч, Range-верификация, сохранение колонок/порядка, --force/--quiet/--min-hours).
+- src/lib/refresh.ts (Promise-мьютекс, execFile, timeout 15мин) + GET /api/admin/refresh?key=ADMIN_SECRET (401 без ключа, rate limit 5/мин) + src/instrumentation.ts (первый запуск через 90с, интервал 6ч, unref, REFRESH_JOB=off выключает).
+- Ручной запуск: 19 ссылок обновлено, 1 оживлена (y7KQ3mNc → @afpnewsagency, автор дописан), 0 ошибок; все oe= теперь до 11.09 03:53–07:40 UTC.
+- src/lib/rateLimit.ts: sliding window, prune, MAX_BUCKETS=10k. /r/[code]: 30/мин на IP + 120/мин на код → 429 + Retry-After (БД не пишется). Порядок: лимит → lookup → запись.
+- VideoCard: репост удалён, кнопка play → панель nr-anim-hint «Prompt coming soon» (EN, авто-скрытие 6с, toggle); флуд-контроль guarded() на copyUtm 1200мс / play 600мс / threads 1000мс / автор 800мс.
+- Перфоманс: ProgressBar — DOM-мутации через ref вместо setState на каждый кадр (React не рендерится во время видео); bg-клон <video> заменён canvas-снимком 64×64 (drawImage раз в ~1.2с, форс на play/seek) — минус второй видеодекодер на активную карточку; eagerPreload — следующее видео preload=auto; tsconfig exclude examples/skills/scripts/mini-services (tsc по всему проекту теперь чистый).
+- WebGLBanner уже имел visibilitychange/30fps/DPR-cap — не трогал.
+
+Stage Summary:
+- E2E: 19 карточек; репоста нет; play-панель EN текст (мобайл 390px влезает, без переполнений); canvas 64×64 в активной секции; видео играют; прогресс-бар мутируется (9.9→11.1% без ре-рендеров); /r/ 30×302→429 (Retry-After:60), клики не пишутся при 429; админ: 401 без ключа, 5/мин → 429; tsc+eslint чистые.
+- Инструментация подтверждена в dev.log: «[refresh] автоджоба обновления ссылок включена (интервал 6ч)».
