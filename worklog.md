@@ -96,3 +96,18 @@ Work Log:
 Stage Summary:
 - Деплой-проблем нет; единственный реальный риск — протухание всех CDN-ссылок завтра (~18:00 МСК 10.09), нужно обновить video_url в CSV до этого момента.
 - Переходы: всего 9 уникальных кликов; rRAfCpxz — 3, пять кодов из второй партии — по 1 (одна сессия 06:42 UTC), AOABUGXd — 1 (E2E 08:33 UTC).
+
+---
+Task ID: 6
+Agent: Super Z (main agent)
+Task: Деплой кода в github.com/johncratorcev-spec/no-reality-io-ai по персональному токену.
+
+Work Log:
+- Из репозитория убраны чувствительные файлы: .env, db/custom.db (данные кликов), tool-results/ — git rm --cached + .gitignore (/db/, /tool-results/).
+- Добавлен .env.example (DATABASE_URL, ADMIN_SECRET); в .gitignore исключение !.env.example.
+- Коммит 5676741: чистка + env.example. Идентичность: johncratorcev-spec <...@users.noreply.github.com>. remote origin настроен (без токена).
+- Push отклонён: 403 Permission denied. Диагностика API: токен валиден (login johncratorcev-spec), репо существует (public, admin/push у владельца), НО Contents API write → «Resource not accessible by personal access token», x-accepted-github-permissions: metadata=read.
+
+Stage Summary:
+- Код готов к пушу (HEAD чистый, секретов нет). Блокер: у fine-grained PAT не выдано Contents: Read and write.
+- Как только пользователь добавит право — push одной командой: git push https://johncratorcev-spec:TOKEN@github.com/johncratorcev-spec/no-reality-io-ai.git main
