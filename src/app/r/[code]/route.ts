@@ -52,20 +52,23 @@ export async function GET(
     .digest("hex");
 
   // --- уникальный клик: insert падает на дубле (unique constraint) ---
-  let counted = false;
   try {
-    await db.click.create({ data: { utmCode: code, visitorHash } });
-    counted = true;
+    const counted = await db.click
+      .create({ data: { utmCode: code, visitorHash } })
+      .then(
+        () => true,
+        () => false // дубль этого visitor'а — уже считали
+      );
+    if (counted) {
+      await db.postStats.upsert({
+        where: { utmCode: code },
+        create: { utmCode: code, score: 1 },
+        update: { score: { increment: 1 } },
+      });
+    }
   } catch {
-    counted = false; // уже считали этого visitor'а по этому коду
-  }
-
-  if (counted) {
-    await db.postStats.upsert({
-      where: { utmCode: code },
-      create: { utmCode: code, score: 1 },
-      update: { score: { increment: 1 } },
-    });
+    // serverless (Netlify): БД может быть недоступна —
+    // редирект обязан работать всегда, клик просто не засчитается
   }
 
   return NextResponse.redirect(post.url, 302);

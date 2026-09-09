@@ -5,11 +5,16 @@
  * поэтому типичный цикл: каждая ссылка обновляется за пару дней до протухания.
  *
  * Отключить: REFRESH_JOB=off в окружении.
+ * На serverless (Netlify/Vercel) не запускается: нет python/headless-браузера,
+ * лямбда живет минуты — ссылки там обновляются коммитом в data/posts.csv.
  */
+
+import { isServerless } from "@/lib/env";
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.REFRESH_JOB === "off") return;
+  if (isServerless()) return;
 
   const g = globalThis as typeof globalThis & {
     __nrRefreshScheduled?: boolean;

@@ -12,10 +12,19 @@ export type RankedPost = FeedPost & { score: number };
 export async function getRankedPosts(): Promise<RankedPost[]> {
   const posts = getPostsFromCSV();
 
-  const stats = await db.postStats.findMany({
-    where: { utmCode: { in: posts.map((p) => p.utmCode) } },
-  });
-  const scoreMap = new Map(stats.map((s) => [s.utmCode, s.score]));
+  const scoreMap = new Map<string, number>();
+  try {
+    const stats = await db.postStats.findMany({
+      where: { utmCode: { in: posts.map((p) => p.utmCode) } },
+    });
+    for (const s of stats) scoreMap.set(s.utmCode, s.score);
+  } catch (e) {
+    // serverless: БД может быть недоступна — лента работает без рейтинга
+    console.warn(
+      "[posts] рейтинги недоступны:",
+      e instanceof Error ? e.message : e
+    );
+  }
 
   return posts
     .map((p) => ({ ...p, score: scoreMap.get(p.utmCode) ?? 0 }))

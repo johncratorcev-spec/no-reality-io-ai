@@ -177,3 +177,25 @@ Work Log:
 Stage Summary:
 - E2E: SSR-порядок = AOABUGXd → wcDJIxC1 → rRAfCpxz(score 3); /v/KKiWBRka прыгает к idx 15 (9360px), 3 <video> смонтировано (ленивость сохранена), title «@aicheepy — no reality.»; авто-переход/стрелки синхронизируют URL (…/v/MehFNQyX → …/v/e91lKDa0); trusted-клик link → «скопировано»; /v/nonexist99 → 404 «no reality here»; на / URL не трогается до первого листания, потом /v/wcDJIxC1 ↔ /v/AOABUGXd; мобайл 390px — 6 контролов на бустнутой карточке, без переполнений.
 - tsc/eslint/dev.log чистые.
+
+---
+Task ID: 10
+Agent: Super Z (main agent)
+Task: Бесшовный деплой на Netlify — устранить «server-side exception» (digest 2064655126) на thenoreality.netlify.app.
+
+Work Log:
+- Диагноз по задеплоенному коду (HEAD a7bb48b): (1) bun.lock → Netlify ставит зависимости через Bun → postinstall-скрипты пропускаются → prisma generate не выполняется → @prisma/client падает при инициализации модуля (lib/db.ts) = server-side exception на всех SSR-страницах; (2) next.config.ts: output: "standalone" без outputFileTracingIncludes → data/posts.csv, db/custom.db и движки Prisma не попадают в бандл функций; (3) build-скрипт с cp -r в .next/standalone упадёт там, где standalone не собирается.
+- src/lib/env.ts (новый): isServerless() по NETLIFY/VERCEL/AWS_LAMBDA_FUNCTION_NAME.
+- src/lib/csv.ts: фолбэк на встроенный снапшот POSTS_CSV_SNAPSHOT, если data/posts.csv не читается из бандла; scripts/gen-posts-snapshot.mjs генерирует src/lib/posts.snapshot.ts (19 постов), вызывается в начале каждого build.
+- src/lib/db.ts: на serverless без DATABASE_URL — копия db/custom.db в /tmp (writes работают в рамках тёплого инстанса), фолбэк file:<root>/db/custom.db.
+- src/lib/posts.ts: try/catch вокруг postStats.findMany — лента работает без БД (score 0); r/[code]: try/catch вокруг записи кликов — редирект работает всегда; admin/refresh: 501 на serverless; instrumentation: автоджоба не запускается на serverless.
+- prisma/schema.prisma: binaryTargets = [native, rhel-openssl-3.0.x, rhel-openssl-1.1.x] — рантайм лямбды Netlify (Amazon Linux), иначе query engine не загрузится.
+- next.config.ts: output = undefined на Netlify (standalone только локально), outputFileTracingIncludes для маршрутов /, /v/[code], /r/[code], /api/admin/refresh: data/posts.csv, db/custom.db, prisma/schema.prisma, node_modules/.prisma/**, node_modules/@prisma/client/**.
+- netlify.toml (новый): NODE_VERSION=22, build = mkdir -p db && npx prisma db push --accept-data-loss && npm run build (явная генерация клиента — Bun пропускает postinstall), DATABASE_URL только для фазы сборки, [[plugins]] @netlify/plugin-nextjs без пина в package.json (bun.lock заморозил бы устаревшую 5.15.13 из зеркала; Netlify сам ставит latest).
+- package.json: build = gen-posts-snapshot && next build && node scripts/copy-standalone.mjs (no-op без standalone — кроссплатформенно).
+- Верификация: prisma generate — 3 движка (debian-3.0, rhel-1.1, rhel-3.0); локальный standalone build + smoke (/, /r/ 302, /v/ 200, /v/unknown 404); NETLIFY=1 build — standalone отсутствует, все 7 NFT-трейсов содержат posts.csv + custom.db + 3 движка; dev-сервер после правок — 200/302.
+
+Stage Summary:
+- Причина падения устранена на трёх уровнях: клиент Prisma (явная генерация + rhel-движки), данные в бандле (трейс-инклуды + снапшот-фолбэк), устойчивость рантайма (лента и редиректы работают даже при недоступной БД).
+- Пуш коммита требует PAT (в окружении не сохранялся): git push https://johncratorcev-spec:<PAT>@github.com/johncratorcev-spec/no-reality-io-ai.git main
+- На стороне Netlify: ничего настраивать не нужно (DATABASE_URL в UI НЕ задавать — lib/db.ts разрулит сам); редеплой после пуша подхватит netlify.toml.

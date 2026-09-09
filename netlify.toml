@@ -1,0 +1,34 @@
+# no reality. — бесшовный деплой на Netlify (thenoreality.netlify.app)
+#
+# Почему конфиг именно такой:
+# 1. В репо bun.lock → Netlify ставит зависимости через Bun, который
+#    пропускает postinstall-скрипты недоверенных пакетов. Из-за этого
+#    `prisma generate` не выполняется сам — клиент и схема SQLite создаются
+#    явно в build-команде (иначе @prisma/client бросает исключение при
+#    инициализации = «server-side exception» на всех страницах).
+# 2. `prisma db push` заодно создаёт db/custom.db — он попадает в бандл
+#    функций через outputFileTracingIncludes (next.config.ts).
+# 3. ФС функций read-only: src/lib/db.ts при старте копирует БД в /tmp
+#    и пишет клики туда (в рамках тёплого инстанса).
+# 4. Лента: data/posts.csv трейсится в бандл; если fs-чтение всё же
+#    не удалось — код парсит встроенный снапшот (src/lib/posts.snapshot.ts,
+#    перегенерируется на каждой сборке). Контент обновляется коммитом в
+#    data/posts.csv → git push → автоматический редеплой.
+# 5. В UI Netlify НЕ нужно задавать DATABASE_URL: src/lib/db.ts разрулит
+#    путь сам (явная переменная только помешает).
+
+[build]
+  command = "mkdir -p db && npx prisma db push --accept-data-loss && npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Next 16 требует Node >= 20.9
+  NODE_VERSION = "22"
+  # DATABASE_URL только для шага `prisma db push` на этапе сборки
+  # (путь относительно prisma/schema.prisma → db/custom.db в корне репо).
+  DATABASE_URL = "file:../db/custom.db"
+
+# Рантайм Next.js НЕ пинуется в package.json (bun.lock мог бы заморозить
+# устаревшую версию): Netlify сам ставит последнюю версию плагина при сборке.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

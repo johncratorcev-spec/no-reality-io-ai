@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import Papa from "papaparse";
+import { POSTS_CSV_SNAPSHOT } from "./posts.snapshot";
 
 export interface FeedPost {
   url: string;          // оригинальная ссылка на пост в Threads
@@ -28,6 +29,9 @@ interface PostCache {
 
 const EMPTY: PostCache = { mtimeMs: -1, posts: [], byCode: new Map() };
 
+/* mtime-ключ снапшота: fs недоступен → парсим встроенную копию один раз */
+const SNAPSHOT_MTIME = -2;
+
 let cache: PostCache | null = null;
 
 function csvPath(): string {
@@ -36,21 +40,19 @@ function csvPath(): string {
 
 function load(): PostCache {
   let mtimeMs: number;
+  let raw: string;
+
   try {
-    mtimeMs = fs.statSync(csvPath()).mtimeMs;
+    const p = csvPath();
+    mtimeMs = fs.statSync(p).mtimeMs;
+    raw = fs.readFileSync(p, "utf-8");
   } catch {
-    return EMPTY; // файла нет — пустая лента
+    // serverless: CSV не попал в бандл — берём встроенную копию из сборки
+    mtimeMs = SNAPSHOT_MTIME;
+    raw = POSTS_CSV_SNAPSHOT;
   }
 
   if (cache && cache.mtimeMs === mtimeMs) return cache;
-
-  let raw = "";
-  try {
-    raw = fs.readFileSync(csvPath(), "utf-8");
-  } catch {
-    return EMPTY;
-  }
-
   const parsed = Papa.parse<Record<string, string>>(raw, {
     header: true,
     skipEmptyLines: true,

@@ -1,5 +1,10 @@
 generator client {
   provider = "prisma-client-js"
+  /* Рантайм Netlify-функций — Amazon Linux (rhel), а сборка идёт на Ubuntu:
+     native покрывает локальную разработку и билд-машину, rhel-openssl-3.0.x
+     и rhel-openssl-1.1.x — возможные варианты рантайма лямбды. Без них
+     query engine не загрузится в функции и клики/рейтинг не будут считаться. */
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "rhel-openssl-1.1.x"]
 }
 
 datasource db {

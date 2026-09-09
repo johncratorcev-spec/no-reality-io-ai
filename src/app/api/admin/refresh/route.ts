@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import { runRefreshJob } from "@/lib/refresh";
+import { isServerless } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,8 @@ export const dynamic = "force-dynamic";
  * Ручной триггер джобы обновления ссылок.
  * GET /api/admin/refresh?key=<ADMIN_SECRET>
  * Защита: секрет + rate limit (5 запросов/мин на IP).
+ * На serverless (Netlify) недоступна: нет python/headless-браузера —
+ * CSV обновляется коммитом в репозиторий (редеплой).
  */
 export async function GET(req: NextRequest) {
   const ip =
@@ -18,6 +21,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       { error: "Too many requests" },
       { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } }
+    );
+  }
+
+  if (isServerless()) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "refresh job is not available on serverless: update data/posts.csv via git commit (auto-redeploy)",
+      },
+      { status: 501 }
     );
   }
 
