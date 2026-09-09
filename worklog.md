@@ -125,3 +125,20 @@ Work Log:
 Stage Summary:
 - Деплой завершён: https://github.com/johncratorcev-spec/no-reality-io-ai (ветка main, HEAD e994d0d).
 - Чувствительные данные не опубликованы. Токен пользователю рекомендовано перевыпустить (светился в чате).
+
+---
+Task ID: 7
+Agent: Super Z (main agent)
+Task: Новый фичеренный пост BAmRDZwo2i (@the_fawkeskin) с кнопкой профиля и анимацией описания + 5 обычных видео.
+
+Work Log:
+- Извлечены agent-browser'ом 6 постов (scripts/extract_post.sh): BAmRDZwo2i @the_fawkeskin (3-мин фильм, 3 клипа), BAc_WkgDGz @kass_ai (30с), BAUClsrLHr @aicheepy (10с), _1KCUr9T2 @lofi_horizon1 (30с), BAUEp_JDEF @rizwan_55066 (10с), BAhQOr0TrW @sebastien (20с).
+- scripts/verify_posts_batch3.py: все 6 MP4 верифицированы (206 video/mp4, duration из efg).
+- scripts/add_posts_batch3.py: CSV → 19 строк (18 играют). Новые UTM: wcDJIxC1 (фичер, boost до 2026-09-10T15:43Z), dA64-UFH, KKiWBRka, MehFNQyX, e91lKDa0, 76JKeMPf. Существующие boost_until СОХРАНЕНЫ (прошлый фикс @popaistudio1 активен ещё ~22ч).
+- lib/posts.ts: tie-break среди бустнутых — свежий boostUntil выше (новый фичер первый, пока оба в бусте).
+- globals.css: .nr-boost-desc — ирисцентный градиент по тексту описания (background-clip:text, sweep 4.8s alternate, палитра blue/ice/pink/mint); .nr-boost-panel — жемчужное дыхание рамки панели 3.2s.
+- VideoCard.tsx: для boosted — классы nr-boost-desc на описании и nr-boost-panel на панели.
+- Исправлено по ходу: turbopack не перекомпилировал CSS после Edit (в браузере не было правила) — перезапуск next dev (setsid + полный путь ./node_modules/.bin/next, prev. попытка упала: PATH без node_modules/.bin).
+
+Stage Summary:
+- E2E: фичер первый и играет (180с, readyState 4), кнопка @the_fawkeskin (href верный), nr-desc-shimmer + background-clip:text + nr-boost-panel-glow применены; лента 18 карточек; клавиатура (после фокуса контейнера) и автопереходы ок; последний новый (76JKeMPf, 20с) играет; все 6 новых /r/ → 302 на верные посты; мобильный 390px без переполнений; tsc(src)/eslint/dev.log чистые.

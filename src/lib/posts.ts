@@ -23,6 +23,10 @@ export async function getRankedPosts(): Promise<RankedPost[]> {
       const ba = isBoosted(a) ? 1 : 0;
       const bb = isBoosted(b) ? 1 : 0;
       if (ba !== bb) return bb - ba; // бустнутые — наверх
+      if (ba && bb) {
+        // оба в бусте: свежий буст выше
+        return (b.boostUntil ?? 0) - (a.boostUntil ?? 0) || b.score - a.score;
+      }
       return b.score - a.score;
     });
 }

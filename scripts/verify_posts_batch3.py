@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Выбор главной MP4 из извлечённых srcs + верификация CDN (Range 206) + duration из efg."""
+"""Батч 3: выбор главной MP4 из извлечённых srcs + верификация CDN (Range 206) + duration из efg."""
 import base64
 import json
 import re
@@ -7,12 +7,12 @@ import subprocess
 import urllib.parse
 
 POSTS = [
-    ("_-Z4aWSMP", "/tmp/nr_new1.json", "/tmp/nr_v1.txt"),
-    ("BAWGxfPS1I", "/tmp/nr_new2.json", "/tmp/nr_v2.txt"),
-    ("BBiT4ujHK9", "/tmp/nr_new3.json", "/tmp/nr_v3.txt"),
-    ("BAR9mOAXcF", "/tmp/nr_new4.json", "/tmp/nr_v4.txt"),
-    ("BBhXKz1lH9", "/tmp/nr_new5.json", "/tmp/nr_v5.txt"),
-    ("BAW0_hpnMB", "/tmp/nr_new6.json", "/tmp/nr_v6.txt"),
+    ("BAmRDZwo2i", "/tmp/extract/BAmRDZwo2i.json", "/tmp/extract/BAmRDZwo2i.mp4.txt"),
+    ("BAc_WkgDGz", "/tmp/extract/BAc_WkgDGz.json", "/tmp/extract/BAc_WkgDGz.mp4.txt"),
+    ("BAUClsrLHr", "/tmp/extract/BAUClsrLHr.json", "/tmp/extract/BAUClsrLHr.mp4.txt"),
+    ("_1KCUr9T2", "/tmp/extract/_1KCUr9T2.json", "/tmp/extract/_1KCUr9T2.mp4.txt"),
+    ("BAUEp_JDEF", "/tmp/extract/BAUEp_JDEF.json", "/tmp/extract/BAUEp_JDEF.mp4.txt"),
+    ("BAhQOr0TrW", "/tmp/extract/BAhQOr0TrW.json", "/tmp/extract/BAhQOr0TrW.mp4.txt"),
 ]
 
 
@@ -32,30 +32,33 @@ def decode_efg(url: str):
 
 
 def verify(url: str):
-    """Range-запрос: ждём 206 + video/mp4."""
     try:
-        out = subprocess.run(
+        return subprocess.run(
             ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code} %{content_type} %{size_download}",
              "-r", "0-1023", "--max-time", "20", url],
             capture_output=True, text=True, timeout=30,
         ).stdout.strip()
-        return out
     except Exception as e:
         return f"ERR {e}"
 
 
+ok_all = True
 for code, src, dst in POSTS:
     d = json.loads(json.loads(open(src).read().strip()))
     srcs = d.get("srcs") or []
     pick, dur, check = "", None, ""
     for s in srcs:
         res = verify(s)
-        ok = res.startswith("206")
-        if ok and not pick:
+        if res.startswith("206"):
             pick, check = s, res
             dur = decode_efg(s)
             break
-        if not pick:
-            check = res  # запоминаем последний ответ для диагностики
+        check = res
+    if not pick:
+        ok_all = False
     open(dst, "w").write(pick)
-    print(f"{code}: n={len(srcs)} ok={bool(pick)} dur={dur}s [{check[:40]}]")
+    print(f"{code:<12} {'OK ' if pick else 'FAIL'} dur={dur}s  [{check}]")
+    if not pick:
+        print(f"   ответ: {check}")
+
+print("\nALL OK" if ok_all else "\nЕСТЬ ПРОБЛЕМЫ")

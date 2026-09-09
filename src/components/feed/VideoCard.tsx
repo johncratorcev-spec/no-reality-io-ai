@@ -518,7 +518,7 @@ export default function VideoCard({
             : "pointer-events-none translate-y-3 opacity-0 blur-xs"
         }`}
       >
-        <div className="nr-glass-deep rounded-2xl px-4 py-3">
+        <div className={`nr-glass-deep rounded-2xl px-4 py-3 ${boosted ? "nr-boost-panel" : ""}`}>
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold tracking-tight text-[#0a0a0a]">
               {post.author || "unknown"}
@@ -529,7 +529,13 @@ export default function VideoCard({
             </span>
           </div>
           {post.title && (
-            <p className="nr-status-shadow mt-1 line-clamp-2 text-[0.78rem] leading-snug text-[#10161d]/85">
+            <p
+              className={`nr-status-shadow mt-1 line-clamp-2 text-[0.78rem] leading-snug ${
+                boosted
+                  ? "nr-boost-desc font-semibold"
+                  : "text-[#10161d]/85"
+              }`}
+            >
               {post.title}
             </p>
           )}

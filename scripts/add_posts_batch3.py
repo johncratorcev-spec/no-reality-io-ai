@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Обновление data/posts.csv: +6 новых постов, фичеренный получает boost_until = now+24ч.
-Существующие строки (utm-коды, video_url) сохраняются как есть."""
+"""Батч 3: обновление data/posts.csv — +6 постов, новый фичеренный (BAmRDZwo2i) с boost_until = now+24ч.
+Существующие строки сохраняются ВМЕСТЕ с их boost_until (у прошлого фичера буст ещё активен).
+Новая фичеренная строка пишется первой для читаемости."""
 import csv
 import datetime
 import json
@@ -11,13 +12,13 @@ CSV = "/home/z/my-project/data/posts.csv"
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
 
 NEW = [
-    # (post_code, json-файл, featured?)
-    ("_-Z4aWSMP", "/tmp/nr_new1.json", "/tmp/nr_v1.txt", True),
-    ("BAWGxfPS1I", "/tmp/nr_new2.json", "/tmp/nr_v2.txt", False),
-    ("BBiT4ujHK9", "/tmp/nr_new3.json", "/tmp/nr_v3.txt", False),
-    ("BAR9mOAXcF", "/tmp/nr_new4.json", "/tmp/nr_v4.txt", False),
-    ("BBhXKz1lH9", "/tmp/nr_new5.json", "/tmp/nr_v5.txt", False),
-    ("BAW0_hpnMB", "/tmp/nr_new6.json", "/tmp/nr_v6.txt", False),
+    # (post_code, json-файл, файл с mp4, featured?)
+    ("BAmRDZwo2i", "/tmp/extract/BAmRDZwo2i.json", "/tmp/extract/BAmRDZwo2i.mp4.txt", True),
+    ("BAc_WkgDGz", "/tmp/extract/BAc_WkgDGz.json", "/tmp/extract/BAc_WkgDGz.mp4.txt", False),
+    ("BAUClsrLHr", "/tmp/extract/BAUClsrLHr.json", "/tmp/extract/BAUClsrLHr.mp4.txt", False),
+    ("_1KCUr9T2", "/tmp/extract/_1KCUr9T2.json", "/tmp/extract/_1KCUr9T2.mp4.txt", False),
+    ("BAUEp_JDEF", "/tmp/extract/BAUEp_JDEF.json", "/tmp/extract/BAUEp_JDEF.mp4.txt", False),
+    ("BAhQOr0TrW", "/tmp/extract/BAhQOr0TrW.json", "/tmp/extract/BAhQOr0TrW.mp4.txt", False),
 ]
 
 
@@ -58,41 +59,37 @@ existing_urls = {r["url"].rstrip("/") for r in existing}
 for code, jsrc, vsrc, featured in NEW:
     d = parse_json(jsrc)
     video = open(vsrc).read().strip()
+    if not video:
+        print(f"{code}: НЕТ ВИДЕО — пропуск"); continue
     author = handle(d)
     title = clean_title(d)
     post_url = f"https://www.threads.com/share/{code}/"
+    if post_url.rstrip("/") in existing_urls:
+        print(f"{code}: уже в CSV — пропуск"); continue
 
     utm = None
-    if post_url.rstrip("/") in existing_urls:
-        # уже есть — не дублируем
-        continue
     while not utm or utm in known_codes:
         utm = "".join(secrets.choice(ALPHABET) for _ in range(8))
     known_codes.add(utm)
 
-    out_rows.append(
-        {
-            "url": post_url,
-            "title": title,
-            "author": author,
-            "utm_code": utm,
-            "video_url": video,
-            "boost_until": boost_until if featured else "",
-        }
-    )
+    out_rows.append({
+        "url": post_url, "title": title, "author": author,
+        "utm_code": utm, "video_url": video,
+        "boost_until": boost_until if featured else "",
+    })
     tag = "  <-- FEATURED (boost 24h)" if featured else ""
-    print(f"{code} @{author[1:]:22s} utm={utm} boost={'YES' if featured else '-'}{tag}")
+    print(f"{code} @{author[1:]:16s} utm={utm} boost={'YES' if featured else '-'}{tag}")
 
-# --- фичеренная строка идёт первой для читаемости ---
+# --- новая фичеренная первой, остальные существующие сохраняют свои boost_until ---
 lines = ["url,title,author,utm_code,video_url,boost_until"]
 for r in out_rows[:1]:
     lines.append(",".join([r["url"], esc(r["title"]), r["author"], r["utm_code"], r["video_url"], r["boost_until"]]))
 for r in existing:
-    lines.append(",".join([r["url"], esc(r["title"]), r["author"], r["utm_code"], r["video_url"], ""]))
+    lines.append(",".join([r["url"], esc(r["title"]), r["author"], r["utm_code"], r["video_url"], r.get("boost_until", "")]))
 for r in out_rows[1:]:
     lines.append(",".join([r["url"], esc(r["title"]), r["author"], r["utm_code"], r["video_url"], ""]))
 
 with open(CSV, "w", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")
 
-print(f"\nCSV written: {len(lines)-1} rows, boost_until={boost_until}")
+print(f"\nCSV written: {len(lines)-1} rows, новый boost_until={boost_until}")
