@@ -23,3 +23,20 @@ Stage Summary:
 - Lint чистый, tsc по src чистый, dev.log без ошибок.
 - Ключевые файлы: src/app/page.tsx, src/app/api/posts/route.ts, src/app/r/[code]/route.ts, src/lib/csv.ts, src/components/{Header,WebGLBanner,Footer}.tsx, src/components/feed/{Feed,VideoCard}.tsx, data/posts.csv, prisma/schema.prisma.
 - Ограничения: CDN-ссылка видео подписанная (параметр oe=) — со временем протухнет, нужно обновить video_url в CSV; пост BAaF-XGP8N недоступен на стороне Threads.
+
+---
+Task ID: 2
+Agent: Super Z (main agent)
+Task: Перламутрово-голубая палитра, ч/б логотип и элементы, баннер «smartluvon — Partner of Week», добавление 5 новых видео в ленту.
+
+Work Log:
+- Извлёк через agent-browser прямые MP4 из 5 Threads-постов: _phUmdERK (@hafidansori, 27с), BAQh9Z2CjQ (@digitalarnab, 10.2с), BAbm6AMMyV (@sebastien, 15.2с), BAWa2nBQhN (@lilyawayy, 16.2с), BARUQawSaS (@theailadder, 10.3с). Верифицировал соответствие по декодированной duration_s из efg-параметра и HEAD/Range-запросами (все 206).
+- Сгенерировал 5 UTM-кодов (nanoid): J9tQLqnH, EwNwx4oG, 63GLQu_Z, Cd5kn7GN, Wi-5HoqV. Пересобрал data/posts.csv скриптом scripts/build_posts_csv.py (7 строк, 6 в ленте).
+- Палитра: globals.css → перламутрово-голубые токены (--nr-blue-deep #3d7db8, --nr-blue #5b9bd5, --nr-ice #a8cfea, --nr-pearl #dcebf7, ink #10161d), стекло/тени/скроллбар с голубым подтоном.
+- Ч/б элементы: логотип чёрный со светлым гало (favicon ч/б), Share Reality — чёрная кнопка, threads/репост/mute/статус/счётчик — ч/б, прогресс-бар — чёрная заливка + белая головка с нейтрально-перламутровым ореолом, футер ч/б.
+- Баннер: новый шейдер (лёд + жемчуг + иридисценция pink/mint по краям волн + бегущий шиммер-блик), весь баннер — ссылка на t.me/smartluvon_bot?start=ref_PCQ8ECMN, в центре чёрная подпись «smartluvon / — PARTNER OF WEEK —».
+- Обновлены metadata-описание и favicon.
+
+Stage Summary:
+- E2E: 6 видео readyState 4, автопереход 624→1248 при ended, скопировано-анимация ок, 5 новых UTM 302 на верные посты, мобильная версия 390px без переполнений, чистая загрузка без ошибок консоли, lint/tsc чистые.
+- Напоминание: CDN-ссылки подписаны (oe=) — периодически обновлять video_url в CSV.

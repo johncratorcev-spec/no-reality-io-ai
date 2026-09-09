@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Send } from "lucide-react";
 
 export const VIRAL_URL = "https://t.me/smartluvon_bot?start=ref_PCQ8ECMN";
 
 /* ------------------------------------------------------------------ */
-/*  WebGL-шейдер: шёлковые волны в усиленной палитре                   */
-/*  (violet → fuchsia → pink → amber + блик teal, зерно, свет-свип)    */
+/*  WebGL-шейдер: перламутрово-голубые шёлковые волны                  */
+/*  (лёд + жемчуг + лёгкая радужная иридисценция + блик-шимер)         */
 /* ------------------------------------------------------------------ */
 
 const VERT = `
@@ -48,33 +47,47 @@ void main(){
   vec2 p = uv;
   p.x *= u_res.x / u_res.y;
 
-  float t = u_time * 0.055;
+  float t = u_time * 0.05;
 
-  float w1 = fbm(vec2(p.x * 1.6 - t * 1.5,       p.y * 2.2 + t));
-  float w2 = fbm(vec2(p.x * 2.4 + t * 1.2 + 5.2, p.y * 1.4 - t * 0.8));
-  float w3 = fbm(vec2(p.x * 1.1 - t * 0.6 + 9.1, p.y * 3.1 + t * 1.7));
+  float w1 = fbm(vec2(p.x * 1.5 - t * 1.4,       p.y * 2.1 + t));
+  float w2 = fbm(vec2(p.x * 2.3 + t * 1.1 + 5.2, p.y * 1.3 - t * 0.8));
+  float w3 = fbm(vec2(p.x * 1.0 - t * 0.5 + 9.1, p.y * 2.9 + t * 1.6));
 
-  vec3 c = vec3(0.996, 0.988, 0.995);
+  /* база — почти белый лёд */
+  vec3 c = vec3(0.975, 0.988, 0.998);
 
-  vec3 violet  = vec3(0.486, 0.227, 0.929);
-  vec3 fuchsia = vec3(0.851, 0.275, 0.937);
-  vec3 pink    = vec3(0.925, 0.282, 0.600);
-  vec3 amber   = vec3(0.961, 0.620, 0.043);
-  vec3 teal    = vec3(0.051, 0.580, 0.533);
+  vec3 deepBlue = vec3(0.240, 0.490, 0.722);  /* #3d7db8 */
+  vec3 blue     = vec3(0.357, 0.608, 0.835);  /* #5b9bd5 */
+  vec3 ice      = vec3(0.659, 0.812, 0.918);  /* #a8cfea */
+  vec3 pearl    = vec3(0.863, 0.922, 0.969);  /* #dcebf7 */
+  vec3 iridPink = vec3(0.902, 0.867, 0.925);  /* перламутровый розоватый отлив */
+  vec3 iridMint = vec3(0.824, 0.914, 0.906);  /* перламутровый мятный отлив */
 
-  c = mix(c, violet,  smoothstep(0.30, 0.90, w1) * 0.58);
-  c = mix(c, fuchsia, smoothstep(0.38, 0.95, w2) * 0.52);
-  c = mix(c, pink,    smoothstep(0.45, 1.00, w3) * 0.46);
-  c = mix(c, amber,   smoothstep(0.58, 1.00, w2 * w3) * 0.50);
-  c = mix(c, teal,    smoothstep(0.72, 1.00, w1 * w3) * 0.26);
+  c = mix(c, pearl,    smoothstep(0.25, 0.85, w1) * 0.75);
+  c = mix(c, ice,      smoothstep(0.35, 0.92, w2) * 0.62);
+  c = mix(c, blue,     smoothstep(0.52, 0.98, w3) * 0.42);
+  c = mix(c, deepBlue, smoothstep(0.68, 1.00, w1 * w2) * 0.30);
 
-  float d = fract((uv.x + uv.y) * 0.55 - u_time * 0.045);
-  float sweep = smoothstep(0.0, 0.22, d) * smoothstep(0.55, 0.30, d);
-  c += sweep * 0.10;
+  /* тонкая иридисценция — перламутровые отливы на границах волн */
+  float edge = smoothstep(0.42, 0.50, w2) * (1.0 - smoothstep(0.50, 0.58, w2));
+  c = mix(c, iridPink, edge * 0.55);
+  float edge2 = smoothstep(0.46, 0.55, w3) * (1.0 - smoothstep(0.55, 0.64, w3));
+  c = mix(c, iridMint, edge2 * 0.45);
 
-  c *= mix(1.0, 0.93, abs(uv.y - 0.5) * 0.7);
+  /* перламутровый шиммер — бегущий блик */
+  float shimmer = pow(max(0.0, sin((uv.x * 2.2 + uv.y * 3.1) * 3.14159 + u_time * 0.35 + w1 * 2.0)), 6.0);
+  c += shimmer * 0.10;
 
-  c += (hash(uv * u_res.xy + fract(u_time)) - 0.5) * 0.03;
+  /* мягкий диагональный свет */
+  float d = fract((uv.x + uv.y) * 0.5 - u_time * 0.04);
+  float sweep = smoothstep(0.0, 0.25, d) * smoothstep(0.6, 0.32, d);
+  c += sweep * 0.07;
+
+  /* воздушная виньетка */
+  c *= mix(1.0, 0.94, abs(uv.y - 0.5) * 0.7);
+
+  /* тонкое зерно */
+  c += (hash(uv * u_res.xy + fract(u_time)) - 0.5) * 0.025;
 
   gl_FragColor = vec4(c, 1.0);
 }
@@ -177,7 +190,7 @@ export default function WebGLBanner() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
       className="relative z-40 h-[var(--nr-banner-h)] shrink-0 overflow-hidden"
-      aria-label="Баннер: место ожидает владельца"
+      aria-label="Баннер: smartluvon — Partner of Week"
     >
       {/* WebGL-полотно / CSS-fallback */}
       {failed ? (
@@ -186,7 +199,7 @@ export default function WebGLBanner() {
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(110deg, #ede9fe 0%, #fae8ff 25%, #fce7f3 50%, #fef3c7 78%, #ccfbf1 100%)",
+              "linear-gradient(110deg, #e2eff8 0%, #c3ddf0 30%, #dcebf7 55%, #b3d4ec 80%, #e8f2fa 100%)",
           }}
         />
       ) : (
@@ -197,58 +210,45 @@ export default function WebGLBanner() {
         />
       )}
 
-      {/* мягкая вуаль для читаемости */}
+      {/* мягкая воздушная вуаль для читаемости центра */}
       <div
         aria-hidden
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(120% 160% at 50% 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0.35) 100%)",
+            "radial-gradient(60% 140% at 50% 50%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.12) 55%, rgba(255,255,255,0) 100%)",
         }}
       />
 
-      {/* контент баннера */}
-      <div className="relative mx-auto flex h-full max-w-6xl items-center justify-between gap-3 px-5">
-        <motion.div
-          initial={{ opacity: 0, x: -14 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.9, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="nr-glass-deep flex shrink-0 items-center rounded-full px-3 py-1.5 sm:px-5 sm:py-2"
-        >
-          <span className="text-[0.72rem] font-semibold tracking-tight text-[#1b1523] sm:text-[0.95rem]">
-            место ожидает владельца
+      {/* весь баннер — вирусная ссылка */}
+      <motion.a
+        href={VIRAL_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="smartluvon — Partner of Week. Перейти в Telegram"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        transition={{ duration: 0.9, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="group relative flex h-full w-full items-center justify-center"
+      >
+        <div className="flex flex-col items-center leading-none">
+          <span className="text-[0.95rem] font-extrabold tracking-tight text-[#0a0a0a] sm:text-[1.15rem]">
+            smartluvon
           </span>
-          <span
-            aria-hidden
-            className="ml-3 hidden h-1.5 w-1.5 rounded-full bg-[#f59e0b] sm:block"
-            style={{ boxShadow: "0 0 10px 2px rgba(245,158,11,.7)" }}
-          />
-        </motion.div>
+          <span className="mt-1 text-[0.58rem] font-bold uppercase tracking-[0.28em] text-[#10161d]/60 sm:text-[0.65rem]">
+            — Partner of Week —
+          </span>
+        </div>
 
-        <motion.a
-          href={VIRAL_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Стать владельцем места — @smartluvon_bot в Telegram"
-          initial={{ opacity: 0, x: 14 }}
-          animate={{ opacity: 1, x: 0 }}
-          whileHover={{ scale: 1.045, y: -1 }}
-          whileTap={{ scale: 0.97 }}
-          transition={{ duration: 0.9, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          className="nr-btn-glow group flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-white sm:gap-2 sm:px-5 sm:py-2"
-          style={{
-            background: "var(--nr-grad)",
-          }}
-        >
-          <Send className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          <span className="text-[0.7rem] font-bold tracking-tight sm:text-[0.8rem]">
-            владеть<span className="hidden sm:inline"> местом</span>
-          </span>
-          <span className="hidden text-[0.72rem] font-medium text-white/85 md:inline sm:text-[0.8rem]">
-            @smartluvon_bot
-          </span>
-        </motion.a>
-      </div>
+        {/* мягкое ч/б свечение подписи при ховере */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-700 group-hover:opacity-100"
+          style={{ backdropFilter: "brightness(1.06)" }}
+        />
+      </motion.a>
     </motion.section>
   );
 }

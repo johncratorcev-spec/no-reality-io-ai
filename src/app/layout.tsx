@@ -12,12 +12,12 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "no reality.",
   description:
-    "Лента AI-видео из Threads. Смотри, делись реальностью — место ожидает владельца.",
+    "Лента AI-видео из Threads. Смотри, делись реальностью. smartluvon — Partner of Week.",
   icons: {
     icon:
       "data:image/svg+xml," +
       encodeURIComponent(
-        `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#7C3AED'/><stop offset='0.5' stop-color='#D946EF'/><stop offset='1' stop-color='#F59E0B'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(#g)'/><text x='16' y='22' font-family='Arial' font-size='16' font-weight='bold' fill='white' text-anchor='middle'>nr</text></svg>`
+        `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='#0A0A0A'/><text x='16' y='22' font-family='Arial' font-size='16' font-weight='bold' fill='white' text-anchor='middle'>nr</text></svg>`
       ),
   },
 };

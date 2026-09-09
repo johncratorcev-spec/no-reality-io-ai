@@ -65,7 +65,7 @@ export default function Feed({ posts }: FeedProps) {
       <div className="flex h-full items-center justify-center px-6">
         <div className="nr-glass-deep max-w-sm rounded-3xl px-8 py-10 text-center">
           <p className="text-lg font-bold tracking-tight">лента пуста</p>
-          <p className="mt-2 text-sm text-[#1b1523]/60">
+          <p className="mt-2 text-sm text-[#10161d]/60">
             добавь посты в <code className="font-mono">/data/posts.csv</code> —
             и они появятся здесь
           </p>

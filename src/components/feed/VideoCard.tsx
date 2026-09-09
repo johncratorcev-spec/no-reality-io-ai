@@ -155,9 +155,9 @@ function ProgressBar({ videoRef, onSeek, onScrubStart, onScrubEnd }: ProgressBar
           className="absolute inset-y-0 left-0 rounded-full"
           style={{
             width: `${progress * 100}%`,
-            background: "var(--nr-grad)",
+            background: "#0f141a",
             boxShadow:
-              "0 0 16px rgba(217,70,239,.75), 0 0 34px rgba(124,58,237,.45)",
+              "0 0 14px rgba(16,22,29,.55), 0 0 30px rgba(61,125,184,.35)",
           }}
         />
         {/* светящаяся головка */}
@@ -171,13 +171,13 @@ function ProgressBar({ videoRef, onSeek, onScrubStart, onScrubEnd }: ProgressBar
           style={{
             left: `calc(${progress * 100}% - ${scrubbing ? 9 : 7}px)`,
             boxShadow:
-              "0 0 0 3px rgba(255,255,255,.55), 0 0 18px rgba(217,70,239,.9), 0 0 40px rgba(124,58,237,.55)",
+              "0 0 0 3px rgba(255,255,255,.6), 0 0 16px rgba(16,22,29,.55), 0 0 34px rgba(91,155,213,.45)",
           }}
         />
         {/* время при скрабе */}
         {scrubbing && (
           <div
-            className="nr-glass-deep pointer-events-none absolute -top-9 -translate-x-1/2 rounded-full px-2.5 py-1 font-mono text-[0.65rem] font-bold text-[#1b1523]"
+            className="nr-glass-deep pointer-events-none absolute -top-9 -translate-x-1/2 rounded-full px-2.5 py-1 font-mono text-[0.65rem] font-bold text-[#0a0a0a]"
             style={{ left: `${progress * 100}%` }}
           >
             {fmt(currentTime)} / {fmt(duration)}
@@ -394,7 +394,7 @@ export default function VideoCard({
   return (
     <section
       data-index={index}
-      className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-[#f6f2fb]"
+      className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-[#eef5fb]"
     >
       {/* ---------- размытый фон-клон ---------- */}
       <video
@@ -454,12 +454,12 @@ export default function VideoCard({
           >
             <div
               className="nr-glass-deep flex h-20 w-20 items-center justify-center rounded-full"
-              style={{ boxShadow: "0 0 40px rgba(217,70,239,.45)" }}
+              style={{ boxShadow: "0 0 40px rgba(16,22,29,.35)" }}
             >
               {pulse === "pause" ? (
-                <Pause className="h-8 w-8 text-[#7c3aed]" />
+                <Pause className="h-8 w-8 text-[#0a0a0a]" />
               ) : (
-                <Play className="h-8 w-8 translate-x-0.5 text-[#7c3aed]" />
+                <Play className="h-8 w-8 translate-x-0.5 text-[#0a0a0a]" />
               )}
             </div>
           </motion.div>
@@ -475,7 +475,7 @@ export default function VideoCard({
             transition={{ duration: 0.5, ease: EASE }}
             className="nr-glass-deep flex items-center gap-2.5 rounded-full px-5 py-3"
           >
-            <Play className="h-4 w-4 text-[#7c3aed]" />
+            <Play className="h-4 w-4 text-[#0a0a0a]" />
             <span className="text-[0.8rem] font-bold tracking-tight">
               нажми, чтобы смотреть
             </span>
@@ -493,7 +493,7 @@ export default function VideoCard({
           setMuted(v.muted);
         }}
         aria-label={muted ? "Включить звук" : "Выключить звук"}
-        className="nr-glass absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#1b1523] transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(124,58,237,.35)]"
+        className="nr-glass absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(16,22,29,.3)]"
       >
         {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </button>
@@ -503,7 +503,7 @@ export default function VideoCard({
         <div className="absolute inset-0 z-30 flex items-center justify-center px-6">
           <div className="nr-glass-deep max-w-xs rounded-3xl px-6 py-7 text-center">
             <p className="font-bold tracking-tight">видео временно недоступно</p>
-            <p className="mt-2 text-xs leading-relaxed text-[#1b1523]/60">
+            <p className="mt-2 text-xs leading-relaxed text-[#10161d]/60">
               ссылка CDN могла устареть — обнови{" "}
               <code className="font-mono">video_url</code> в{" "}
               <code className="font-mono">/data/posts.csv</code>
@@ -524,16 +524,16 @@ export default function VideoCard({
           >
             <div className="nr-glass-deep rounded-2xl px-4 py-3">
               <div className="flex items-center gap-2">
-                <span className="bg-clip-text text-sm font-bold tracking-tight text-transparent [background-image:var(--nr-grad)]">
+                <span className="text-sm font-bold tracking-tight text-[#0a0a0a]">
                   {post.author || "unknown"}
                 </span>
-                <span className="ml-auto flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[0.65rem] font-bold text-[#7c3aed]">
+                <span className="ml-auto flex items-center gap-1 rounded-full bg-white/75 px-2 py-0.5 text-[0.65rem] font-bold text-[#0a0a0a]">
                   <TrendingUp className="h-3 w-3" />
                   {post.score}
                 </span>
               </div>
               {post.title && (
-                <p className="nr-status-shadow mt-1 line-clamp-2 text-[0.78rem] leading-snug text-[#1b1523]/85">
+                <p className="nr-status-shadow mt-1 line-clamp-2 text-[0.78rem] leading-snug text-[#10161d]/85">
                   {post.title}
                 </p>
               )}
@@ -555,10 +555,9 @@ export default function VideoCard({
           }
           transition={{ duration: 0.55, ease: EASE }}
           aria-label="Скопировать UTM-ссылку, чтобы поднять видео в ленте"
-          className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-[0.75rem] font-bold text-white transition-shadow duration-500 sm:text-[0.8rem] ${
+          className={`flex items-center gap-2 rounded-full bg-[#0a0a0a] px-4 py-2.5 text-[0.75rem] font-bold text-white transition-shadow duration-500 sm:text-[0.8rem] ${
             copied ? "nr-ring-glow" : "nr-btn-glow"
           }`}
-          style={{ background: "var(--nr-grad)" }}
         >
           <AnimatePresence mode="wait" initial={false}>
             {copied ? (
@@ -598,9 +597,9 @@ export default function VideoCard({
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.95 }}
           aria-label="Открыть это видео в Threads"
-          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#1b1523] transition-shadow duration-300 hover:shadow-[0_0_24px_rgba(124,58,237,.4)] sm:text-[0.78rem]"
+          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-shadow duration-300 hover:shadow-[0_0_24px_rgba(16,22,29,.35)] sm:text-[0.78rem]"
         >
-          <ArrowUpRight className="h-4 w-4 text-[#7c3aed]" />
+          <ArrowUpRight className="h-4 w-4 text-[#0a0a0a]" />
           threads
         </motion.a>
 
@@ -610,9 +609,9 @@ export default function VideoCard({
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.95 }}
           aria-label="Опубликовать этот пост на своей странице в Threads"
-          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#1b1523] transition-shadow duration-300 hover:shadow-[0_0_24px_rgba(236,72,153,.4)] sm:text-[0.78rem]"
+          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-shadow duration-300 hover:shadow-[0_0_24px_rgba(16,22,29,.35)] sm:text-[0.78rem]"
         >
-          <Repeat2 className="h-4 w-4 text-[#ec4899]" />
+          <Repeat2 className="h-4 w-4 text-[#0a0a0a]" />
           репост
         </motion.button>
       </div>
