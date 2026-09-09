@@ -160,3 +160,20 @@ Work Log:
 Stage Summary:
 - E2E: 19 карточек; репоста нет; play-панель EN текст (мобайл 390px влезает, без переполнений); canvas 64×64 в активной секции; видео играют; прогресс-бар мутируется (9.9→11.1% без ре-рендеров); /r/ 30×302→429 (Retry-After:60), клики не пишутся при 429; админ: 401 без ключа, 5/мин → 429; tsc+eslint чистые.
 - Инструментация подтверждена в dev.log: «[refresh] автоджоба обновления ссылок включена (интервал 6ч)».
+
+---
+Task ID: 9
+Agent: Super Z (main agent)
+Task: Топ-2 ленты (@popaistudio1 #1, @the_fawkeskin #2) + система внутренних ссылок на конкретное видео.
+
+Work Log:
+- scripts/reorder_boost.py: точечно обновил boost_until — AOABUGXd (@popaistudio1) до 2026-09-11T08:00Z, wcDJIxC1 (@the_fawkeskin) до 2026-09-11T07:00Z. Оба буста продлены ~36ч; tie-break «свежий буст выше» в lib/posts.ts гарантирует popaistudio #1, fawkeskin #2.
+- Новый роут /v/[utmCode] (src/app/v/[code]/page.tsx): та же лента через FeedScreen, React cache() дедуплицирует getRankedPosts между generateMetadata и страницей; generateMetadata → title «@author — no reality.»; notFound() → стилизованный src/app/v/[code]/not-found.tsx («no reality here» + кнопка «в ленту»).
+- src/components/FeedScreen.tsx (новый): общий каркас Header+WebGLBanner+Feed+Footer для / и /v/[code]; page.tsx сократился до 9 строк.
+- Feed.tsx: проп focusCode — начальный activeIndex из useState-инициализатора (нужное видео монтируется сразу), мгновенный scrollIntoView({block:"start"}) при монтировании; адресная строка синхронизируется с активным видео через history.replaceState (skip первый рендер; Next поддерживает shallow-replaceState).
+- VideoCard.tsx: кнопка link (Link2) — копирует origin/v/[code]; хелпер writeClipboard вынесен (clipboard API + execCommand-fallback), используется и Share Reality, и link; флуд-контроль guarded(1200).
+- Пуш в GitHub: bce881d..a7bb48b.
+
+Stage Summary:
+- E2E: SSR-порядок = AOABUGXd → wcDJIxC1 → rRAfCpxz(score 3); /v/KKiWBRka прыгает к idx 15 (9360px), 3 <video> смонтировано (ленивость сохранена), title «@aicheepy — no reality.»; авто-переход/стрелки синхронизируют URL (…/v/MehFNQyX → …/v/e91lKDa0); trusted-клик link → «скопировано»; /v/nonexist99 → 404 «no reality here»; на / URL не трогается до первого листания, потом /v/wcDJIxC1 ↔ /v/AOABUGXd; мобайл 390px — 6 контролов на бустнутой карточке, без переполнений.
+- tsc/eslint/dev.log чистые.
