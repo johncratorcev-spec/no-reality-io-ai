@@ -121,6 +121,31 @@
 .nr-anim-dot { animation: nr-dot 3.2s ease-in-out infinite; }
 .nr-anim-late { animation-delay: 0.4s; }
 
+/* --- кнопка автора (бустнутый пост): жемчужно-голубой shimmer + пульс-glow --- */
+@keyframes nr-author-shimmer {
+  from { background-position: 0% 50%; }
+  to   { background-position: 100% 50%; }
+}
+@keyframes nr-author-glow {
+  0%, 100% { box-shadow: 0 4px 16px rgba(61, 125, 184, 0.30); }
+  50%      { box-shadow: 0 6px 30px rgba(61, 125, 184, 0.60), 0 0 18px rgba(168, 207, 234, 0.55); }
+}
+.nr-author-btn {
+  /* симметричный градиент (период = ширина элемента) — сдвиг позиций бесшовный */
+  background: linear-gradient(
+    110deg,
+    #a8cfea 0%,
+    #5b9bd5 25%,
+    #e8f2fa 50%,
+    #3d7db8 75%,
+    #a8cfea 100%
+  );
+  background-size: 200% 100%;
+  animation:
+    nr-author-shimmer 5s linear infinite,
+    nr-author-glow 2.6s ease-in-out infinite;
+}
+
 /* --- лента: прячем скроллбар, плавный скролл --- */
 .nr-feed {
   scroll-behavior: smooth;

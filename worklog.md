@@ -63,3 +63,21 @@ Stage Summary:
 - Проверки: tsc (src) чистый, eslint чистый.
 - E2E (agent-browser): старт — 3 <video> (было 12), active играет (readyState 4); авто-переход по ended работает (лента сама ушла 1→3→5 пока шли проверки); seek кликом 50% ≈ 5.1s; drag-скраб ~60% ✓; Share Reality: trusted-клик → «скопировано» + nr-anim-copied ✓; /r/[code] 302 на верный пост Threads ✓; подсчёт + дедуп: новый visitor +1, повторный клик score не меняет (3→3) ✓; /api/posts → 404 ✓; консоль без ошибок; мобильный 390px — без горизонтального переполнения, ленивый монтаж работает [2,1,0,0,0,0].
 - Итог: бэкенд — 2 маленьких маршрута + кэшированный CSV + 2 запроса Prisma на клик; клиент — без framer-motion, 3 видео-элемента на старте, 1 активный rAF-цикл, шейдер 30fps.
+
+---
+Task ID: 4
+Agent: Super Z (main agent)
+Task: Добавить 6 новых видео; фичеренный пост _-Z4aWSMP — буст на первое место на 24 часа + специальная кнопка автора с анимацией.
+
+Work Log:
+- Извлёк через agent-browser прямые MP4, авторов и заголовки из 6 постов (scripts/extract_post.sh): _-Z4aWSMP (@popaistudio1, вингсьют, карусель 6 клипов, взят первый, 10с), BAWGxfPS1I (@svskliar, 5с), BBiT4ujHK9 (@aziza_lee_ai, 19с), BAR9mOAXcF (@aziza_lee_ai, 19с), BBhXKz1lH9 (@iam_levkina, 19с), BAW0_hpnMB (@regina.timer, 19с). Все верифицированы Range-запросами (206 video/mp4) — scripts/verify_new_posts.py.
+- scripts/add_boosted_posts.py: дополнил data/posts.csv колонкой boost_until + 6 строк с новыми nanoid-UTM: AOABUGXd (фичеренный, boost до 2026-09-10T08:29Z), iYIxY7qx, eFsxs2JD, Lu9rS6xV, ytJiU5XO, FR76WfCi. Старые строки/коды сохранены, итого 13 строк (12 играются).
+- src/lib/boost.ts (новый, чистый): isBoosted(post) — без node-зависимостей, безопасен для клиентского бандла (csv.ts нельзя импортировать в клиент — там fs).
+- lib/csv.ts: поле boostUntil (unix ms, парс boost_until через Date.parse); lib/posts.ts: сортировка — бустнутые первыми, далее по score.
+- VideoCard: для бустнутого поста с автором — кнопка-ссылка на профиль (https://www.threads.com/@handle) первой в колонке действий: белая пилюля в перламутрово-голубой рамке .nr-author-btn (бесшовный shimmer по background-position + пульс glow, вход nr-anim-hint). На обычных карточках кнопки нет.
+- tsc/eslint чистые.
+
+Stage Summary:
+- E2E: лента = 12 карточек, фичеренный первый и играет (readyState 4), кнопка @popaistudio1 (href верный, обе анимации применены), на карточке 1 кнопки нет; переходы к 5/8/11 — новые видео играют; /r/AOABUGXd → 302 на _-Z4aWSMP; мобильный 390px — без переполнений, кнопка в кадре; консоль чистая (ошибка #418 в первом логе оказалась репортером Meta с вкладки threads, не наше приложение).
+- Через 24ч буст истечёт сам: пост останется в ленте и отсортируется по score; кнопка автора исчезнет вместе с бустом.
+- Напоминание: CDN-ссылки подписаны (oe=) — периодически обновлять video_url в CSV.

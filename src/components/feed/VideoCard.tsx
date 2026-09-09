@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArrowUpRight,
+  AtSign,
   Check,
   Pause,
   Play,
@@ -19,6 +20,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import type { FeedPost } from "@/lib/csv";
+import { isBoosted } from "@/lib/boost";
 
 export type PostWithScore = FeedPost & { score: number };
 
@@ -387,6 +389,11 @@ export default function VideoCard({
 
   const hasMeta = Boolean(post.author || post.title);
   const statusShown = statusVisible && hasMeta && !error;
+  const boosted = isBoosted(post);
+  const authorHandle =
+    post.author && post.author !== "@unknown"
+      ? post.author.replace(/^@/, "")
+      : "";
 
   return (
     <section
@@ -531,6 +538,23 @@ export default function VideoCard({
 
       {/* ---------- кнопки действий ---------- */}
       <div className="absolute bottom-[4.25rem] right-3 z-20 flex flex-col items-end gap-2">
+        {/* автор — специальная кнопка для бустнутого поста (жемчужный shimmer) */}
+        {boosted && authorHandle && (
+          <a
+            href={`https://www.threads.com/@${authorHandle}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Открыть профиль автора ${post.author} в Threads`}
+            className="nr-author-btn nr-anim-hint rounded-full p-[2px] transition-transform duration-300 hover:scale-[1.05] active:scale-95"
+          >
+            <span className="nr-anim-hint flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[0.72rem] font-bold tracking-tight text-[#0a0a0a] sm:text-[0.78rem]" style={{ animationDelay: "0.15s" }}>
+              <AtSign className="h-3.5 w-3.5" />
+              {authorHandle}
+            </span>
+          </a>
+        )}
+
         {/* Share Reality — главный CTA */}
         <button
           onClick={copyUtm}

@@ -8,6 +8,7 @@ export interface FeedPost {
   author: string;
   utmCode: string;
   videoUrl: string;     // прямой MP4 для встраивания (CDN Threads)
+  boostUntil?: number;  // unix ms: пост поднят на первое место до этого момента
 }
 
 /**
@@ -66,12 +67,16 @@ function load(): PostCache {
 
     if (!url || !utmCode || !videoUrl) continue; // неполная строка — в ленту не идёт
 
+    const boostRaw = (row.boost_until || "").trim();
+    const boostMs = boostRaw ? Date.parse(boostRaw) : NaN;
+
     const post: FeedPost = {
       url,
       title: (row.title || "").trim(),
       author: (row.author || "").trim(),
       utmCode,
       videoUrl,
+      ...(Number.isFinite(boostMs) ? { boostUntil: boostMs } : {}),
     };
     posts.push(post);
     byCode.set(utmCode, post);
