@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Уникальные переходы по UTM-ссылкам.
+// unique(utmCode, visitorHash) — защита от повторных кликов одного visitor'а.
+model Click {
+  id           String   @id @default(uuid())
+  utmCode      String
+  visitorHash  String
+  createdAt    DateTime @default(now())
+
+  @@unique([utmCode, visitorHash])
+}
+
+// Аггрегированный счётчик уникальных кликов = рейтинг видео.
+model PostStats {
+  utmCode   String   @id
+  score     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
