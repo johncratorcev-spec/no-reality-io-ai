@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
 
 export const VIRAL_URL = "https://t.me/smartluvon_bot?start=ref_PCQ8ECMN";
 
 /* ------------------------------------------------------------------ */
 /*  WebGL-шейдер: перламутрово-голубые шёлковые волны                  */
 /*  (лёд + жемчуг + лёгкая радужная иридисценция + блик-шимер)         */
+/*  Рендер ограничен 30fps — волны медленные, батарея экономится заметно. */
 /* ------------------------------------------------------------------ */
 
 const VERT = `
@@ -93,6 +93,8 @@ void main(){
 }
 `;
 
+const FRAME_MIN_MS = 1000 / 30; // cap 30fps
+
 function useWebGLCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [failed, setFailed] = useState(false);
@@ -150,12 +152,15 @@ function useWebGLCanvas() {
     window.addEventListener("resize", resize);
 
     let raf = 0;
+    let lastFrame = 0;
     const t0 = performance.now();
-    const render = () => {
-      gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.uniform1f(uTime, (performance.now() - t0) / 1000);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    const render = (now: number) => {
       raf = requestAnimationFrame(render);
+      if (now - lastFrame < FRAME_MIN_MS) return; // 30fps cap
+      lastFrame = now;
+      gl.uniform2f(uRes, canvas.width, canvas.height);
+      gl.uniform1f(uTime, (now - t0) / 1000);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     raf = requestAnimationFrame(render);
 
@@ -185,11 +190,9 @@ export default function WebGLBanner() {
   const { canvasRef, failed } = useWebGLCanvas();
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-      className="relative z-40 h-[var(--nr-banner-h)] shrink-0 overflow-hidden"
+    <section
+      className="nr-anim-fade-down relative z-40 h-[var(--nr-banner-h)] shrink-0 overflow-hidden"
+      style={{ animationDuration: "0.8s", animationDelay: "0.15s" }}
       aria-label="Баннер: smartluvon — Partner of Week"
     >
       {/* WebGL-полотно / CSS-fallback */}
@@ -221,17 +224,12 @@ export default function WebGLBanner() {
       />
 
       {/* весь баннер — вирусная ссылка */}
-      <motion.a
+      <a
         href={VIRAL_URL}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="smartluvon — Partner of Week. Перейти в Telegram"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        whileHover={{ scale: 1.01 }}
-        whileTap={{ scale: 0.99 }}
-        transition={{ duration: 0.9, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
-        className="group relative flex h-full w-full items-center justify-center"
+        className="nr-anim-fade-in nr-anim-late group relative flex h-full w-full items-center justify-center transition-transform duration-300 hover:scale-[1.01] active:scale-[0.99]"
       >
         <div className="flex flex-col items-center leading-none">
           <span className="text-[0.95rem] font-extrabold tracking-tight text-[#0a0a0a] sm:text-[1.15rem]">
@@ -248,7 +246,7 @@ export default function WebGLBanner() {
           className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-700 group-hover:opacity-100"
           style={{ backdropFilter: "brightness(1.06)" }}
         />
-      </motion.a>
-    </motion.section>
+      </a>
+    </section>
   );
 }

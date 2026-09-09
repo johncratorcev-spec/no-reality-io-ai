@@ -77,6 +77,50 @@
   text-shadow: 0 1px 14px rgba(27, 21, 35, 0.55);
 }
 
+/* ============================================================
+   Анимации (чистый CSS вместо framer-motion)
+   ============================================================ */
+
+@keyframes nr-fade-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes nr-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes nr-morph-in {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes nr-hint-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes nr-pulse-pop {
+  0%   { opacity: 0; transform: scale(0.6); }
+  45%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+@keyframes nr-copied-bounce {
+  0%   { transform: scale(1) rotate(0deg); }
+  35%  { transform: scale(1.14) rotate(-2.5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes nr-dot {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1; transform: scale(1.15); }
+}
+
+.nr-anim-fade-down { animation: nr-fade-down 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.nr-anim-fade-in { animation: nr-fade-in 0.9s ease both; }
+.nr-anim-morph { animation: nr-morph-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.nr-anim-hint { animation: nr-hint-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.nr-anim-pulse { animation: nr-pulse-pop 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.nr-anim-copied { animation: nr-copied-bounce 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+.nr-anim-dot { animation: nr-dot 3.2s ease-in-out infinite; }
+.nr-anim-late { animation-delay: 0.4s; }
+
 /* --- лента: прячем скроллбар, плавный скролл --- */
 .nr-feed {
   scroll-behavior: smooth;

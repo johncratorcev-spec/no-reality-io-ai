@@ -90,6 +90,7 @@ export default function Feed({ posts }: FeedProps) {
           index={i}
           total={posts.length}
           isActive={i === activeIndex}
+          shouldLoad={Math.abs(i - activeIndex) <= 1}
           onEnded={() => handleEnded(i)}
         />
       ))}

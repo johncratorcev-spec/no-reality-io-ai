@@ -1,19 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { getPostsFromCSV } from "@/lib/csv";
+import { getPostByCode } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
 
 /**
  * UTM-редирект: считает уникальный клик (dedup по visitor_hash),
  * поднимает видео в рейтинге и перекидывает на пост в Threads.
+ *
+ * Порядок: сначала lookup поста (мгновенно из кэша CSV) —
+ * клики по неизвестным кодам не пишутся в БД вообще.
  */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
   const { code } = await params;
+
+  const post = getPostByCode(code);
+  if (!post) {
+    return new NextResponse("Not found", { status: 404 });
+  }
 
   // --- visitor fingerprint (анонимный): ip + ua + секрет ---
   const ip =
@@ -27,9 +35,7 @@ export async function GET(
   // --- уникальный клик: insert падает на дубле (unique constraint) ---
   let counted = false;
   try {
-    await db.click.create({
-      data: { utmCode: code, visitorHash },
-    });
+    await db.click.create({ data: { utmCode: code, visitorHash } });
     counted = true;
   } catch {
     counted = false; // уже считали этого visitor'а по этому коду
@@ -41,12 +47,6 @@ export async function GET(
       create: { utmCode: code, score: 1 },
       update: { score: { increment: 1 } },
     });
-  }
-
-  // --- редирект на оригинальный пост ---
-  const post = getPostsFromCSV().find((p) => p.utmCode === code);
-  if (!post) {
-    return new NextResponse("Not found", { status: 404 });
   }
 
   return NextResponse.redirect(post.url, 302);

@@ -40,3 +40,26 @@ Work Log:
 Stage Summary:
 - E2E: 6 видео readyState 4, автопереход 624→1248 при ended, скопировано-анимация ок, 5 новых UTM 302 на верные посты, мобильная версия 390px без переполнений, чистая загрузка без ошибок консоли, lint/tsc чистые.
 - Напоминание: CDN-ссылки подписаны (oe=) — периодически обновлять video_url в CSV.
+
+---
+Task ID: 3
+Agent: Super Z (main agent)
+Task: Ревью архитектуры: найти слабые места и заменить. Клиент — быстрый, бэкенд — максимально простой.
+
+Work Log:
+- Бэкенд: удалены мёртвые маршруты /api/posts (дублировал page.tsx, клиентом не использовался) и шаблонный /api — каталог src/app/api удалён целиком.
+- lib/csv.ts: mtime-кэш (statSync → парс только при изменении файла) + Map-индекс byCode; добавлен getPostByCode(). /r/[code] больше не парсит CSV на каждый клик.
+- lib/posts.ts (новый): единственная реализация ленты getRankedPosts() (CSV + score + сортировка); page.tsx сократился до 26 строк.
+- r/[code]/route.ts: сначала lookup поста из кэша — клики по неизвестным кодам не пишутся в БД; поиск .find() → Map.get().
+- db.ts: убран log:['query'] (убран оверхед и шум prisma:query в прод-режиме).
+- Клиент: framer-motion удалён полностью (Header, Footer, WebGLBanner, VideoCard) — заменён на CSS keyframes/transitions (nr-anim-* в globals.css): fade-down/fade-in, morph share→check, pulse play/pause, copied-bounce, dot-индикатор, hint. Статус-панель переведена на постоянный mount + transition (enter/exit без AnimatePresence). Зависимость удалена из package.json (bun remove) — минус ~45KB gzip JS.
+- VideoCard: ленивый монтаж видео — <video> только в зоне active±1 (shouldLoad из Feed), размытый bg-клон только у активной карточки; на старте 3 <video> вместо 12 (меньше декодеров/памяти на мобильных). preload: активная=auto, соседи=metadata.
+- Удалено мёртвое состояние paused (обновлялось на каждый play/pause, нигде не читалось — лишние ре-рендеры).
+- ProgressBar: rAF-цикл только пока карточка активна (было 6 постоянных циклов по 60fps).
+- WebGLBanner: cap 30fps (FRAME_MIN_MS) — волны медленные, визуальной разницы нет, батарея экономится.
+- layout.tsx: Manrope weights 400/600/700/800 (убран неиспользуемый 500 — минус файл шрифта).
+
+Stage Summary:
+- Проверки: tsc (src) чистый, eslint чистый.
+- E2E (agent-browser): старт — 3 <video> (было 12), active играет (readyState 4); авто-переход по ended работает (лента сама ушла 1→3→5 пока шли проверки); seek кликом 50% ≈ 5.1s; drag-скраб ~60% ✓; Share Reality: trusted-клик → «скопировано» + nr-anim-copied ✓; /r/[code] 302 на верный пост Threads ✓; подсчёт + дедуп: новый visitor +1, повторный клик score не меняет (3→3) ✓; /api/posts → 404 ✓; консоль без ошибок; мобильный 390px — без горизонтального переполнения, ленивый монтаж работает [2,1,0,0,0,0].
+- Итог: бэкенд — 2 маленьких маршрута + кэшированный CSV + 2 запроса Prisma на клик; клиент — без framer-motion, 3 видео-элемента на старте, 1 активный rAF-цикл, шейдер 30fps.

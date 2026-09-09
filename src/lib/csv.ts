@@ -14,15 +14,40 @@ export interface FeedPost {
  * Единственный источник правды — /data/posts.csv.
  * Посты без video_url не попадают в ленту (ссылка может быть протухшей
  * или пост удалён в Threads — строка остаётся в CSV на будущее).
+ *
+ * Парсим только при изменении mtime файла: /r/[code] — горячий путь,
+ * полный парс на каждый клик недопустим.
  */
-export function getPostsFromCSV(): FeedPost[] {
-  const csvPath = path.join(process.cwd(), "data", "posts.csv");
+
+interface PostCache {
+  mtimeMs: number;
+  posts: FeedPost[];
+  byCode: Map<string, FeedPost>;
+}
+
+const EMPTY: PostCache = { mtimeMs: -1, posts: [], byCode: new Map() };
+
+let cache: PostCache | null = null;
+
+function csvPath(): string {
+  return path.join(process.cwd(), "data", "posts.csv");
+}
+
+function load(): PostCache {
+  let mtimeMs: number;
+  try {
+    mtimeMs = fs.statSync(csvPath()).mtimeMs;
+  } catch {
+    return EMPTY; // файла нет — пустая лента
+  }
+
+  if (cache && cache.mtimeMs === mtimeMs) return cache;
 
   let raw = "";
   try {
-    raw = fs.readFileSync(csvPath, "utf-8");
+    raw = fs.readFileSync(csvPath(), "utf-8");
   } catch {
-    return [];
+    return EMPTY;
   }
 
   const parsed = Papa.parse<Record<string, string>>(raw, {
@@ -32,6 +57,8 @@ export function getPostsFromCSV(): FeedPost[] {
   });
 
   const posts: FeedPost[] = [];
+  const byCode = new Map<string, FeedPost>();
+
   for (const row of parsed.data) {
     const url = (row.url || "").trim();
     const utmCode = (row.utm_code || "").trim();
@@ -39,14 +66,25 @@ export function getPostsFromCSV(): FeedPost[] {
 
     if (!url || !utmCode || !videoUrl) continue; // неполная строка — в ленту не идёт
 
-    posts.push({
+    const post: FeedPost = {
       url,
       title: (row.title || "").trim(),
       author: (row.author || "").trim(),
       utmCode,
       videoUrl,
-    });
+    };
+    posts.push(post);
+    byCode.set(utmCode, post);
   }
 
-  return posts;
+  cache = { mtimeMs, posts, byCode };
+  return cache;
+}
+
+export function getPostsFromCSV(): FeedPost[] {
+  return load().posts;
+}
+
+export function getPostByCode(code: string): FeedPost | undefined {
+  return load().byCode.get(code);
 }

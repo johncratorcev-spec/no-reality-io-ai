@@ -7,7 +7,6 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpRight,
   Check,
@@ -28,10 +27,11 @@ interface VideoCardProps {
   index: number;
   total: number;
   isActive: boolean;
+  /** карточка в зоне active±1 — только у таких монтируются <video> */
+  shouldLoad: boolean;
   onEnded: () => void;
 }
 
-const EASE = [0.22, 1, 0.36, 1] as const;
 const STATUS_VISIBLE_MS = 3400;
 
 function fmt(s: number): string {
@@ -42,18 +42,18 @@ function fmt(s: number): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Выразительный прогресс-бар: изолированный rAF-цикл, скраб, время   */
-/*  (перерисовывает только себя, не всю карточку)                      */
+/*  Прогресс-бар: rAF-цикл только пока карточка активна, скраб, время  */
 /* ------------------------------------------------------------------ */
 
 interface ProgressBarProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  active: boolean;
   onSeek: (ratio: number) => void; // ставит currentTime + синхронизирует фон
   onScrubStart: () => void;
   onScrubEnd: () => void;
 }
 
-function ProgressBar({ videoRef, onSeek, onScrubStart, onScrubEnd }: ProgressBarProps) {
+function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: ProgressBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
 
@@ -64,6 +64,7 @@ function ProgressBar({ videoRef, onSeek, onScrubStart, onScrubEnd }: ProgressBar
   const [scrubbing, setScrubbing] = useState(false);
 
   useEffect(() => {
+    if (!active) return; // у неактивных карточек rAF-цикла нет вообще
     let raf = 0;
     let lastDur = 0;
     const tick = () => {
@@ -85,7 +86,7 @@ function ProgressBar({ videoRef, onSeek, onScrubStart, onScrubEnd }: ProgressBar
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [videoRef]);
+  }, [active, videoRef]);
 
   const ratioFromEvent = (clientX: number) => {
     const bar = barRef.current;
@@ -149,7 +150,7 @@ function ProgressBar({ videoRef, onSeek, onScrubStart, onScrubEnd }: ProgressBar
           className="absolute inset-y-0 left-0 rounded-full bg-white/55 transition-[width] duration-300"
           style={{ width: `${buffered * 100}%` }}
         />
-        {/* градиентная заливка со свечением */}
+        {/* заливка со свечением */}
         <div
           aria-hidden
           className="absolute inset-y-0 left-0 rounded-full"
@@ -193,13 +194,13 @@ export default function VideoCard({
   index,
   total,
   isActive,
+  shouldLoad,
   onEnded,
 }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const bgVideoRef = useRef<HTMLVideoElement>(null);
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
   const [statusVisible, setStatusVisible] = useState(false);
   const [pulse, setPulse] = useState<"play" | "pause" | null>(null);
@@ -254,7 +255,6 @@ export default function VideoCard({
           video.play().catch(() => {
             // политика браузера жёстко требует жест — ждём клик
             setBlocked(true);
-            setPaused(true);
           });
         });
         showStatus(true);
@@ -291,8 +291,6 @@ export default function VideoCard({
 
   /* ---------------- события видео ---------------- */
 
-  const onPlayStateChange = () => setPaused(videoRef.current?.paused ?? false);
-
   /* размытый фон живёт в такт главному видео */
   const syncBg = () => {
     const main = videoRef.current;
@@ -306,13 +304,11 @@ export default function VideoCard({
   };
 
   const onMainPlay = () => {
-    onPlayStateChange();
     syncBg();
     bgVideoRef.current?.play().catch(() => {});
   };
 
   const onMainPause = () => {
-    onPlayStateChange();
     syncBg();
     bgVideoRef.current?.pause();
   };
@@ -390,38 +386,43 @@ export default function VideoCard({
   /* ---------------- render ---------------- */
 
   const hasMeta = Boolean(post.author || post.title);
+  const statusShown = statusVisible && hasMeta && !error;
 
   return (
     <section
       data-index={index}
       className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-[#eef5fb]"
     >
-      {/* ---------- размытый фон-клон ---------- */}
-      <video
-        ref={bgVideoRef}
-        src={post.videoUrl}
-        muted
-        playsInline
-        aria-hidden
-        className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-50 blur-3xl"
-      />
-      {/* ---------- основное видео ---------- */}
-      <video
-        ref={videoRef}
-        src={post.videoUrl}
-        muted={muted}
-        playsInline
-        loop={false}
-        preload={index === 0 ? "auto" : "metadata"}
-        onPlay={onMainPlay}
-        onPause={onMainPause}
-        onSeeked={onMainSeeked}
-        onTimeUpdate={syncBg}
-        onEnded={handleEnded}
-        onError={() => setError(true)}
-        onClick={togglePlay}
-        className="relative h-full w-full cursor-pointer object-contain"
-      />
+      {/* ---------- размытый фон-клон: только у активной карточки ---------- */}
+      {isActive && (
+        <video
+          ref={bgVideoRef}
+          src={post.videoUrl}
+          muted
+          playsInline
+          aria-hidden
+          className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-50 blur-3xl"
+        />
+      )}
+      {/* ---------- основное видео: монтируется только в зоне active±1 ---------- */}
+      {shouldLoad && (
+        <video
+          ref={videoRef}
+          src={post.videoUrl}
+          muted={muted}
+          playsInline
+          loop={false}
+          preload={isActive ? "auto" : "metadata"}
+          onPlay={onMainPlay}
+          onPause={onMainPause}
+          onSeeked={onMainSeeked}
+          onTimeUpdate={syncBg}
+          onEnded={handleEnded}
+          onError={() => setError(true)}
+          onClick={togglePlay}
+          className="relative h-full w-full cursor-pointer object-contain"
+        />
+      )}
 
       {/* мягкая виньетка для читаемости интерфейса */}
       <div
@@ -441,45 +442,34 @@ export default function VideoCard({
         }}
       />
 
-      {/* ---------- пульс паузы/плей ---------- */}
-      <AnimatePresence>
-        {pulse && (
-          <motion.div
-            key={pulse}
-            initial={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: [0, 1, 0], scale: [0.6, 1, 1.25] }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.7, ease: EASE }}
-            className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      {/* ---------- пульс паузы/плей (CSS-анимация) ---------- */}
+      {pulse && (
+        <div
+          key={pulse}
+          className="nr-anim-pulse pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
+        >
+          <div
+            className="nr-glass-deep flex h-20 w-20 items-center justify-center rounded-full"
+            style={{ boxShadow: "0 0 40px rgba(16,22,29,.35)" }}
           >
-            <div
-              className="nr-glass-deep flex h-20 w-20 items-center justify-center rounded-full"
-              style={{ boxShadow: "0 0 40px rgba(16,22,29,.35)" }}
-            >
-              {pulse === "pause" ? (
-                <Pause className="h-8 w-8 text-[#0a0a0a]" />
-              ) : (
-                <Play className="h-8 w-8 translate-x-0.5 text-[#0a0a0a]" />
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {pulse === "pause" ? (
+              <Pause className="h-8 w-8 text-[#0a0a0a]" />
+            ) : (
+              <Play className="h-8 w-8 translate-x-0.5 text-[#0a0a0a]" />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ---------- подсказка при блокировке автоплея ---------- */}
       {blocked && !error && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, ease: EASE }}
-            className="nr-glass-deep flex items-center gap-2.5 rounded-full px-5 py-3"
-          >
+          <div className="nr-anim-hint nr-glass-deep flex items-center gap-2.5 rounded-full px-5 py-3">
             <Play className="h-4 w-4 text-[#0a0a0a]" />
             <span className="text-[0.8rem] font-bold tracking-tight">
               нажми, чтобы смотреть
             </span>
-          </motion.div>
+          </div>
         </div>
       )}
 
@@ -512,113 +502,90 @@ export default function VideoCard({
         </div>
       )}
 
-      {/* ---------- glass-статус (author / title) ---------- */}
-      <AnimatePresence>
-        {statusVisible && hasMeta && !error && (
-          <motion.div
-            initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, y: 12, filter: "blur(6px)" }}
-            transition={{ duration: 0.65, ease: EASE }}
-            className="absolute bottom-[4.25rem] left-3 right-3 z-20 sm:right-auto sm:max-w-md"
-          >
-            <div className="nr-glass-deep rounded-2xl px-4 py-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold tracking-tight text-[#0a0a0a]">
-                  {post.author || "unknown"}
-                </span>
-                <span className="ml-auto flex items-center gap-1 rounded-full bg-white/75 px-2 py-0.5 text-[0.65rem] font-bold text-[#0a0a0a]">
-                  <TrendingUp className="h-3 w-3" />
-                  {post.score}
-                </span>
-              </div>
-              {post.title && (
-                <p className="nr-status-shadow mt-1 line-clamp-2 text-[0.78rem] leading-snug text-[#10161d]/85">
-                  {post.title}
-                </p>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* ---------- glass-статус: живёт в DOM, анимация через transition ---------- */}
+      <div
+        aria-hidden={!statusShown}
+        className={`absolute bottom-[4.25rem] left-3 right-3 z-20 transition-all duration-500 ease-out sm:right-auto sm:max-w-md ${
+          statusShown
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-3 opacity-0 blur-xs"
+        }`}
+      >
+        <div className="nr-glass-deep rounded-2xl px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold tracking-tight text-[#0a0a0a]">
+              {post.author || "unknown"}
+            </span>
+            <span className="ml-auto flex items-center gap-1 rounded-full bg-white/75 px-2 py-0.5 text-[0.65rem] font-bold text-[#0a0a0a]">
+              <TrendingUp className="h-3 w-3" />
+              {post.score}
+            </span>
+          </div>
+          {post.title && (
+            <p className="nr-status-shadow mt-1 line-clamp-2 text-[0.78rem] leading-snug text-[#10161d]/85">
+              {post.title}
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* ---------- кнопки действий ---------- */}
       <div className="absolute bottom-[4.25rem] right-3 z-20 flex flex-col items-end gap-2">
         {/* Share Reality — главный CTA */}
-        <motion.button
+        <button
           onClick={copyUtm}
-          whileTap={{ scale: 0.94 }}
-          animate={
-            copied
-              ? { scale: [1, 1.14, 1], rotate: [0, -2.5, 0] }
-              : { scale: 1, rotate: 0 }
-          }
-          transition={{ duration: 0.55, ease: EASE }}
           aria-label="Скопировать UTM-ссылку, чтобы поднять видео в ленте"
-          className={`flex items-center gap-2 rounded-full bg-[#0a0a0a] px-4 py-2.5 text-[0.75rem] font-bold text-white transition-shadow duration-500 sm:text-[0.8rem] ${
-            copied ? "nr-ring-glow" : "nr-btn-glow"
+          className={`flex items-center gap-2 rounded-full bg-[#0a0a0a] px-4 py-2.5 text-[0.75rem] font-bold text-white transition-[box-shadow,transform] duration-300 hover:scale-[1.03] active:scale-95 sm:text-[0.8rem] ${
+            copied ? "nr-anim-copied nr-ring-glow" : "nr-btn-glow"
           }`}
         >
-          <AnimatePresence mode="wait" initial={false}>
-            {copied ? (
-              <motion.span
-                key="check"
-                initial={{ opacity: 0, scale: 0.4 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.4 }}
-                transition={{ duration: 0.3, ease: EASE }}
-                className="flex items-center gap-2"
-              >
-                <Check className="h-4 w-4" />
-                скопировано
-              </motion.span>
-            ) : (
-              <motion.span
-                key="share"
-                initial={{ opacity: 0, scale: 0.4 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.4 }}
-                transition={{ duration: 0.3, ease: EASE }}
-                className="flex items-center gap-2"
-              >
-                <Share2 className="h-4 w-4" />
-                share reality
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </motion.button>
+          {copied ? (
+            <span
+              key="check"
+              className="nr-anim-morph flex items-center gap-2"
+            >
+              <Check className="h-4 w-4" />
+              скопировано
+            </span>
+          ) : (
+            <span
+              key="share"
+              className="nr-anim-morph flex items-center gap-2"
+            >
+              <Share2 className="h-4 w-4" />
+              share reality
+            </span>
+          )}
+        </button>
 
         {/* открыть в Threads — через /r/[code], клик засчитывается */}
-        <motion.a
+        <a
           href={`/r/${post.utmCode}`}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.95 }}
           aria-label="Открыть это видео в Threads"
-          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-shadow duration-300 hover:shadow-[0_0_24px_rgba(16,22,29,.35)] sm:text-[0.78rem]"
+          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.04] active:scale-95 sm:text-[0.78rem]"
         >
           <ArrowUpRight className="h-4 w-4 text-[#0a0a0a]" />
           threads
-        </motion.a>
+        </a>
 
         {/* репост на своей странице */}
-        <motion.button
+        <button
           onClick={openRepost}
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.95 }}
           aria-label="Опубликовать этот пост на своей странице в Threads"
-          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-shadow duration-300 hover:shadow-[0_0_24px_rgba(16,22,29,.35)] sm:text-[0.78rem]"
+          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.04] active:scale-95 sm:text-[0.78rem]"
         >
           <Repeat2 className="h-4 w-4 text-[#0a0a0a]" />
           репост
-        </motion.button>
+        </button>
       </div>
 
       {/* ---------- выразительный прогресс-бар ---------- */}
       <ProgressBar
         videoRef={videoRef}
+        active={isActive}
         onSeek={seekWithBg}
         onScrubStart={() => showStatus(false)}
         onScrubEnd={hideStatusSoon}

@@ -1,16 +1,11 @@
-"use client";
-
-import { motion } from "framer-motion";
 import { Send } from "lucide-react";
 
 export default function Footer() {
   return (
-    <motion.footer
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 1, delay: 0.5 }}
-      className="relative z-50 h-11 shrink-0 border-t border-white/70"
+    <footer
+      className="nr-anim-fade-in relative z-50 h-11 shrink-0 border-t border-white/70"
       style={{
+        animationDelay: "0.5s",
         background: "rgba(255,255,255,0.66)",
         backdropFilter: "blur(20px) saturate(1.7)",
         WebkitBackdropFilter: "blur(20px) saturate(1.7)",
@@ -44,6 +39,6 @@ export default function Footer() {
           />
         </a>
       </div>
-    </motion.footer>
+    </footer>
   );
 }
