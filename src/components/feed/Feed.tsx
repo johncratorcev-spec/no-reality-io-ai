@@ -5,16 +5,56 @@ import VideoCard, { type PostWithScore } from "./VideoCard";
 
 interface FeedProps {
   posts: PostWithScore[];
+  /** utm-код поста с deep-link страницы /v/[code] — к нему прыгаем при монтировании */
+  focusCode?: string;
 }
 
 /**
  * Pure vertical scroll лента (snap-scroll).
  * Активная карточка определяется IntersectionObserver'ом,
  * по окончании видео — мягкий автопереход к следующей.
+ *
+ * Deep-link (/v/[code]): начальный активный индекс берётся из focusCode,
+ * а адресная строка всегда синхронизируется с активным видео
+ * (history.replaceState — без записей в истории, Next это поддерживает).
  */
-export default function Feed({ posts }: FeedProps) {
+export default function Feed({ posts, focusCode }: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+
+  const [activeIndex, setActiveIndex] = useState(() => {
+    if (!focusCode) return 0;
+    const i = posts.findIndex((p) => p.utmCode === focusCode);
+    return i >= 0 ? i : 0;
+  });
+
+  /* мгновенный прыжок к запрошенному видео после монтирования
+     (behavior по умолчанию — auto, без плавной прокрутки через всю ленту;
+      активный индекс уже установлен выше — нужное видео монтируется сразу) */
+  useEffect(() => {
+    if (!focusCode) return;
+    const idx = posts.findIndex((p) => p.utmCode === focusCode);
+    if (idx <= 0) return;
+    containerRef.current
+      ?.querySelector<HTMLElement>(`[data-index="${idx}"]`)
+      ?.scrollIntoView({ block: "start" });
+  }, [focusCode, posts]);
+
+  /* адресная строка всегда указывает на активное видео.
+     Первый запуск пропускаем: на /v/[code] URL уже верный,
+     на / пока пользователь не листал — не трогаем адрес. */
+  const skipUrlSync = useRef(true);
+  useEffect(() => {
+    if (skipUrlSync.current) {
+      skipUrlSync.current = false;
+      return;
+    }
+    const post = posts[activeIndex];
+    if (!post) return;
+    const url = `/v/${post.utmCode}`;
+    if (window.location.pathname !== url) {
+      window.history.replaceState(null, "", url);
+    }
+  }, [activeIndex, posts]);
 
   useEffect(() => {
     const root = containerRef.current;

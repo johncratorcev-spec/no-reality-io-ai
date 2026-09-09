@@ -11,6 +11,7 @@ import {
   ArrowUpRight,
   AtSign,
   Check,
+  Link2,
   Pause,
   Play,
   Share2,
@@ -37,6 +38,28 @@ interface VideoCardProps {
 }
 
 const STATUS_VISIBLE_MS = 3400;
+
+/* clipboard API + execCommand-fallback (нужен и Share Reality, и link) */
+async function writeClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
 
 function fmt(s: number): string {
   if (!Number.isFinite(s) || s < 0) s = 0;
@@ -238,6 +261,7 @@ export default function VideoCard({
   const [statusVisible, setStatusVisible] = useState(false);
   const [pulse, setPulse] = useState<"play" | "pause" | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
   const [error, setError] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -378,28 +402,26 @@ export default function VideoCard({
   const copyUtm = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!guarded(1200)) return; // флуд-контроль
-    const utmUrl = absoluteUtm();
-    let ok = false;
-    try {
-      await navigator.clipboard.writeText(utmUrl);
-      ok = true;
-    } catch {
-      try {
-        const ta = document.createElement("textarea");
-        ta.value = utmUrl;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        ok = document.execCommand("copy");
-        document.body.removeChild(ta);
-      } catch {
-        ok = false;
-      }
-    }
+    const ok = await writeClipboard(absoluteUtm());
     if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2400);
+    }
+  };
+
+  /* ---------------- link: deep-link на это видео внутри ленты ---------------- */
+
+  const copyInternal = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!guarded(1200)) return; // флуд-контроль
+    const linkUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/v/${post.utmCode}`
+        : `/v/${post.utmCode}`;
+    const ok = await writeClipboard(linkUrl);
+    if (ok) {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2400);
     }
   };
 
@@ -619,6 +641,31 @@ export default function VideoCard({
             >
               <Share2 className="h-4 w-4" />
               share reality
+            </span>
+          )}
+        </button>
+
+        {/* link — deep-link на это видео внутри ленты (/v/[code]) */}
+        <button
+          onClick={copyInternal}
+          aria-label="Скопировать ссылку на это видео в ленте"
+          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.04] active:scale-95 sm:text-[0.78rem]"
+        >
+          {linkCopied ? (
+            <span
+              key="check"
+              className="nr-anim-morph flex items-center gap-2"
+            >
+              <Check className="h-4 w-4" />
+              скопировано
+            </span>
+          ) : (
+            <span
+              key="link"
+              className="nr-anim-morph flex items-center gap-2"
+            >
+              <Link2 className="h-4 w-4" />
+              link
             </span>
           )}
         </button>
