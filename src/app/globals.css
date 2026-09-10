@@ -165,6 +165,37 @@
     nr-author-glow 2.6s ease-in-out infinite;
 }
 
+/* --- бейдж CREEPY: неровное мерцание + микродрожь, как неисправный знак ---
+   период 4.8s: короткие серии провалов яркости с перекосом,
+   в остальном — спокойное свечение; строго ч/б */
+@keyframes nr-creepy-flicker {
+  0%, 100% {
+    opacity: 1;
+    transform: skewX(0deg) translateX(0);
+    box-shadow: 0 0 14px rgba(10, 10, 10, 0.45);
+  }
+  2%  { opacity: 0.35; transform: skewX(-6deg) translateX(-1px); }
+  4%  { opacity: 1;    transform: skewX(3deg) translateX(1px); }
+  6%  { opacity: 0.5; }
+  8%  { opacity: 0.95; transform: skewX(-2deg); }
+  10% { opacity: 1;    transform: skewX(0deg) translateX(0); }
+  44% { opacity: 1;    transform: skewX(0deg); }
+  46% { opacity: 0.3;  transform: skewX(4deg) translateX(1px); }
+  48% { opacity: 0.85; }
+  50% { opacity: 0.4;  transform: skewX(-4deg) translateX(-1px); }
+  52% { opacity: 1;    transform: skewX(0deg) translateX(0); }
+  73% {
+    opacity: 1;
+    box-shadow: 0 0 14px rgba(10, 10, 10, 0.45);
+  }
+  77% { box-shadow: 0 0 26px rgba(10, 10, 10, 0.75), 0 0 44px rgba(255, 255, 255, 0.25); }
+  81% { box-shadow: 0 0 14px rgba(10, 10, 10, 0.45); }
+}
+.nr-creepy-badge {
+  animation: nr-creepy-flicker 4.8s linear infinite;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+}
+
 /* --- описание бустнутого поста: перламутрово-ирисцентный перелив по тексту --- */
 @keyframes nr-desc-shimmer {
   0%   { background-position: 130% 0; }

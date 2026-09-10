@@ -10,6 +10,7 @@ export interface FeedPost {
   utmCode: string;
   videoUrl: string;     // прямой MP4 для встраивания (CDN Threads)
   boostUntil?: number;  // unix ms: пост поднят на первое место до этого момента
+  badge?: string;       // анимированный бейдж на карточке (напр. "CREEPY")
 }
 
 /**
@@ -79,6 +80,9 @@ function load(): PostCache {
       utmCode,
       videoUrl,
       ...(Number.isFinite(boostMs) ? { boostUntil: boostMs } : {}),
+      ...((row.badge || "").trim()
+        ? { badge: (row.badge || "").trim().toUpperCase() }
+        : {}),
     };
     posts.push(post);
     byCode.set(utmCode, post);

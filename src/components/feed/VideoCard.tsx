@@ -595,6 +595,15 @@ export default function VideoCard({
         )}
       </div>
 
+      {/* ---------- анимированный бейдж (напр. CREEPY) ---------- */}
+      {post.badge && (
+        <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2">
+          <span className="nr-creepy-badge inline-flex items-center rounded-full bg-[#0a0a0a] px-3.5 py-1.5 text-[0.62rem] font-black tracking-[0.24em] text-white">
+            {post.badge}
+          </span>
+        </div>
+      )}
+
       {/* ---------- ошибка загрузки ---------- */}
       {error && (
         <div className="absolute inset-0 z-30 flex items-center justify-center px-6">

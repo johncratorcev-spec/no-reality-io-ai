@@ -243,3 +243,23 @@ Stage Summary:
 - Нюанс тестов: у всех кнопок карточки общий lastAction (guarded-кулдауны 600–1200мс) — при быстрых последовательных кликах в E2E часть нажатий корректно глотается флуд-контролем (by-design).
 - tsc + eslint чистые, консоль без ошибок.
 - Пуш в GitHub: 4e99b40..109f1ab (PAT пользователя, одноразово в URL); remote HEAD верифицирован через API — 109f1ab; Netlify авторедеплой подхватит.
+
+---
+Task ID: 13
+Agent: Super Z (main agent)
+Task: +7 видео в ленту (батч 4); анимированный бейдж CREEPY на двух из них.
+
+Work Log:
+- Извлечены agent-browser'ом 7 постов (scripts/extract_post.sh -> extract_out/): BAEmUmZUj_ @tremollo_ai (15с, без текста), BAPNTZ-xGs @themacrosift (12с), BAK6h933m- @mesutizm3437 (14с), BAZmyX2v0C @themacrosift (11с), BCJcGR3ZI1 @mr_relative_ (10с), BAX0B8r7iC @xcvmind (58с, русский заголовок переведён на EN — лента только английская), _4yIKMBXZ — invalid_post в 2 попытках (логин-стена).
+- scripts/verify_posts_batch4.py: 6 MP4 верифицированы Range-запросами (206 video/mp4), duration из efg (url-decode фикс для 3 строк).
+- scripts/add_posts_batch4.py: data/posts.csv — новая колонка badge (7-я), 7 строк (badge=CREEPY у BAEmUmZUj_ и BAX0B8r7iC; _4yIKMBXZ с пустым video_url). БАГ ПО ХОДУ: header заменялся локальной переменной, rows[0] оставался 6-колоночным — papaparse не видел badge; исправлен скриптом-фиксом (rows[0] = ...7 колонок).
+- csv.ts: FeedPost.badge?: string + парсинг row.badge (trim + toUpperCase).
+- VideoCard.tsx: бейдж top-center (pointer-events-none, left-1/2 -translate-x-1/2) — чёрная пилюля, белый text-black tracking, class nr-creepy-badge.
+- globals.css: @keyframes nr-creepy-flicker (4.8s) — неровные серии провалов яркости 1->0.35->1 с микроперекосами skewX(+-(4-6)deg) в начале цикла и на 46-52%, плюс пульс box-shadow на 73-81%; строго ч/б.
+- Снапшот перегенерирован; НЮАНС: рестарт next dev (Turbopack не поднял csv.ts на лету — SSR без badge).
+- Автоджоба refresh_links (старт через 90с после рестарта) «угоняла» таб agent-browser (ходила по share-ссылкам) — E2E ждал её завершения; оживила _4yIKMBXZ: видео найдено и верифицировано джобой (18с, 720x900), автор остался @unknown (логин-стена). DictWriter джобы сохраняет колонки — badge не пострадал; снапшот перегенерирован ПОСЛЕ джобы.
+
+Stage Summary:
+- E2E (390x844): /v/mr42EPRm (idx 25) — бейдж CREEPY x=155 (центр), nr-creepy-flicker/4.8s применён, чёрная пилюля/белый текст; не перекрывает скрепку (12-52), профиль (60-100), mute (338-378); видео readyState 4 играет; scrollW=390. /v/H8N865zj (idx 19) — бейдж на месте, видео играет (скриншот creepy_badge.png). /v/ALdCmvh7 (idx 20) — обычная, без бейджа, 13с играет. /v/M4uledti (idx 22) — ожившее видео (RIZIN-бой) играет; КОНТЕНТ НЕ ВЕРИФИЦИРУЕМ против оригинала (invalid_post на стороне Threads) — помечено пользователю.
+- Лента: 26 карточек (было 19); новые в конце (score 0), бусты не тронуты.
+- tsc + eslint чистые.
