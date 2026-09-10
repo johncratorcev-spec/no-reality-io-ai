@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Volume2,
   VolumeX,
+  Wrench,
 } from "lucide-react";
 import type { FeedPost } from "@/lib/csv";
 import { isBoosted } from "@/lib/boost";
@@ -549,21 +550,50 @@ export default function VideoCard({
         {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </button>
 
-      {/* ---------- link: скрепка в левом верхнем углу, наравне со звуком ----------
-          копирует deep-link /v/[code]; лёгкий периодический wiggle цепляет взгляд ---------- */}
-      <button
-        onClick={copyInternal}
-        aria-label={linkCopied ? "Link copied" : "Copy the link to this video"}
-        className={`nr-glass absolute left-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-[transform,box-shadow] duration-300 hover:-rotate-6 hover:scale-[1.08] hover:shadow-[0_0_20px_rgba(16,22,29,.3)] active:scale-90 ${
-          linkCopied ? "nr-anim-copied nr-ring-glow" : ""
-        }`}
-      >
-        {linkCopied ? (
-          <Check key="check" className="nr-anim-morph h-4 w-4" />
-        ) : (
-          <Paperclip key="clip" className="nr-clip-wiggle h-4 w-4" />
+      {/* ---------- левый верхний ряд: скрепка + профиль автора ----------
+          скрепка копирует deep-link /v/[code] (wiggle цепляет взгляд);
+          профиль — круглая кнопка правее скрепки, ведёт на @author в Threads.
+          У бустнутых постов — жемчужный shimmer-ранг вместо обычного стекла.
+          pointer-events-none на обёртке: клики в зазорах уходят в видео ---------- */}
+      <div className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-2">
+        <button
+          onClick={copyInternal}
+          aria-label={linkCopied ? "Link copied" : "Copy the link to this video"}
+          className={`nr-glass pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-[transform,box-shadow] duration-300 hover:-rotate-6 hover:scale-[1.08] hover:shadow-[0_0_20px_rgba(16,22,29,.3)] active:scale-90 ${
+            linkCopied ? "nr-anim-copied nr-ring-glow" : ""
+          }`}
+        >
+          {linkCopied ? (
+            <Check key="check" className="nr-anim-morph h-4 w-4" />
+          ) : (
+            <Paperclip key="clip" className="nr-clip-wiggle h-4 w-4" />
+          )}
+        </button>
+
+        {authorHandle && (
+          <a
+            href={`https://www.threads.com/@${authorHandle}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!guarded(800)) e.preventDefault(); // флуд-контроль
+            }}
+            aria-label={`Open ${post.author} profile on Threads`}
+            className={`pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full p-[2px] transition-transform duration-300 hover:scale-[1.08] active:scale-95 ${
+              boosted ? "nr-author-btn nr-anim-hint" : "nr-glass"
+            }`}
+          >
+            <span
+              className={`flex h-full w-full items-center justify-center rounded-full ${
+                boosted ? "bg-white" : ""
+              }`}
+            >
+              <AtSign className="h-4 w-4 text-[#0a0a0a]" />
+            </span>
+          </a>
         )}
-      </button>
+      </div>
 
       {/* ---------- ошибка загрузки ---------- */}
       {error && (
@@ -582,7 +612,7 @@ export default function VideoCard({
       {/* ---------- glass-статус: живёт в DOM, анимация через transition ---------- */}
       <div
         aria-hidden={!statusShown}
-        className={`absolute bottom-[4.25rem] left-3 right-3 z-20 transition-all duration-500 ease-out sm:right-auto sm:max-w-md ${
+        className={`absolute bottom-[5.5rem] left-3 right-3 z-20 transition-all duration-500 ease-out sm:right-auto sm:max-w-md ${
           statusShown
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-3 opacity-0 blur-xs"
@@ -612,28 +642,10 @@ export default function VideoCard({
         </div>
       </div>
 
-      {/* ---------- кнопки действий ---------- */}
-      <div className="absolute bottom-[5.25rem] right-3 z-20 flex flex-col items-end gap-2">
-        {/* автор — специальная кнопка для бустнутого поста (жемчужный shimmer) */}
-        {boosted && authorHandle && (
-          <a
-            href={`https://www.threads.com/@${authorHandle}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!guarded(800)) e.preventDefault(); // флуд-контроль
-            }}
-            aria-label={`Open ${post.author} profile on Threads`}
-            className="nr-author-btn nr-anim-hint rounded-full p-[2px] transition-transform duration-300 hover:scale-[1.05] active:scale-95"
-          >
-            <span className="nr-anim-hint flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[0.72rem] font-bold tracking-tight text-[#0a0a0a] sm:text-[0.78rem]" style={{ animationDelay: "0.15s" }}>
-              <AtSign className="h-3.5 w-3.5" />
-              {authorHandle}
-            </span>
-          </a>
-        )}
-
+      {/* ---------- нижний левый ряд: Share Reality + Threads ----------
+          одна линия с кнопкой промпта (гаечный ключ) справа:
+          оба ряда стоят на bottom-[2rem] — параллельно друг другу ---------- */}
+      <div className="absolute bottom-[2rem] left-3 z-20 flex items-center gap-2">
         {/* Share Reality — главный CTA */}
         <button
           onClick={copyUtm}
@@ -676,7 +688,6 @@ export default function VideoCard({
           <ArrowUpRight className="h-4 w-4 text-[#0a0a0a]" />
           threads
         </a>
-
       </div>
 
       {/* ---------- панель «prompt coming soon» ---------- */}
@@ -685,7 +696,7 @@ export default function VideoCard({
           role="dialog"
           aria-label="Prompt coming soon"
           onClick={(e) => e.stopPropagation()}
-          className="nr-anim-hint absolute bottom-[13.75rem] right-3 left-3 z-30 sm:left-auto sm:max-w-xs"
+          className="nr-anim-hint absolute bottom-[12rem] right-3 left-3 z-30 sm:left-auto sm:max-w-xs"
         >
           <div className="nr-glass-deep rounded-2xl px-4 py-3.5">
             <div className="flex items-center gap-2">
@@ -702,14 +713,16 @@ export default function VideoCard({
         </div>
       )}
 
-      {/* ---------- play: иконка над видео-баром (sonar-ping привлекает внимание) ---------- */}
+      {/* ---------- Reveal Prompt: гаечный ключ над видео-баром ----------
+          sonar-ping привлекает внимание; клик раскрывает панель о промпте.
+          Стоит на одной линии с Share Reality / Threads слева ---------- */}
       <button
         onClick={togglePrompt}
         aria-expanded={promptOpen}
-        aria-label="Show prompt info for this video"
-        className="nr-glass nr-play-pulse absolute bottom-[2rem] right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-transform duration-300 hover:scale-[1.08] active:scale-95"
+        aria-label="Reveal prompt for this video"
+        className="nr-glass nr-play-pulse absolute bottom-[2rem] right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-transform duration-300 hover:rotate-12 hover:scale-[1.08] active:scale-95"
       >
-        <Play className="h-4 w-4 text-[#0a0a0a]" />
+        <Wrench className="h-4 w-4 text-[#0a0a0a]" />
       </button>
 
       {/* ---------- выразительный прогресс-бар ---------- */}

@@ -220,3 +220,25 @@ Stage Summary:
 - E2E (1280×800): те же позиции корректны (clip x=12, mute x=1228, play над баром).
 - React #418 в первом прогоне — артефакт HMR при правке файлов на живой странице; после чистой загрузки консоль без ошибок.
 - tsc + eslint чистые.
+
+---
+Task ID: 12
+Agent: Super Z (main agent)
+Task: Кнопка профиля рядом со скрепкой (правее); Share Reality + Threads — в левый нижний ряд вровень с кнопкой промпта; иконка Reveal Prompt — гаечный ключ.
+
+Work Log:
+- VideoCard.tsx: верхний ряд слева перестроен в группу (pointer-events-none обёртка, зазоры кликаются в видео): скрепка + новая круглая кнопка профиля (AtSign, 40px, nr-glass) ПРАВЕЕ скрепки; видна на всех карточках с известным автором (раньше пилюля автора была только на бустнутых в правом стеке — поэтому «пропала»); у бустнутых — жемчужный nr-author-btn shimmer-ранг + белая сердцевина (наследие дизайна пилюли), href threads.com/@handle, guarded(800).
+- Старая пилюля автора из правого стека удалена (дублировала профиль); правый стек действий расформирован полностью.
+- Share Reality + threads: горизонтальный ряд bottom-[2rem] left-3 (левая часть экрана), вровень с кнопкой промпта (wrench) справа — обе линии на bottom-[2rem], параллельны; ширины хватает на 390px (ряд ~246px, ключ справа с x=338).
+- Reveal Prompt: иконка Play → Wrench (lucide), aria-label «Reveal prompt for this video», hover:rotate-12 (характер ключа); sonar-ping nr-play-pulse сохранён.
+- Геометрия: статус-панель поднята bottom-[4.25rem]→[5.5rem] (клиренс над новым нижним рядом, зазор 16px); prompt-панель опущена bottom-[13.75rem]→[12rem] (ближе к ключу, всё ещё над статусом без перекрытий).
+- tsc + eslint чистые.
+
+Stage Summary:
+- E2E (390×844, карточка 0 бустнутая): clip x=12 / профиль x=60 (shimmer, href @popaistudio1) / mute x=338 — одна строка; share x=12 + threads x=148 слева, wrench x=338 — центры 80/81px, параллель; scrollW=390 без оверфлоу.
+- E2E (карточка 2 обычная): профиль glass без shimmer, aria «Open @stanislavstarchenko profile on Threads»; wrench/share ровно 32px от низа карточки.
+- Интерактив: wrench toggle (открылось/закрылось, expanded синхронно); панель над статусом без перекрытий (низ 608px против верха статуса ~625px); скрепка → «Link copied» + Check + ring-glow, через 2.4с возврат Paperclip+wiggle; share → «copied».
+- Зазоры верхнего ряда: elementFromPoint = VIDEO (pointer-events-none работает — клик между кнопками ставит видео на паузу, как раньше).
+- E2E (1280×800): topRowAligned=true, bottomRowAligned=true, нет перекрытий, scrollW=1280.
+- Нюанс тестов: у всех кнопок карточки общий lastAction (guarded-кулдауны 600–1200мс) — при быстрых последовательных кликах в E2E часть нажатий корректно глотается флуд-контролем (by-design).
+- tsc + eslint чистые, консоль без ошибок.
