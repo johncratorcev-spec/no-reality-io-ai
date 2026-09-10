@@ -11,7 +11,7 @@ import {
   ArrowUpRight,
   AtSign,
   Check,
-  Link2,
+  Paperclip,
   Pause,
   Play,
   Share2,
@@ -122,7 +122,7 @@ function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: Pro
         barRef.current?.setAttribute("aria-valuenow", String(Math.round(p * 100)));
         barRef.current?.setAttribute(
           "aria-valuetext",
-          `${fmt(v.currentTime)} из ${fmt(v.duration)}`
+          `${fmt(v.currentTime)} of ${fmt(v.duration)}`
         );
         if (v.duration !== lastDur) {
           lastDur = v.duration;
@@ -177,7 +177,7 @@ function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: Pro
       <div
         ref={barRef}
         role="slider"
-        aria-label="Прогресс видео"
+        aria-label="Video progress"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={0}
@@ -528,7 +528,7 @@ export default function VideoCard({
           <div className="nr-anim-hint nr-glass-deep flex items-center gap-2.5 rounded-full px-5 py-3">
             <Play className="h-4 w-4 text-[#0a0a0a]" />
             <span className="text-[0.8rem] font-bold tracking-tight">
-              нажми, чтобы смотреть
+              tap to watch
             </span>
           </div>
         </div>
@@ -543,20 +543,36 @@ export default function VideoCard({
           v.muted = !v.muted;
           setMuted(v.muted);
         }}
-        aria-label={muted ? "Включить звук" : "Выключить звук"}
+        aria-label={muted ? "Unmute" : "Mute"}
         className="nr-glass absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(16,22,29,.3)]"
       >
         {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+      </button>
+
+      {/* ---------- link: скрепка в левом верхнем углу, наравне со звуком ----------
+          копирует deep-link /v/[code]; лёгкий периодический wiggle цепляет взгляд ---------- */}
+      <button
+        onClick={copyInternal}
+        aria-label={linkCopied ? "Link copied" : "Copy the link to this video"}
+        className={`nr-glass absolute left-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-[transform,box-shadow] duration-300 hover:-rotate-6 hover:scale-[1.08] hover:shadow-[0_0_20px_rgba(16,22,29,.3)] active:scale-90 ${
+          linkCopied ? "nr-anim-copied nr-ring-glow" : ""
+        }`}
+      >
+        {linkCopied ? (
+          <Check key="check" className="nr-anim-morph h-4 w-4" />
+        ) : (
+          <Paperclip key="clip" className="nr-clip-wiggle h-4 w-4" />
+        )}
       </button>
 
       {/* ---------- ошибка загрузки ---------- */}
       {error && (
         <div className="absolute inset-0 z-30 flex items-center justify-center px-6">
           <div className="nr-glass-deep max-w-xs rounded-3xl px-6 py-7 text-center">
-            <p className="font-bold tracking-tight">видео временно недоступно</p>
+            <p className="font-bold tracking-tight">video temporarily unavailable</p>
             <p className="mt-2 text-xs leading-relaxed text-[#10161d]/60">
-              ссылка CDN могла устареть — обнови{" "}
-              <code className="font-mono">video_url</code> в{" "}
+              the CDN link may have expired — update{" "}
+              <code className="font-mono">video_url</code> in{" "}
               <code className="font-mono">/data/posts.csv</code>
             </p>
           </div>
@@ -597,7 +613,7 @@ export default function VideoCard({
       </div>
 
       {/* ---------- кнопки действий ---------- */}
-      <div className="absolute bottom-[4.25rem] right-3 z-20 flex flex-col items-end gap-2">
+      <div className="absolute bottom-[5.25rem] right-3 z-20 flex flex-col items-end gap-2">
         {/* автор — специальная кнопка для бустнутого поста (жемчужный shimmer) */}
         {boosted && authorHandle && (
           <a
@@ -608,7 +624,7 @@ export default function VideoCard({
               e.stopPropagation();
               if (!guarded(800)) e.preventDefault(); // флуд-контроль
             }}
-            aria-label={`Открыть профиль автора ${post.author} в Threads`}
+            aria-label={`Open ${post.author} profile on Threads`}
             className="nr-author-btn nr-anim-hint rounded-full p-[2px] transition-transform duration-300 hover:scale-[1.05] active:scale-95"
           >
             <span className="nr-anim-hint flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[0.72rem] font-bold tracking-tight text-[#0a0a0a] sm:text-[0.78rem]" style={{ animationDelay: "0.15s" }}>
@@ -621,7 +637,7 @@ export default function VideoCard({
         {/* Share Reality — главный CTA */}
         <button
           onClick={copyUtm}
-          aria-label="Скопировать UTM-ссылку, чтобы поднять видео в ленте"
+          aria-label="Copy the UTM link to boost this video in the feed"
           className={`flex items-center gap-2 rounded-full bg-[#0a0a0a] px-4 py-2.5 text-[0.75rem] font-bold text-white transition-[box-shadow,transform] duration-300 hover:scale-[1.03] active:scale-95 sm:text-[0.8rem] ${
             copied ? "nr-anim-copied nr-ring-glow" : "nr-btn-glow"
           }`}
@@ -632,7 +648,7 @@ export default function VideoCard({
               className="nr-anim-morph flex items-center gap-2"
             >
               <Check className="h-4 w-4" />
-              скопировано
+              copied
             </span>
           ) : (
             <span
@@ -641,31 +657,6 @@ export default function VideoCard({
             >
               <Share2 className="h-4 w-4" />
               share reality
-            </span>
-          )}
-        </button>
-
-        {/* link — deep-link на это видео внутри ленты (/v/[code]) */}
-        <button
-          onClick={copyInternal}
-          aria-label="Скопировать ссылку на это видео в ленте"
-          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.04] active:scale-95 sm:text-[0.78rem]"
-        >
-          {linkCopied ? (
-            <span
-              key="check"
-              className="nr-anim-morph flex items-center gap-2"
-            >
-              <Check className="h-4 w-4" />
-              скопировано
-            </span>
-          ) : (
-            <span
-              key="link"
-              className="nr-anim-morph flex items-center gap-2"
-            >
-              <Link2 className="h-4 w-4" />
-              link
             </span>
           )}
         </button>
@@ -679,23 +670,13 @@ export default function VideoCard({
             e.stopPropagation();
             if (!guarded(1000)) e.preventDefault(); // флуд-контроль вкладок
           }}
-          aria-label="Открыть это видео в Threads"
+          aria-label="Open this video on Threads"
           className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.04] active:scale-95 sm:text-[0.78rem]"
         >
           <ArrowUpRight className="h-4 w-4 text-[#0a0a0a]" />
           threads
         </a>
 
-        {/* play — скоро здесь можно будет смотреть промпт генерации */}
-        <button
-          onClick={togglePrompt}
-          aria-expanded={promptOpen}
-          aria-label="Показать информацию о промпте этого видео"
-          className="nr-glass flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.04] active:scale-95 sm:text-[0.78rem]"
-        >
-          <Play className="h-4 w-4 text-[#0a0a0a]" />
-          play
-        </button>
       </div>
 
       {/* ---------- панель «prompt coming soon» ---------- */}
@@ -704,7 +685,7 @@ export default function VideoCard({
           role="dialog"
           aria-label="Prompt coming soon"
           onClick={(e) => e.stopPropagation()}
-          className="nr-anim-hint absolute bottom-[7.75rem] right-3 left-3 z-30 sm:left-auto sm:max-w-xs"
+          className="nr-anim-hint absolute bottom-[13.75rem] right-3 left-3 z-30 sm:left-auto sm:max-w-xs"
         >
           <div className="nr-glass-deep rounded-2xl px-4 py-3.5">
             <div className="flex items-center gap-2">
@@ -720,6 +701,16 @@ export default function VideoCard({
           </div>
         </div>
       )}
+
+      {/* ---------- play: иконка над видео-баром (sonar-ping привлекает внимание) ---------- */}
+      <button
+        onClick={togglePrompt}
+        aria-expanded={promptOpen}
+        aria-label="Show prompt info for this video"
+        className="nr-glass nr-play-pulse absolute bottom-[2rem] right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-transform duration-300 hover:scale-[1.08] active:scale-95"
+      >
+        <Play className="h-4 w-4 text-[#0a0a0a]" />
+      </button>
 
       {/* ---------- выразительный прогресс-бар ---------- */}
       <ProgressBar

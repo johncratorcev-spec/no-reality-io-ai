@@ -199,3 +199,24 @@ Stage Summary:
 - Причина падения устранена на трёх уровнях: клиент Prisma (явная генерация + rhel-движки), данные в бандле (трейс-инклуды + снапшот-фолбэк), устойчивость рантайма (лента и редиректы работают даже при недоступной БД).
 - Пуш коммита требует PAT (в окружении не сохранялся): git push https://johncratorcev-spec:<PAT>@github.com/johncratorcev-spec/no-reality-io-ai.git main
 - На стороне Netlify: ничего настраивать не нужно (DATABASE_URL в UI НЕ задавать — lib/db.ts разрулит сам); редеплой после пуша подхватит netlify.toml.
+
+---
+Task ID: 11
+Agent: Super Z (main agent)
+Task: Полностью английские тексты в приложении + редизайн кнопок link (скрепка) и play.
+
+Work Log:
+- Переведены все видимые тексты на английский: VideoCard (статусы, aria-label'ы, подсказка автоплея, ошибка CDN), Feed (пустая лента), not-found /v/[code] (no reality here / back to feed), layout.tsx (description, lang="en", Manrope subsets latin — cyrillic-сабсет удалён, минус файл шрифта), WebGLBanner (aria + «Partner of the Week»).
+- 7 русских заголовков постов в data/posts.csv переведены на английский (scripts/translate_titles.py, по utm_code, порядок/колонки сохранены); снапшот перегенерирован.
+- VideoCard: link-кнопка → компактная круглая (40px) с иконкой Paperclip, top-3 left-3 — один ряд с mute (right-3 top-3); скопированные → morph Paperclip→Check + bounce + ring-glow, aria «Link copied».
+- Анимация скрепки .nr-clip-wiggle (globals.css): периодический лёгкий wiggle каждые 5.2с (84% цикла покой → серия наклонов ±16°/13°/8°/5° с микромасштабом), hover: -rotate-6 + scale 1.08 + glow.
+- Play-кнопка: круглая иконка без подписи, bottom-[2rem] right-3 — прямо над прогресс-баром (зазор 8px); анимация .nr-play-pulse — sonar-ping каждые 4с (расходящееся белое кольцо + glow).
+- Правый стек действий: author + share reality + threads, поднят на bottom-[5.25rem] (освобождено место под play); link/play из стека убраны.
+- Prompt-панель поднята на bottom-[13.75rem] — открывается над стеком, кнопки не перекрывает.
+- Пуш в GitHub: 837bfcd.. (коммит Netlify-фиксов 00aa8f6 + автокоммит) — через новый PAT пользователя.
+
+Stage Summary:
+- E2E (390×844): скрепка (12,144) на одной строке со звуком (338,144); play над баром (gap 8px); nr-clip-wiggle 5.2s и nr-play-ping 4s применены; trusted-клик скрепки → aria «Link copied» + Check; share → «copied» (EN); play → prompt-панель (EN) над стеком (485–580px); заголовки ленты английские; full-DOM-скан видимой кириллицы — 0; горизонтального оверфлоу нет.
+- E2E (1280×800): те же позиции корректны (clip x=12, mute x=1228, play над баром).
+- React #418 в первом прогоне — артефакт HMR при правке файлов на живой странице; после чистой загрузки консоль без ошибок.
+- tsc + eslint чистые.

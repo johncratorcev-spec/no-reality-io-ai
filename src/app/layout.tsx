@@ -4,7 +4,7 @@ import "./globals.css";
 
 const manrope = Manrope({
   variable: "--font-manrope",
-  subsets: ["latin", "cyrillic"],
+  subsets: ["latin"],
   weight: ["400", "600", "700", "800"],
   display: "swap",
 });
@@ -12,7 +12,7 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "no reality.",
   description:
-    "Лента AI-видео из Threads. Смотри, делись реальностью. smartluvon — Partner of Week.",
+    "A feed of AI video from Threads. Watch. Share reality. smartluvon — Partner of the Week.",
   icons: {
     icon:
       "data:image/svg+xml," +
@@ -35,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${manrope.variable} antialiased bg-white text-[#1B1523] font-[family-name:var(--font-manrope)]`}
       >

@@ -193,7 +193,7 @@ export default function WebGLBanner() {
     <section
       className="nr-anim-fade-down relative z-40 h-[var(--nr-banner-h)] shrink-0 overflow-hidden"
       style={{ animationDuration: "0.8s", animationDelay: "0.15s" }}
-      aria-label="Баннер: smartluvon — Partner of Week"
+      aria-label="Banner: smartluvon — Partner of the Week"
     >
       {/* WebGL-полотно / CSS-fallback */}
       {failed ? (
@@ -228,7 +228,7 @@ export default function WebGLBanner() {
         href={VIRAL_URL}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="smartluvon — Partner of Week. Перейти в Telegram"
+        aria-label="smartluvon — Partner of the Week. Open in Telegram"
         className="nr-anim-fade-in nr-anim-late group relative flex h-full w-full items-center justify-center transition-transform duration-300 hover:scale-[1.01] active:scale-[0.99]"
       >
         <div className="flex flex-col items-center leading-none">
@@ -236,7 +236,7 @@ export default function WebGLBanner() {
             smartluvon
           </span>
           <span className="mt-1 text-[0.58rem] font-bold uppercase tracking-[0.28em] text-[#10161d]/60 sm:text-[0.65rem]">
-            — Partner of Week —
+            — Partner of the Week —
           </span>
         </div>
 

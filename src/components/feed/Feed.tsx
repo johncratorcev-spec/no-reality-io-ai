@@ -104,10 +104,10 @@ export default function Feed({ posts, focusCode }: FeedProps) {
     return (
       <div className="flex h-full items-center justify-center px-6">
         <div className="nr-glass-deep max-w-sm rounded-3xl px-8 py-10 text-center">
-          <p className="text-lg font-bold tracking-tight">лента пуста</p>
+          <p className="text-lg font-bold tracking-tight">the feed is empty</p>
           <p className="mt-2 text-sm text-[#10161d]/60">
-            добавь посты в <code className="font-mono">/data/posts.csv</code> —
-            и они появятся здесь
+            add posts to <code className="font-mono">/data/posts.csv</code> —
+            they will appear here
           </p>
         </div>
       </div>
@@ -120,7 +120,7 @@ export default function Feed({ posts, focusCode }: FeedProps) {
       onKeyDown={onKeyDown}
       tabIndex={0}
       role="region"
-      aria-label="Лента видео"
+      aria-label="Video feed"
       className="nr-feed h-full w-full snap-y snap-mandatory overflow-y-auto outline-none"
     >
       {posts.map((post, i) => (

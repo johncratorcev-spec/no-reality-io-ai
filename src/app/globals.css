@@ -121,6 +121,25 @@
 .nr-anim-dot { animation: nr-dot 3.2s ease-in-out infinite; }
 .nr-anim-late { animation-delay: 0.4s; }
 
+/* --- link-скрепка: лёгкий периодический wiggle — привлекает взгляд, но не раздражает --- */
+@keyframes nr-clip-wiggle {
+  0%, 84% { transform: rotate(0deg) scale(1); }
+  87%     { transform: rotate(-16deg) scale(1.12); }
+  90%     { transform: rotate(13deg) scale(1.08); }
+  93%     { transform: rotate(-8deg) scale(1.05); }
+  96%     { transform: rotate(5deg) scale(1.02); }
+  100%    { transform: rotate(0deg) scale(1); }
+}
+.nr-clip-wiggle { animation: nr-clip-wiggle 5.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite; }
+
+/* --- play: sonar-ping — раз в ~4с расходится световое кольцо --- */
+@keyframes nr-play-ping {
+  0%, 78%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), 0 0 0 rgba(16, 22, 29, 0); }
+  86%       { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55), 0 0 20px rgba(16, 22, 29, 0.35); }
+  94%, 100% { box-shadow: 0 0 0 9px rgba(255, 255, 255, 0), 0 0 24px rgba(16, 22, 29, 0.28); }
+}
+.nr-play-pulse { animation: nr-play-ping 4s ease-out infinite; }
+
 /* --- кнопка автора (бустнутый пост): жемчужно-голубой shimmer + пульс-glow --- */
 @keyframes nr-author-shimmer {
   from { background-position: 0% 50%; }
