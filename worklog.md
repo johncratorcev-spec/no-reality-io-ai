@@ -390,3 +390,22 @@ Stage Summary:
 - Панель работает end-to-end: ссылка → извлечение → верификация → CSV → снапшот → лента живо подхватывает. Все 4 бейджа + «без бейджа». RU-заголовки — через поле перевода (кэш ускоряет повтор).
 - Лента 39 постов (тестовые следы удалены). ROCKET SCIENCE в ленте: 0, закреплён за _8h16T9aG при появлении доступа.
 - tsc чистый, dev.log без ошибок.
+
+---
+Task ID: 22
+Agent: Super Z (main agent)
+Task: Панель на Vercel падала (mkdir /var/task — read-only ФС serverless). Сделать панель рабочей на serverless-хостинге.
+
+Work Log:
+- Диагноз: serverless = read-only ФС + нет python3/agent-browser + detached-процессы умирают. Пробы: jina отдаёт title/author/text (быстро, без стены), но НИКОГДА не отдаёт .mp4 (видео только через JS; в сыром HTML 273KB — 0 ссылок; /embed → 404).
+- Находка: Threads share-коды МУТИРУЮТ — BAVq1ma_VU теперь резолвится в @vivalunaar («Just keep F*CKING going»), _gYuRN9lp → @metronovon (в CSV — @regina.timer/@mr_relative_). Фиду не вредит (хранит прямой mp4), но метаданные из jina могут расходиться → в UI добавлены поля-овверрайды author/video.
+- Архитектура двух режимов в route.ts (SERVERLESS = VERCEL||NETLIFY):
+  • Песочница (preview): как раньше — async-джоба panel_add.py + поллинг (плюс новые флаги --video/--author: ручной режим пропускает извлечение, только 206-проверка → CSV → снапшот).
+  • Serverless: синхронно — jinaMeta (title/author, wall-детект) + ручной адрес видео (обязателен) + verifyVideoUrl (Range → 206 video) → коммит data/posts.csv в GitHub через Git Data API (src/lib/panel_github.ts: ref → commit → tree(base_tree) → commit → patch ref, 1 ретрай на 409/422) → хостинг авторедеплоит. GET-список на serverless читает CSV из репо (бандл может отставать). maxDuration=60. Патам — env GITHUB_PANEL_PAT.
+- Багфиксы по пути: в рерайте потерялся --job в spawn-аргах (джобы падали молча на argparse → 404 статуса); test_panel.py — терпимость к 404 + поле video; panel_cleanup_test.py — фильтр TESTPANEL*.
+- Тесты: scripts/test_serverless.ts (node 24 type stripping) — getCsvFromGitHub 39 постов, dupe, verifyVideoUrl 206, jina (в этот раз WALL — флакова, покрыто ошибкой с подсказкой), РЕАЛЬНЫЙ no-op коммит 8db0d68 (write-путь GitHub proven). Сандбокс: дубликат за 2с, ручной режим видео → done → откат до 39. tsc чистый.
+
+Stage Summary:
+- Панель работает в двух средах: preview — полный авто (agent-browser), Vercel/Netlify — jina-метаданные + ручной адрес видео + коммит в репо с авторедеплоем (~1–2 мин).
+- Для Vercel: добавить env GITHUB_PANEL_PAT (fine-grained PAT с Contents: write) и передеплоить.
+- Лента 39 постов, тестовых следов нет. jina нестабильна на стене — при ошибке жать ещё раз или заполнять поля руками.

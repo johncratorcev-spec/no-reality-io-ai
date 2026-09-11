@@ -20,14 +20,21 @@ def get_job(jid):
 def main():
     url, badge = sys.argv[1], sys.argv[2]
     title = sys.argv[3] if len(sys.argv) > 3 else ""
-    res = post({"url": url, "badge": badge, "title": title})
+    video = sys.argv[4] if len(sys.argv) > 4 else ""
+    res = post({"url": url, "badge": badge, "title": title, "video": video})
     print("POST:", json.dumps(res, ensure_ascii=False))
     if "jobId" not in res:
         sys.exit(1)
     jid, t0 = res["jobId"], time.time()
     while time.time() - t0 < 240:
         time.sleep(2)
-        st = get_job(jid)
+        try:
+            st = get_job(jid)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                print(f"[{int(time.time()-t0)}s] …статус ещё не создан")
+                continue
+            raise
         state = st.get("state")
         logs = st.get("log") or []
         print(f"[{int(time.time()-t0)}s] {state} | {logs[-1] if logs else '-'}")

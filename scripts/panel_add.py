@@ -153,6 +153,8 @@ def main():
     ap.add_argument("--url", required=True)
     ap.add_argument("--badge", default="")
     ap.add_argument("--title", default="")
+    ap.add_argument("--video", default="", help="ручной адрес mp4 — пропустить извлечение")
+    ap.add_argument("--author", default="")
     ap.add_argument("--job", required=True)
     args = ap.parse_args()
     S["id"] = args.job
@@ -193,32 +195,46 @@ def run(args):
         fail("этот пост уже в ленте")
         return
 
-    if not extract(code, url):
-        fail("Threads не отдал пост после 3 попыток (логин-стена или пост "
-             "недоступен). Попробуй ещё раз позже — кэш извлечения ускорит успех")
-        return
+    if args.video:
+        # ручной режим: адрес видео дал пользователь, метаданные — из формы
+        video_url = args.video.strip()
+        log("проверяю ручную ссылку видео (206 video/mp4)…")
+        verdict = verify_video(video_url)
+        if not verdict.startswith("206") or "video" not in verdict:
+            fail(f"CDN не отдал видео ({verdict or 'нет ответа'}) — скопируй адрес заново")
+            return
+        log(f"видео ок: {verdict}")
+        author = args.author.strip() or "@unknown"
+        title = clean(args.title)
+        d = {}
+    else:
+        if not extract(code, url):
+            fail("Threads не отдал пост после 3 попыток (логин-стена или пост "
+                 "недоступен). Попробуй ещё раз позже — кэш извлечения ускорит успех, "
+                 "или вставь адрес видео вручную в поле «адрес видео»")
+            return
 
-    d = parse_extract(EXT / f"{code}.json") or {}
-    video_url = (d.get("srcs") or [""])[0]
+        d = parse_extract(EXT / f"{code}.json") or {}
+        video_url = (d.get("srcs") or [""])[0]
 
-    log("проверяю CDN-ссылку видео (206 video/mp4)…")
-    verdict = verify_video(video_url)
-    if not verdict.startswith("206") or "video" not in verdict:
-        fail(f"CDN не отдал видео ({verdict or 'нет ответа'}) — ссылка протухла, "
-             "повтори добавление")
-        return
-    log(f"видео ок: {verdict}")
+        log("проверяю CDN-ссылку видео (206 video/mp4)…")
+        verdict = verify_video(video_url)
+        if not verdict.startswith("206") or "video" not in verdict:
+            fail(f"CDN не отдал видео ({verdict or 'нет ответа'}) — ссылка протухла, "
+                 "повтори добавление")
+            return
+        log(f"видео ок: {verdict}")
 
-    m = re.search(r"/@([A-Za-z0-9_.]+)/post/", d.get("author") or "")
-    author = f"@{m.group(1)}" if m else "@unknown"
-    title = clean(args.title) or clean(d.get("title") or "")
-    if not args.title and re.search(r"[а-яё]", title, re.I):
-        fail(f"в посте русский заголовок — лента англоязычная. Впиши свой "
-             f"перевод в поле «Свой заголовок» и отправь ещё раз (извлечение "
-             f"уже закэшировано). Оригинал: {title[:120]}")
-        return
-    if not title:
-        log("у поста нет описания — добавляю без заголовка (как hMKB_IqJ)")
+        m = re.search(r"/@([A-Za-z0-9_.]+)/post/", d.get("author") or "")
+        author = args.author.strip() or (f"@{m.group(1)}" if m else "@unknown")
+        title = clean(args.title) or clean(d.get("title") or "")
+        if not args.title and re.search(r"[а-яё]", title, re.I):
+            fail(f"в посте русский заголовок — лента англоязычная. Впиши свой "
+                 f"перевод в поле «Свой заголовок» и отправь ещё раз (извлечение "
+                 f"уже закэшировано). Оригинал: {title[:120]}")
+            return
+        if not title:
+            log("у поста нет описания — добавляю без заголовка (как hMKB_IqJ)")
 
     rows = read_csv_rows()
     if is_dupe(rows, code):

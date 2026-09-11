@@ -15,7 +15,9 @@ type JobResult = {
   author: string;
   title: string;
   badge: string;
-  video: string;
+  video?: string;
+  commit?: string;
+  pending?: boolean;
 };
 
 type JobStatus = {
@@ -33,6 +35,8 @@ export default function ControlPanelPage() {
   const API = `${pathname}/add`;
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [video, setVideo] = useState("");
   const [badge, setBadge] = useState("");
   const [job, setJob] = useState<JobStatus | null>(null);
   const [formError, setFormError] = useState("");
@@ -90,15 +94,27 @@ export default function ControlPanelPage() {
       const r = await fetch(API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, badge, title }),
+        body: JSON.stringify({ url, badge, title, author, video }),
       });
       const d = await r.json();
-      if (!r.ok || !d.jobId) {
+      if (!r.ok) {
         setFormError(d.error || "не удалось запустить добавление");
         return;
       }
-      startedAt.current = Date.now();
-      setJob({ id: d.jobId, state: "running", log: ["джоба запущена…"] });
+      if (d.jobId) {
+        startedAt.current = Date.now();
+        setJob({ id: d.jobId, state: "running", log: ["джоба запущена…"] });
+      } else if (d.result) {
+        /* serverless: ответ синхронный, деплой приедет через 1–2 минуты */
+        setJob({
+          state: "done",
+          log: d.dryRun
+            ? ["пробный прогон — коммит не делался"]
+            : [`коммит ${d.result.commit} ушёл в репозиторий`, "деплой приедет через 1–2 минуты"],
+          result: { ...d.result, pending: !d.dryRun },
+        });
+        refreshList();
+      }
     } catch {
       setFormError("сеть недоступна — попробуй ещё раз");
     } finally {
@@ -153,6 +169,38 @@ export default function ControlPanelPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="если у поста нет описания или он на русском"
               autoComplete="off"
+              disabled={running}
+              className="mt-1 w-full border-b-2 border-neutral-200 bg-transparent py-2 text-sm outline-none transition-colors placeholder:text-neutral-300 focus:border-neutral-900 disabled:opacity-40"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="nr-author" className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
+              автор <span className="font-medium normal-case tracking-normal">(если определился неверно)</span>
+            </label>
+            <input
+              id="nr-author"
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              placeholder="@username"
+              autoComplete="off"
+              spellCheck={false}
+              disabled={running}
+              className="mt-1 w-full border-b-2 border-neutral-200 bg-transparent py-2 text-sm outline-none transition-colors placeholder:text-neutral-300 focus:border-neutral-900 disabled:opacity-40"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="nr-video" className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
+              адрес видео <span className="font-medium normal-case tracking-normal">(обязательно на верчеле)</span>
+            </label>
+            <input
+              id="nr-video"
+              value={video}
+              onChange={(e) => setVideo(e.target.value)}
+              placeholder="правый клик по видео в посте → копировать адрес видео (….mp4)"
+              autoComplete="off"
+              spellCheck={false}
               disabled={running}
               className="mt-1 w-full border-b-2 border-neutral-200 bg-transparent py-2 text-sm outline-none transition-colors placeholder:text-neutral-300 focus:border-neutral-900 disabled:opacity-40"
             />
@@ -233,18 +281,26 @@ export default function ControlPanelPage() {
                   </p>
                 )}
                 <div className="mt-3 flex items-center justify-between">
-                  <a
-                    href={`/v/${job.result.utm}`}
-                    target="_blank"
-                    className="font-mono text-xs underline underline-offset-4 hover:text-neutral-500"
-                  >
-                    /v/{job.result.utm}
-                  </a>
+                  {job.result.pending ? (
+                    <span className="font-mono text-xs text-neutral-400">
+                      /v/{job.result.utm} — после деплоя
+                    </span>
+                  ) : (
+                    <a
+                      href={`/v/${job.result.utm}`}
+                      target="_blank"
+                      className="font-mono text-xs underline underline-offset-4 hover:text-neutral-500"
+                    >
+                      /v/{job.result.utm}
+                    </a>
+                  )}
                   <button
                     onClick={() => {
                       setJob(null);
                       setUrl("");
                       setTitle("");
+                      setAuthor("");
+                      setVideo("");
                       setBadge("");
                     }}
                     className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400 hover:text-neutral-900"
