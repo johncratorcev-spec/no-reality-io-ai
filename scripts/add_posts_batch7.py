@@ -25,6 +25,13 @@ META = [
     ("BAeVwPvTJf", "WELCOME TO THE FUTURE",  "", None),
     ("BAi0MTP0NQ", "CREEPY",                 "", None),
     ("BAJE206f7E", "WELCOME TO THE FUTURE",  "", None),
+    # Task 19
+    ("BAVq1ma_VU", "ROCKET SCIENCE",
+     "I'm a beginner AI creator and this is my first realistic video ✨ "
+     "I'd really appreciate your support with likes on this challenging "
+     "but beautiful journey 🥰", None),
+    ("BBrK8muRRI", "SWAG",                   "", None),
+    ("_gYuRN9lp",  "WELCOME TO THE FUTURE",  "", None),
 ]
 
 with open(CSV, newline="", encoding="utf-8") as f:
