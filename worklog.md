@@ -445,3 +445,17 @@ Work Log:
 Stage Summary:
 - Лента 41 пост: 6×SWAG, 3×CREEPY, 7×WELCOME, 0×ROCKET. Пины 1–5 на месте.
 - Уроки: (1) phantom-навигации в E2E = session-restore chrome, лечится чисткой /tmp/agent-browser-chrome-*; (2) песочница может самопроизвольно откатывать рабочую копию — после любого инцидента сверять git status со HEAD и восстанавливать checkout-ом; прод-истина = GitHub HEAD.
+
+---
+Task ID: 25
+Agent: Super Z (main agent)
+Task: Добавить 2 видео: BAXhyoy3iC (SWAG) и _nV8naeIw (WELCOME TO THE FUTURE).
+
+Work Log:
+- Оба извлечены с первой попытки, без стены. BAXhyoy3iC: @our.cult.ure, «STREET SERMON / made by Cult.ure» (EN), карусель 6 видео, взят srcs[0] 19s 960p. _nV8naeIw: @neurozeh, заголовок русский («Скоро настанет эпоха…») → переведён EN: «Soon we'll be generating our own films in a single evening / And films with real actors will become a privilege», карусель 4 видео, взят srcs[0] 165s 720p.
+- Верификация: оба srcs[0] → 206 video/mp4. Добавление через panel_add.py (кэш + .ok): utm j59dA1Ld (SWAG) и ga9l9UEc (WELCOME TO THE FUTURE), CSV 43 поста, снапшот пересобран, tsc чистый.
+- E2E с чистым профилем (урок Task 24: close --all + rm -rf /tmp/agent-browser-chrome-* перед каждым прогоном): /v/j59dA1Ld — @our.cult.ure, SWAG-бейдж, rs4; /v/ga9l9UEc — @neurozeh, WELCOME + nr-ufo-fly, rs4; tab list = 1 вкладка, phantom-навигаций нет.
+- Пуш b1a3227..a96e72e, remote HEAD = a96e72e.
+
+Stage Summary:
+- Лента 43 поста: 7×SWAG, 3×CREEPY, 8×WELCOME, 0×ROCKET. Пины 1–5 на месте.
