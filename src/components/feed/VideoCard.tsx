@@ -598,26 +598,46 @@ export default function VideoCard({
         )}
       </div>
 
-      {/* ---------- анимированный бейдж (CREEPY / SWAG / UFO) ---------- */}
+      {/* ---------- анимированный бейдж (CREEPY / SWAG / UFO / ROCKET) ---------- */}
       {post.badge && (
         <div
           className={`pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 ${
-            post.badge === "WELCOME TO THE FUTURE" ? "top-14" : "top-3"
+            /* UFO-бейдж компактный: центрирован по линии верхних кнопок (в ряд) */
+            post.badge === "WELCOME TO THE FUTURE" ? "top-[21px]" : "top-3"
           } ${post.badge === "SWAG" ? "nr-swag-wrap" : ""}`}
         >
           <span
-            className={`inline-flex items-center gap-2 rounded-full bg-[#0a0a0a] px-3.5 py-1.5 text-[0.62rem] font-black tracking-[0.24em] text-white ${
+            className={`inline-flex items-center rounded-full bg-[#0a0a0a] font-black text-white ${
               post.badge === "SWAG"
-                ? "nr-swag-badge"
+                ? "nr-swag-badge gap-2 px-3.5 py-1.5 text-[0.62rem] tracking-[0.24em]"
                 : post.badge === "CREEPY"
-                  ? "nr-creepy-badge"
+                  ? "nr-creepy-badge gap-2 px-3.5 py-1.5 text-[0.62rem] tracking-[0.24em]"
                   : post.badge === "WELCOME TO THE FUTURE"
-                    ? "nr-ufo-badge"
-                    : ""
+                    ? /* компактная пилюля (~180px): влезает в ряд кнопок на 390px */
+                      "nr-ufo-badge gap-1.5 px-2.5 py-1 text-[0.55rem] tracking-[0.08em]"
+                    : post.badge === "ROCKET SCIENCE"
+                      ? "nr-rocket-badge gap-2 px-3.5 py-1.5 text-[0.62rem] tracking-[0.24em]"
+                      : "gap-2 px-3.5 py-1.5 text-[0.62rem] tracking-[0.24em]"
             }`}
           >
             {post.badge === "WELCOME TO THE FUTURE" && (
-              <i className="nr-ufo" aria-hidden="true" />
+              <i className="nr-ufo nr-ufo-sm" aria-hidden="true" />
+            )}
+            {post.badge === "ROCKET SCIENCE" && (
+              <svg className="nr-rocket" viewBox="0 0 12 24" aria-hidden="true">
+                <path
+                  className="nr-rocket-flame"
+                  fill="#ffffff"
+                  d="M6 19.2 C4.6 20.8 4.6 22.6 6 24 C7.4 22.6 7.4 20.8 6 19.2 Z"
+                />
+                <path
+                  fill="#e8ecf0"
+                  d="M6 0 C8.4 2.4 9 5.8 9 8.8 L9 14.5 L3 14.5 L3 8.8 C3 5.8 3.6 2.4 6 0 Z"
+                />
+                <circle cx="6" cy="7.6" r="1.55" fill="#0a0a0a" />
+                <path fill="#9aa2ab" d="M3 10.8 L0.6 15.2 L3 16.6 Z" />
+                <path fill="#9aa2ab" d="M9 10.8 L11.4 15.2 L9 16.6 Z" />
+              </svg>
             )}
             {post.badge}
           </span>

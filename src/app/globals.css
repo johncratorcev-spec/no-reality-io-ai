@@ -340,6 +340,71 @@
   86%      { transform: perspective(70px) rotateX(36deg) rotateZ(-6deg) translateY(-1.5px); }
 }
 
+/* компактная тарелка для уменьшенного UFO-бейджа (в ряду верхних кнопок) */
+.nr-ufo-sm {
+  width: 18px;
+  height: 6.5px;
+  box-shadow: 0 0 7px rgba(255, 255, 255, 0.45);
+}
+.nr-ufo-sm::before {
+  top: -3.5px;
+  width: 9px;
+  height: 5px;
+}
+.nr-ufo-sm::after {
+  width: 2px;
+  height: 2px;
+  margin-left: -1px;
+  bottom: -0.5px;
+  box-shadow:
+    -4.5px -1px 0 0 #fff,
+    4.5px -1px 0 0 #fff;
+}
+
+/* --- бейдж ROCKET SCIENCE: ракета -------------------------------
+   SVG-ракета (корпус + иллюминатор + стабилизаторы + пламя) висит
+   в бейдже: покачивается на дуге, пламя мерцает; перед стартом
+   «приседает» и сгорает вверх — пилюля подсвечивает тягу; всё ч/б */
+.nr-rocket {
+  display: inline-block;
+  width: 12px;
+  height: 24px;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+  transform-origin: 50% 60%;
+  animation: nr-rocket-fly 3.6s ease-in-out infinite;
+}
+@keyframes nr-rocket-fly {
+  0%, 10% { transform: translateY(0) rotate(0deg); }
+  24%     { transform: translateY(-1.5px) rotate(-6deg); }
+  38%     { transform: translateY(0.5px) rotate(5deg); }
+  50%     { transform: translateY(-0.5px) rotate(-2deg); }
+  58%     { transform: translateY(1px) rotate(0deg); }
+  64%     { transform: translateY(1.5px) rotate(0deg); }   /* приседание */
+  80%     { transform: translateY(-12px) rotate(0deg); }   /* старт */
+  88%     { transform: translateY(-12.5px) rotate(0deg); }
+  100%    { transform: translateY(0) rotate(0deg); }       /* возврат */
+}
+.nr-rocket-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: nr-rocket-flame 0.22s ease-in-out infinite alternate;
+}
+@keyframes nr-rocket-flame {
+  0%   { transform: scaleY(0.55); opacity: 0.75; }
+  100% { transform: scaleY(1.25); opacity: 1; }
+}
+.nr-rocket-badge {
+  background: linear-gradient(180deg, #23272e 0%, #0b0d10 55%, #04050a 100%);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
+  animation: nr-rocket-glow 3.6s ease-in-out infinite;
+}
+@keyframes nr-rocket-glow {
+  0%, 55%, 100% { box-shadow: 0 0 10px rgba(255, 255, 255, 0.14); }
+  64%           { box-shadow: 0 0 14px rgba(255, 255, 255, 0.3); }
+  80%           { box-shadow: 0 0 26px rgba(255, 255, 255, 0.5); }  /* тяга */
+  90%           { box-shadow: 0 0 16px rgba(255, 255, 255, 0.28); }
+}
+
 /* --- чип просмотров у стрелки: мягкий двойной пульс ------------------- */
 .nr-views-chip {
   box-shadow: 0 0 0 1px rgba(10, 10, 10, 0.08);
