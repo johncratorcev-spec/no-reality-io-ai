@@ -258,6 +258,98 @@
   86%      { transform: perspective(260px) rotateY(-8deg) rotateX(4deg) translateY(-0.5px); }
 }
 
+/* --- бейдж WELCOME TO THE FUTURE: 3D-тарелка НЛО ----------------------
+   тарелка собрана из <i class="nr-ufo">: корпус — металлический эллипс,
+   ::before — стеклянный купол, ::after — три огня по краю; вся тарелка
+   висит в perspective и плавно покачивается (rotateX/rotateZ + боб),
+   купол подмигивает яркостью, огни дышат; пилюля мягко пульсирует
+   свечением — «луч»; строго ч/б, как и весь стиль ленты */
+.nr-ufo-badge {
+  background: linear-gradient(180deg, #262b33 0%, #0b0d10 55%, #04050a 100%);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
+  animation: nr-ufo-beam 4.2s ease-in-out infinite;
+}
+@keyframes nr-ufo-beam {
+  0%, 100% { box-shadow: 0 0 12px rgba(255, 255, 255, 0.16); }
+  50%      { box-shadow: 0 0 24px rgba(255, 255, 255, 0.4); }
+}
+.nr-ufo {
+  position: relative;
+  display: inline-block;
+  width: 26px;
+  height: 9px;
+  border-radius: 50%;
+  background: linear-gradient(
+    180deg,
+    #f4f6f8 0%,
+    #b9c0c8 35%,
+    #6d747c 70%,
+    #3a4046 100%
+  );
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+  transform-style: preserve-3d;
+  animation: nr-ufo-fly 4.2s ease-in-out infinite;
+}
+.nr-ufo::before {
+  /* купол */
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  width: 13px;
+  height: 8px;
+  transform: translateX(-50%);
+  border-radius: 50% 50% 20% 20% / 88% 88% 12% 12%;
+  background: radial-gradient(
+    ellipse at 50% 20%,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(210, 218, 226, 0.55) 55%,
+    rgba(140, 148, 156, 0.25) 100%
+  );
+  animation: nr-ufo-dome 4.2s ease-in-out infinite;
+}
+@keyframes nr-ufo-dome {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.55); }
+}
+.nr-ufo::after {
+  /* огни по краю тарелки: центральная точка + две через box-shadow */
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  width: 2.5px;
+  height: 2.5px;
+  margin-left: -1.25px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    -7px -1px 0 0 #fff,
+    7px -1px 0 0 #fff;
+  animation: nr-ufo-lights 1.4s ease-in-out infinite;
+}
+@keyframes nr-ufo-lights {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+@keyframes nr-ufo-fly {
+  0%, 100% { transform: perspective(70px) rotateX(38deg) rotateZ(-7deg) translateY(0); }
+  22%      { transform: perspective(70px) rotateX(30deg) rotateZ(6deg) translateY(-2.5px); }
+  46%      { transform: perspective(70px) rotateX(42deg) rotateZ(-4deg) translateY(-1px); }
+  68%      { transform: perspective(70px) rotateX(28deg) rotateZ(7deg) translateY(-3px); }
+  86%      { transform: perspective(70px) rotateX(36deg) rotateZ(-6deg) translateY(-1.5px); }
+}
+
+/* --- чип просмотров у стрелки: мягкий двойной пульс ------------------- */
+.nr-views-chip {
+  box-shadow: 0 0 0 1px rgba(10, 10, 10, 0.08);
+  animation: nr-views-pulse 4.5s ease-in-out infinite;
+}
+@keyframes nr-views-pulse {
+  0%, 14%, 100% { transform: scale(1); }
+  7%            { transform: scale(1.12); }
+}
+
 /* --- описание бустнутого поста: перламутрово-ирисцентный перелив по тексту --- */
 @keyframes nr-desc-shimmer {
   0%   { background-position: 130% 0; }

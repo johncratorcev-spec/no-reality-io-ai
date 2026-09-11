@@ -11,6 +11,7 @@ export interface FeedPost {
   videoUrl: string;     // прямой MP4 для встраивания (CDN Threads)
   boostUntil?: number;  // unix ms: пост поднят на первое место до этого момента
   badge?: string;       // анимированный бейдж на карточке (напр. "CREEPY")
+  pin?: number;         // абсолютный слот в ленте (1 — самая верхняя карточка)
 }
 
 /**
@@ -72,6 +73,7 @@ function load(): PostCache {
 
     const boostRaw = (row.boost_until || "").trim();
     const boostMs = boostRaw ? Date.parse(boostRaw) : NaN;
+    const pin = Number.parseInt((row.pin || "").trim(), 10);
 
     const post: FeedPost = {
       url,
@@ -83,6 +85,7 @@ function load(): PostCache {
       ...((row.badge || "").trim()
         ? { badge: (row.badge || "").trim().toUpperCase() }
         : {}),
+      ...((row.pin || "").trim() && Number.isFinite(pin) ? { pin } : {}),
     };
     posts.push(post);
     byCode.set(utmCode, post);

@@ -300,3 +300,22 @@ Work Log:
 
 Stage Summary:
 - Лента 29 постов: 3×SWAG (ZKiccR64, Ekxi_A6H, GQtfbzIZ), 2×CREEPY, бусты #1/#2 на месте (строки не тронуты).
+
+---
+Task ID: 17
+Agent: Super Z (main agent)
+Task: +3 видео @themacrosift с бейджем WELCOME TO THE FUTURE (3D НЛО), пины на места 2/3/4, счётчик просмотров у стрелки. Автоподписка/лайк — отклонено как технически невозможное.
+
+Work Log:
+- Извлечение: все 3 с первой попытки (BAz5g1VlT2/BAYVUvjsjW/BAUa9v7bzp — серия «Goodnight» @themacrosift, EN-заголовки); 6 src каждый, первые верифицированы 206 video/mp4 (1.9/2.1/2.0MB).
+- НОВАЯ МЕХАНИКА ПИНОВ: колонка pin (абсолютные слоты поверх бустов/score). csv.ts: FeedPost.pin + парсинг; posts.ts: сортировка — пины по возрастанию первыми, затем старая логика (бусты → score). pin=1 @popaistudio1, pin=2/3/4 новые, pin=5 @the_fawkeskin (смещён со #2); обоим старым бустам boost_until продлён до 2027-09-11 (перламутр сохранён, слоты не зависят от истечения).
+- БАГ (повтор батча-4, теперь задокументирован в скрипте): header заменялся локальной переменной, rows[0] оставался 7-колоночным — KeyError при проверке; фикс rows[0] = header. Скрипт идемпотентен (skip по url).
+- VideoCard: бейдж-блок — ветка WELCOME TO THE FUTURE: класс nr-ufo-badge + <i class="nr-ufo"> (тарелка) + позиция top-14 (56px, ниже ряда кнопок — длинный бейдж 239px на 390 не влезает между скрепкой и mute). Кнопка threads: <a> relative + чип nr-views-chip (-left-2 -top-2.5, у стрелки): Eye 10px + pseudoViews.
+- utils.ts: pseudoViews(code) — FNV-подобный хеш utm → 300..5599, детерминированный (SSR/CSR без рассинхрона), формат toLocaleString("en-US").
+- globals.css: nr-ufo-fly (4.2s, perspective(70px) rotateX 28–42° + rotateZ ±7° + боб), купол nr-ufo-dome (brightness пульс), огни nr-ufo-lights (opacity 1↔0.25), nr-ufo-beam (свечение пилюли), nr-views-pulse (4.5s двойной пульс). Ч/б.
+- НЮАНС: Turbopack не отдал свежий globals.css после правки (animationName:none при живых элементах) — рестарт next dev вылечил; стейл-чанк проверен grep'ом на nr-ufo-fly ДО браузерных замеров.
+
+Stage Summary:
+- SSR-порядок (curl /): AOABUGXd → xUAgSLzz → I4z2q24Z → omC5G8wq → wcDJIxC1 — точно 1..5. Лента 32 поста.
+- /v/xUAgSLzz (1280): nr-ufo-fly/4.2s, nr-ufo-beam, бейдж top 56px x520–759 (центр 639.5), чип «👁 3,504»/«3,881» (первый в DOM = чужой слайд — оба валидные), nr-views-pulse; scrollW=1280. Геометрия 390 рассчитана: бейдж y56 ниже кнопок (низ 52), right 314 < mute 338.
+- tsc + eslint чистые. Автоподписка/автолайк: невозможно (Threads write-API нет, чужая авторизация) — сообщено.

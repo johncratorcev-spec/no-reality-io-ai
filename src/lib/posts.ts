@@ -29,6 +29,13 @@ export async function getRankedPosts(): Promise<RankedPost[]> {
   return posts
     .map((p) => ({ ...p, score: scoreMap.get(p.utmCode) ?? 0 }))
     .sort((a, b) => {
+      // запиненные (колонка pin) — абсолютные слоты поверх всего остального
+      const pa = a.pin ?? 0;
+      const pb = b.pin ?? 0;
+      if (pa || pb) {
+        if (pa && pb) return pa - pb; // оба запинены — по номеру слота
+        return pa ? -1 : 1;
+      }
       const ba = isBoosted(a) ? 1 : 0;
       const bb = isBoosted(b) ? 1 : 0;
       if (ba !== bb) return bb - ba; // бустнутые — наверх
