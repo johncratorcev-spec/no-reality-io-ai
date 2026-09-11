@@ -319,3 +319,22 @@ Stage Summary:
 - SSR-порядок (curl /): AOABUGXd → xUAgSLzz → I4z2q24Z → omC5G8wq → wcDJIxC1 — точно 1..5. Лента 32 поста.
 - /v/xUAgSLzz (1280): nr-ufo-fly/4.2s, nr-ufo-beam, бейдж top 56px x520–759 (центр 639.5), чип «👁 3,504»/«3,881» (первый в DOM = чужой слайд — оба валидные), nr-views-pulse; scrollW=1280. Геометрия 390 рассчитана: бейдж y56 ниже кнопок (низ 52), right 314 < mute 338.
 - tsc + eslint чистые. Автоподписка/автолайк: невозможно (Threads write-API нет, чужая авторизация) — сообщено.
+
+---
+Task ID: 18
+Agent: Super Z (main agent)
+Task: Выровнять бейдж WELCOME TO THE FUTURE в ряд с верхними элементами + уменьшить; +7 видео (SWAG ×3, ROCKET SCIENCE с анимацией ракеты, WELCOME ×2, CREEPY).
+
+Work Log:
+- Бейдж WELCOME TO THE FUTURE: top-14 → top-[21px] (центр 35.8px против центра кнопок 32px — в ряду); компактные классы text-[0.55rem] tracking-[0.08em] px-2.5 py-1 gap-1.5; иконка .nr-ufo-sm 18×6.5px (купол/огни пропорционально). E2E 390×844: бейдж x109–281 (w171.6, был 239), профиль кончается на 100, mute начинается на 338 — без перекрытий; nr-ufo-beam + nr-ufo-fly живы.
+- ROCKET SCIENCE (новый тип): SVG-ракета в VideoCard (корпус/иллюминатор/стабилизаторы/пламя .nr-rocket-flame fill-box), CSS: nr-rocket-fly 3.6s (покачивание → приседание → старт -12px → возврат), nr-rocket-flame 0.22s flicker, nr-rocket-glow пилюли синхронно 3.6s (пик на старте). Ч/б. Ждёт поста BBhhoOC9vb для E2E.
+- СТАЛИ ИЗВЛЕКАТЬСЯ только 4/7: Threads агрессивно троттлит анонимов (login-wall на всё; последний успех 08:51–08:54, дальше стена и после burst-джобы не открылась). ~28 попыток/код (fg_round.sh ×8, jina/allorigins/codetabs прокси, oembed, /embed, /t/-роут, xmt-токен из 302, wayback, DDG/Bing — всё мимо). Канонические URL получены через curl 302 Location: _mUBnlbMn→@igstorydj/post/DdIWV-mEf83, BBhhoOC9vb→@pshai.studio/post/DdIxZufjkUK, BAX2daEsTs→@itsrawchris/post/DdI7_SyCHwX (посты существуют).
+- ДОБАВЛЕНО 4: j0o8-Wwe @alex.blanccoo SWAG (_jRVFupZD, «somebody's uncle», 21с, 206✓), NzUdliRV @roi_ai_production WELCOME (BAeVwPvTJf, Robot #6 Carbonara), 2m0nwLwF @voidstomper CREEPY (BAi0MTP0NQ, без og:description), r1PfYkmW @malyshev_ai WELCOME (BAJE206f7E, «Austin 2150»). Все video_url верифицированы 206 video/mp4. Лента 36 постов.
+- ВАЖНЫЙ ФИКС: строки CSV были 9-полевыми (пустой хвост от pin-миграции Task 17) → refresh_links падал на writerows (ValueError: fields not in fieldnames: None) ПОСЛЕ burst-обновления ссылок. CSV нормализован до 8 полей; джоба починена к следующему запуску.
+- Инфра: песочница убивает фоновые процессы (nohup/setsid недостаточно) → fg_round.sh (foreground-раунды) + dev_up.sh (гарантия живого дева в начале каждого шага). Turbopack-чанки .next/static — артефакты, живой CSS проверять по href из HTML страницы ([root-of-the-server]__*.css).
+- Снапшот перегенерирован после нормализации CSV; tsc/eslint чистые. Пуш 6efc388..a43a952, remote HEAD = a43a952 (git ls-remote).
+
+Stage Summary:
+- Бейдж UFO компактный и в ряду кнопок (171.6px, зазоры 9px/57px). ROCKET SCIENCE-анимация в коде, E2E после извлечения BBhhoOC9vb.
+- Лента 36 постов: 4×SWAG, 3×CREEPY, 5×WELCOME (пины 1-5 на месте).
+- Догнать 3 поста: bash scripts/fg_round.sh _mUBnlbMn BBhhoOC9vb BAX2daEsTs → touch scripts/extract_out/<code>.json.ok → python3 scripts/add_posts_batch7.py → node scripts/gen-posts-snapshot.mjs.
