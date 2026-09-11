@@ -428,3 +428,20 @@ Stage Summary:
 - Лента 40 постов: 6×SWAG, 3×CREEPY, 6×WELCOME, 0×ROCKET. Пины 1–5 на месте.
 - 3 из 4 ссылок недоступны на стороне Threads (_1khVBQfa, BAYFWQmQhG, _2LLDHwP2 → invalid_post): пользователю проверить в приложении (там он залогинен) — если видео там играет, прислать прямые /post/-ссылки либо mp4-адрес для ручного режима панели.
 - Урок: контент/авторы, пойманные за login-стеной, — рекомендации ленты, им доверять нельзя; приговор post'у — только по JS-резолву адресной строки (error=invalid_post) с контрольным тестом на заведомо живом коде.
+
+---
+Task ID: 24
+Agent: Super Z (main agent)
+Task: Добавить https://www.threads.com/share/BBhfVZjZCh/ с бейджем WELCOME TO THE FUTURE.
+
+Work Log:
+- Извлечение с первой попытки (стены не было): @themacrosift, пост живой, заголовок EN («~A STRANGE DAY IN THE NEIGHBORHOOD~ • Part 2: Come Inside…») — RU-страж пройден. Пост-карусель из 6 уникальных видео (10–42s, разные asset_id); взят srcs[0] (15s, 720p, главный в DOM) по правилу пайплайна, CDN 206 video/mp4.
+- Добавление через panel_add.py (кэш + .ok маркер): utm y3ZH8wdt, CSV 41 пост, снапшот пересобран, tsc чистый.
+- ИНЦИДЕНТ + ДИАГНОСТИКА: во время E2E браузер «уходил» на threads.com/@<разные авторы ленты>/post/…?xmt…&slof=1 через несколько секунд после открытия localhost. Подозрение на авто-навигацию в коде НЕ ПОДТВИЛИСЬ (ловушки click/pushState/beforeunload чистые, /r/ в dev.log нет). Причина: agent-browser close убивает chrome некорректно → при следующем старте восстанавливаются вкладки старых сессий извлечений (share→post URL-ы) и перехватывают активную вкладку. Фикс: close --all + rm -rf /tmp/agent-browser-chrome-* перед E2E; проверять agent-browser tab list.
+- ИНЦИДЕНТ 2: в 20:26–20:38 окружение само перезапустилось (root-процесс /app/.venv/bin/python3 main.py, рестарт bun dev), затем рабочая копия была частично откачена к состоянию Task 23: из data/posts.csv удалена строка BBhfVZjZCh, на panel_*.ts/test_serverless.ts/extract_out — chmod-флипы 644↔755. Git HEAD не пострадал; прод (Vercel собирает из HEAD) не затронут. Восстановлено git checkout -- … по списку изменённых файлов; рабочая копия снова = HEAD.
+- Финальный E2E (чистый профиль): /v/y3ZH8wdt стабилен, title «@themacrosift — no reality.», видео rs4, бейдж WELCOME TO THE FUTURE, UFO-анимация nr-ufo-fly активна.
+- Пуш: 9e2bc34..f1b714e (extract-кэш), remote HEAD = f1b714e.
+
+Stage Summary:
+- Лента 41 пост: 6×SWAG, 3×CREEPY, 7×WELCOME, 0×ROCKET. Пины 1–5 на месте.
+- Уроки: (1) phantom-навигации в E2E = session-restore chrome, лечится чисткой /tmp/agent-browser-chrome-*; (2) песочница может самопроизвольно откатывать рабочую копию — после любого инцидента сверять git status со HEAD и восстанавливать checkout-ом; прод-истина = GitHub HEAD.
