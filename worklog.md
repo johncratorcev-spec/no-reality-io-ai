@@ -284,3 +284,5 @@ Stage Summary:
 - Лента: 27 слайдов; бусты на месте #1 @popaistudio1, #2 @the_fawkeskin; CREEPY на слайдах 19/25 без утечек, SWAG последний (26). CREEPY-бейдж после рефактора не задет (nr-creepy-flicker/4.8s).
 - tsc + eslint чистые; /api/posts больше не существует (фид SSR — проверка через слайды).
 - Скриншоты: scripts/extract_out/swag_badge_1..3.png (1280), swag_mobile_final.png (390).
+
+Пуш (Task ID: 14, добивка): github_pat_…AZPw5fUq (одноразово в URL) — 074ce63..4d54389 main -> main (батч-4 уже был на remote); remote HEAD верифицирован через GitHub API = 4d54389; Netlify авторедеплой подхватит. Пользователю: токен засвечен в чате — отозвать.
