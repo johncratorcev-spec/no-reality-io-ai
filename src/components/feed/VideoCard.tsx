@@ -595,10 +595,22 @@ export default function VideoCard({
         )}
       </div>
 
-      {/* ---------- анимированный бейдж (напр. CREEPY) ---------- */}
+      {/* ---------- анимированный бейдж (CREEPY / SWAG) ---------- */}
       {post.badge && (
-        <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2">
-          <span className="nr-creepy-badge inline-flex items-center rounded-full bg-[#0a0a0a] px-3.5 py-1.5 text-[0.62rem] font-black tracking-[0.24em] text-white">
+        <div
+          className={`pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 ${
+            post.badge === "SWAG" ? "nr-swag-wrap" : ""
+          }`}
+        >
+          <span
+            className={`inline-flex items-center rounded-full bg-[#0a0a0a] px-3.5 py-1.5 text-[0.62rem] font-black tracking-[0.24em] text-white ${
+              post.badge === "SWAG"
+                ? "nr-swag-badge"
+                : post.badge === "CREEPY"
+                  ? "nr-creepy-badge"
+                  : ""
+            }`}
+          >
             {post.badge}
           </span>
         </div>

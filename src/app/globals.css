@@ -196,6 +196,68 @@
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
 }
 
+/* --- бейдж SWAG: 3D-качание в перспективе + «puf» дыма из-за пилюли ---
+   период 5.2s: пилюля плавно раскачивается в 3D (rotateY/rotateX) и
+   чуть всплывает; буквы — с серой 3D-экструзией; дым — два размытых
+   клубá (псевдоэлементы ОБЁРТКИ с z-index:-1 — всегда позади пилюли),
+   попеременно вырывающиеся из-за знака в стороны-вверх и тающие;
+   строго ч/б, как и весь стиль ленты */
+.nr-swag-wrap::before,
+.nr-swag-wrap::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.4) 42%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+.nr-swag-wrap::before {
+  animation: nr-swag-puf-l 5.2s ease-out infinite;
+}
+.nr-swag-wrap::after {
+  animation: nr-swag-puf-r 5.2s ease-out infinite 2.6s;
+}
+@keyframes nr-swag-puf-l {
+  0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.3); }
+  9%   { opacity: 0.65; }
+  55%  { opacity: 0.3; transform: translate(calc(-50% - 16px), -13px) scale(1.6); }
+  78%, 100% { opacity: 0; transform: translate(calc(-50% - 21px), -19px) scale(1.85); }
+}
+@keyframes nr-swag-puf-r {
+  0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.3); }
+  9%   { opacity: 0.55; }
+  55%  { opacity: 0.26; transform: translate(calc(-50% + 15px), -10px) scale(1.35); }
+  78%, 100% { opacity: 0; transform: translate(calc(-50% + 20px), -15px) scale(1.55); }
+}
+.nr-swag-badge {
+  background: linear-gradient(180deg, #33383f 0%, #101318 52%, #050607 100%);
+  animation: nr-swag-3d 5.2s ease-in-out infinite;
+  text-shadow:
+    0 1px 0 #b7bec6,
+    0 2px 0 #8b939b,
+    0 3px 0 #62696f,
+    0 4px 1px rgba(0, 0, 0, 0.4),
+    0 6px 12px rgba(0, 0, 0, 0.55);
+}
+@keyframes nr-swag-3d {
+  0%, 100% { transform: perspective(260px) rotateY(-10deg) rotateX(5deg) translateY(0); }
+  22%      { transform: perspective(260px) rotateY(8deg) rotateX(-4deg) translateY(-1.5px); }
+  46%      { transform: perspective(260px) rotateY(-6deg) rotateX(3deg) translateY(0); }
+  68%      { transform: perspective(260px) rotateY(10deg) rotateX(-5deg) translateY(-2px); }
+  86%      { transform: perspective(260px) rotateY(-8deg) rotateX(4deg) translateY(-0.5px); }
+}
+
 /* --- описание бустнутого поста: перламутрово-ирисцентный перелив по тексту --- */
 @keyframes nr-desc-shimmer {
   0%   { background-position: 130% 0; }

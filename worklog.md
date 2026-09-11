@@ -263,3 +263,24 @@ Stage Summary:
 - E2E (390x844): /v/mr42EPRm (idx 25) — бейдж CREEPY x=155 (центр), nr-creepy-flicker/4.8s применён, чёрная пилюля/белый текст; не перекрывает скрепку (12-52), профиль (60-100), mute (338-378); видео readyState 4 играет; scrollW=390. /v/H8N865zj (idx 19) — бейдж на месте, видео играет (скриншот creepy_badge.png). /v/ALdCmvh7 (idx 20) — обычная, без бейджа, 13с играет. /v/M4uledti (idx 22) — ожившее видео (RIZIN-бой) играет; КОНТЕНТ НЕ ВЕРИФИЦИРУЕМ против оригинала (invalid_post на стороне Threads) — помечено пользователю.
 - Лента: 26 карточек (было 19); новые в конце (score 0), бусты не тронуты.
 - tsc + eslint чистые.
+
+---
+Task ID: 14
+Agent: Super Z (main agent)
+Task: Видео https://www.threads.com/share/__FJdFasi/ в ленту + анимированный бейдж SWAG (puf-дым, 3D).
+
+Work Log:
+- Извлечение: share-ссылка и @/post/-URL отдавали login-wall (invalid_post) дважды; приелося после agent-browser close (чистая сессия) — 6 video src, автор @regina.timer (уже в ленте, FR76WfCi), русский заголовок переведён на EN («I'm a beginner AI creator…»), лента только EN.
+- Верификация: все 6 вариантов 206 video/mp4 (размеры 0.49–5.78MB; dur=32s у крупного); в CSV взят srcs[0] (консистентно с батчами/джобой).
+- scripts/add_post_swag.py: строка badge=SWAG, utm ZKiccR64 (первый код uWeYrBvk потерян — см. гонку ниже).
+- ГОНКА С ДЖОБОЙ (важно): стартовая refresh_links (90с после старта dev) читает CSV до правки и пишет ПОСЛЕ (mkstemp+os.replace, mode 600) — потерянное обновление затёрло первую строку. Лечение: править CSV только при остановленном дев-сервере, снапшот перегенерять после джобы; в refresh_links.py добавлен os.chmod(tmp, 0o644).
+- VideoCard.tsx: класс бейджа по типу — SWAG→nr-swag-badge (+nr-swag-wrap на обёртке для дыма), CREEPY→nr-creepy-badge, прочие без анимации.
+- globals.css: nr-swag-3d (5.2s ease-in-out) — 3D-качание пилюли в perspective(260px) rotateY(±10°)/rotateX(±5°) с微-всплытием; буквы с серой 3D-экструзией (5 слоёв text-shadow) и металлическим градиентом пилюли; puf-дым — ::before/::after ОБЁРТКИ (z-index:-1 → всегда позади чёрной пилюли, внутри её stacking context от translate), radial-градиент+blur(4px), попеременно L/R с delay 2.6s: burst 0→9%, дрейф в сторону-вверх до 55%, растворение к 78%; строго ч/б.
+- Снапшот перегенерирован ДВАЖДЫ: после возврата строки и после стартовой джобы (джоба сама обновила video_url нового поста на свежий — scontent.cdninstagram.com/AQNGg…).
+
+Stage Summary:
+- E2E 1280: /v/ZKiccR64 — nr-swag-3d/5.2s на пилюле, puf-l/puf-r 5.2s (delay 2.6s), sampled opacity клубов L0.39→R0.36→L0.49 (чередуются); видео readyState4 играет; бейдж центрирован (центр 639.5 при 1280).
+- E2E 390x844 (agent-browser set viewport 390 844 — НЕ set-viewport/viewport): бейдж x162–229 (центр 195.5), зазор до кнопки профиля 62px, скрепка/профиль не перекрыты, scrollW=390; play() по тапу — играет (paused=false t=2.1).
+- Лента: 27 слайдов; бусты на месте #1 @popaistudio1, #2 @the_fawkeskin; CREEPY на слайдах 19/25 без утечек, SWAG последний (26). CREEPY-бейдж после рефактора не задет (nr-creepy-flicker/4.8s).
+- tsc + eslint чистые; /api/posts больше не существует (фид SSR — проверка через слайды).
+- Скриншоты: scripts/extract_out/swag_badge_1..3.png (1280), swag_mobile_final.png (390).

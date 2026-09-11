@@ -190,6 +190,7 @@ def run(args, log):
             w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
             w.writeheader()
             w.writerows(rows)
+        os.chmod(tmp, 0o644)  # mkstemp создаёт 0600 — возвращаем обычные права
         os.replace(tmp, csv_path)
 
     log(f"[refresh] итог: обновлено {updated}, оживлено {revived}, пропущено {skipped}, ошибок {failed}")
