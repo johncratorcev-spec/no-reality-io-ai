@@ -338,3 +338,19 @@ Stage Summary:
 - Бейдж UFO компактный и в ряду кнопок (171.6px, зазоры 9px/57px). ROCKET SCIENCE-анимация в коде, E2E после извлечения BBhhoOC9vb.
 - Лента 36 постов: 4×SWAG, 3×CREEPY, 5×WELCOME (пины 1-5 на месте).
 - Догнать 3 поста: bash scripts/fg_round.sh _mUBnlbMn BBhhoOC9vb BAX2daEsTs → touch scripts/extract_out/<code>.json.ok → python3 scripts/add_posts_batch7.py → node scripts/gen-posts-snapshot.mjs.
+
+---
+Task ID: 19
+Agent: Super Z (main agent)
+Task: +3 видео: BAVq1ma_VU (ROCKET SCIENCE), BBrK8muRRI (SWAG), _gYuRN9lp (WELCOME TO THE FUTURE).
+
+Work Log:
+- Все 3 извлечены С ПЕРВОЙ попытки (стена Threads к 12:25 открылась). Ретрай зависших Task 18 (_mUBnlbMn/BBhhoOC9vb/BAX2daEsTs) в том же раунде — снова WALL → стена не только IP: эти 3 поста, похоже, персонально закрыты за логином (пайплайн в worklog 18 остаётся).
+- Верификация: все 3 → 206 video/mp4. BAVq1ma_VU @regina.timer — русский заголовок (та же серия, что ZKiccR64/FR76WfCi) переведён EN («…first realistic video… challenging but beautiful journey 🥰»); BBrK8muRRI @tremollo_ai — без og:description (прецедент); _gYuRN9lp @mr_relative_ — уже EN.
+- CSV: +3 строки (UkoN8r2X ROCKET SCIENCE, hMKB_IqJ SWAG, vM_DQv1q WELCOME) → 39 постов; снапшот; tsc чистый.
+- E2E 390×844 /v/UkoN8r2X: бейдж x111.8–278.2 (w166.3) y12 — профиль до 100 / mute с 338 без перекрытий; nr-rocket-glow + nr-rocket-fly + nr-rocket-flame все живы; SVG-ракета 12×24; видео играет (rs4); scrollW=390. /v/hMKB_IqJ SWAG: nr-swag-3d + дым, rs4. /v/vM_DQv1q: компактный UFO w171.6 yOff25.2 (в ряду), тарелка 18px.
+- Пуш 1372c8b..9885c3b, remote HEAD = 9885c3b (ls-remote).
+
+Stage Summary:
+- Лента 39 постов: 5×SWAG, 3×CREEPY, 6×WELCOME, 1×ROCKET SCIENCE (анимация ракеты подтверждена в браузере). Пины 1–5 на месте.
+- Остаток: 3 поста Task 18 в логин-стене (_mUBnlbMn, BBhhoOC9vb, BAX2daEsTs) — авторы известны (@igstorydj, @pshai.studio, @itsrawchris).
