@@ -58,3 +58,6 @@ server.log
 
 # example — можно публиковать
 !.env.example
+
+# panel jobs (transient)
+scripts/panel_jobs/
