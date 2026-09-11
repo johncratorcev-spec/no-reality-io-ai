@@ -32,6 +32,8 @@ META = [
      "but beautiful journey 🥰", None),
     ("BBrK8muRRI", "SWAG",                   "", None),
     ("_gYuRN9lp",  "WELCOME TO THE FUTURE",  "", None),
+    # Task 20: ROCKET SCIENCE переезжает сюда (у UkoN8r2X снят)
+    ("_8h16T9aG",  "ROCKET SCIENCE",         "", None),
 ]
 
 with open(CSV, newline="", encoding="utf-8") as f:
