@@ -409,3 +409,22 @@ Stage Summary:
 - Панель работает в двух средах: preview — полный авто (agent-browser), Vercel/Netlify — jina-метаданные + ручной адрес видео + коммит в репо с авторедеплоем (~1–2 мин).
 - Для Vercel: добавить env GITHUB_PANEL_PAT (fine-grained PAT с Contents: write) и передеплоить.
 - Лента 39 постов, тестовых следов нет. jina нестабильна на стене — при ошибке жать ещё раз или заполнять поля руками.
+
+---
+Task ID: 23
+Agent: Super Z (main agent)
+Task: Самостоятельно добавить 4 видео: _1khVBQfa (CREEPY), BAYFWQmQhG (SWAG), BBpvXFCTYM (SWAG), _2LLDHwP2 (SWAG).
+
+Work Log:
+- Дедуп-проверка: ни один из 4 кодов в CSV не встречался. Извлечение через fg_round.sh — 4 раунда: BBpvXFCTYM → OK с первой же попытки раунда 1; остальные 3 — стабильно WALL (Join Threads + ambient).
+- Диагностика застрявших: за стеной у _1khVBQfa дважды ловился один и тот же «пост-видео» (AQO0MH3Oi3ek, 9s), но автор между попытками менялся (@giiiiiianna → @theothersideofthestoryz) → контент за стеной это РЕКОМЕНДАЦИИ ленты, не целевой пост. jina: BAYFWQmQhG/_2LLDHwP2 отдали фид рекомендаций (aaron.rupar / chase_daniel — НЕ цели), _1khVBQfa — 401 IP-reputation (флаково).
+- Приговор через браузер: все 3 кода JS-резолвятся в https://www.threads.com/?error=invalid_post — посты недоступны на стороне Threads (удалены/подписчики/регион). Контрольный тест метода: BBpvXFCTYM тем же способом резолвится в @sabina_skinder/post/DdJzy5bDbBN без ошибки. Googlebot-UA: 0 байт на все три. Обходы исчерпаны.
+- BBpvXFCTYM: 3 srcs (83s CLIPS 720 / 17s 576 / 16s 720), взят srcs[0] по правилу пайплайна, CDN 206 video/mp4. Заголовок русский («Благодарю) Вот вы ищите упоротые)…») → переведён EN по прецеденту Task 19: «Thank you :) So you're looking for the trippy ones :) I have a whole series of these different collages. Enjoy watching!»
+- Добавление через panel_add.py в ручном режиме видео (--video + --title + --author): utm QPu6TzrX, бейдж SWAG, CSV 40 постов, снапшот пересобран.
+- Верификация: tsc чистый; E2E /v/QPu6TzrX — deep-link открывается на посте, видео rs4, бейдж SWAG и @sabina_skinder на месте, nr-swag-3d в DOM.
+- Пуш d29df28..883693f через PAT, remote HEAD = 883693f (ls-remote) → Vercel авторедеплой.
+
+Stage Summary:
+- Лента 40 постов: 6×SWAG, 3×CREEPY, 6×WELCOME, 0×ROCKET. Пины 1–5 на месте.
+- 3 из 4 ссылок недоступны на стороне Threads (_1khVBQfa, BAYFWQmQhG, _2LLDHwP2 → invalid_post): пользователю проверить в приложении (там он залогинен) — если видео там играет, прислать прямые /post/-ссылки либо mp4-адрес для ручного режима панели.
+- Урок: контент/авторы, пойманные за login-стеной, — рекомендации ленты, им доверять нельзя; приговор post'у — только по JS-резолву адресной строки (error=invalid_post) с контрольным тестом на заведомо живом коде.
