@@ -286,3 +286,17 @@ Stage Summary:
 - Скриншоты: scripts/extract_out/swag_badge_1..3.png (1280), swag_mobile_final.png (390).
 
 Пуш (Task ID: 14, добивка): github_pat_…AZPw5fUq (одноразово в URL) — 074ce63..4d54389 main -> main (батч-4 уже был на remote); remote HEAD верифицирован через GitHub API = 4d54389; Netlify авторедеплой подхватит. Пользователю: токен засвечен в чате — отозвать.
+
+---
+Task ID: 15+16
+Agent: Super Z (main agent)
+Task: +2 видео с бейджем SWAG без лишних проверок: BAWFhNMwp4 и BAD7RdF75N.
+
+Work Log:
+- BAWFhNMwp4: логин-стена 2 попытки (сейчас даже чистая сессия не помогла с первого раза, со 2-й — видео: 8с, 638KB, 206 video/mp4, 1 src); автор на login-wall случаен (@nathan_nix → @methewgarry_32) — oembed пуст, embed — JS-оболочка без данных (271KB, username:false, id отсутствует) → @unknown по прецеденту _4yIKMBXZ; заголовка нет.
+- BAD7RdF75N: с первой попытки без стены — @lesya.neuro, 4 src, первый 206 video/mp4 2.66MB; русский заголовок переведён на EN («My new AI work 💔 … style isn't about trying to fit in…»).
+- scripts/add_posts_swag2.py: +2 строки badge=SWAG — Ekxi_A6H (@unknown, BAWFhNMwp4), GQtfbzIZ (@lesya.neuro, BAD7RdF75N); CSV 29 строк; снапшот перегенерирован. Джоба не мешала (интервал 6ч, стартовая уже отработала; правка вне её окна).
+- E2E/линтеры пропущены по прямой просьбе пользователя; код не менялся (SWAG-рендер и CSS уже есть с задачи 14).
+
+Stage Summary:
+- Лента 29 постов: 3×SWAG (ZKiccR64, Ekxi_A6H, GQtfbzIZ), 2×CREEPY, бусты #1/#2 на месте (строки не тронуты).
