@@ -459,3 +459,21 @@ Work Log:
 
 Stage Summary:
 - Лента 43 поста: 7×SWAG, 3×CREEPY, 8×WELCOME, 0×ROCKET. Пины 1–5 на месте.
+
+---
+Task ID: 26
+Agent: Super Z (main agent)
+Task: (1) Добавить 4 видео: BAWu9JSriq/_kD9eBrn0/BASa4so4Kk (SWAG) + BAVVuicLPJ (WELCOME TO THE FUTURE). (2) Terms of Service и Creator Agreement (EN) отдельными страницами + ссылки в футере.
+
+Work Log:
+- ЧАСТЬ 1: все 4 извлечены без стены. BAWu9JSriq @base27_digital (55s 960p, RU заголовок → EN «A neural network restored the cult classic series 'Krutoye Pike'»); _kD9eBrn0 @the_siberian_ (24s, EN «Do you remember them?»); BASa4so4Kk @yaros1av.ai (16s, RU → EN про альбом CA$HEY); BAVVuicLPJ @toshiki.1010 (93s, JP «昭和異物感» → EN «Showa-era Uncanny»). Все srcs[0] → 206 video/mp4. panel_add.py: utm LR7j5-V8, QAJ4DRds, EJszWHvA, K2Cyj240 → 47 постов.
+- БАГ-ФИКС по ходу: bash съел «$HEY» в «CA$HEY» (double-quoted $-расширение) — заголовок поправлен точечной правкой CSV + пересборка снапшота. Урок: $ в заголовках передавать через single quotes/файл.
+- Инцидент окружения №3: data/posts.csv снова chmod-флип; при пуше части 1 — non-fast-forward (окружение пересоздало локальный коммит worklog-25 с новым SHA 8fc69b7 вместо запушенного 305e7ad). Лечится: git fetch + rebase origin/main (история 305e7ad → 2bee932 → fbcd747), содержимое сверено (47 постов, CA$HEY, снапшот, worklog без дублей секций).
+- E2E части 1: 4 deep-link rs4 + точечная проверка бейджей по селекторам (.nr-swag-badge / i.nr-ufo; проверка по innerText ловит соседние карточки — использовать только селекторы).
+- ЧАСТЬ 2: src/components/legal/LegalShell.tsx — общий шелл (белый фон, Manrope, sticky-топбар с логотипом-ссылкой на ленту, нумерованные секции, контакт-карточка @your_betfriend). /terms — Terms of Service (10 секций): платформа-дистрибьютор, права у авторов, маркетплейс промптов и инструкций (анонс), приемлемое использование, takedown, отказ от гарантий. /creators — Creator Agreement (11 секций): права остаются у авторов на 100%, revocable-лицензия на хостинг/показ/промо, платформа = дистрибьютор, гарантии автора, маркетплейс (свои цены/условия листинга, комиссия раскрывается до публикации), снятие за 5 рабочих дней, запрещённый контент. Оба ~900 слов, last updated September 11, 2026.
+- Footer: + ссылки terms / for creators (теглайн скрыт на xs ради 390px). Проверки: tsc, eslint, рендер обеих страниц (h1/секции/ссылки на /), 390px без overflow, elementsFromPoint — ссылка terms кликабельна.
+- Пуш: fbcd747..0107e82, remote HEAD = 0107e82.
+
+Stage Summary:
+- Лента 47 постов: 10×SWAG, 3×CREEPY, 9×WELCOME, 0×ROCKET. Пины 1–5 на месте.
+- Legal-страницы /terms и /creators в проде после редеплоя; связи: футер ленты → обе страницы, шапка страниц → лента.
