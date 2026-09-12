@@ -1,0 +1,166 @@
+/* ============================================================
+   no reality. — лендинг (префикс nrld-*, чтобы не мешать
+   nr-* классам ленты в globals.css)
+   Органический перламутровый стиль: плавные всплытия,
+   живой marquee, 3D-tilt, стеклянные карточки.
+   ============================================================ */
+
+/* --- scroll-reveal: всплытие из мягкого размытия --------------- */
+.nrld-reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  filter: blur(8px);
+  transition:
+    opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform, filter;
+}
+.nrld-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
+/* --- 3D-tilt карточка: плавный возврат при уходе курсора ------- */
+.nrld-tilt {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* --- hero: вход заголовка «из глубины» -------------------------- */
+@keyframes nrld-hero-in {
+  from {
+    opacity: 0;
+    transform: perspective(900px) rotateX(14deg) translateY(34px) scale(0.97);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(900px) rotateX(0deg) translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+.nrld-hero-in {
+  animation: nrld-hero-in 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* --- плавающие бейджи-«спутники» героя -------------------------- */
+@keyframes nrld-float {
+  0%, 100% { transform: translateY(0) rotate(var(--nrld-rot, 0deg)); }
+  50%      { transform: translateY(-14px) rotate(var(--nrld-rot, 0deg)); }
+}
+.nrld-float {
+  animation: nrld-float var(--nrld-dur, 7s) ease-in-out infinite;
+  animation-delay: var(--nrld-delay, 0s);
+}
+
+/* --- падающие световые пылинки (CSS-fallback героя) ------------- */
+@keyframes nrld-blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(30px, -24px) scale(1.12); }
+}
+.nrld-blob {
+  animation: nrld-blob 11s ease-in-out infinite;
+}
+.nrld-blob-2 {
+  animation-duration: 14s;
+  animation-delay: -6s;
+}
+
+/* --- marquee: бесконечная лента настроений ---------------------- */
+@keyframes nrld-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.nrld-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: nrld-marquee 36s linear infinite;
+}
+.nrld-marquee:hover .nrld-marquee-track {
+  animation-play-state: paused;
+}
+
+/* --- hint «скролль вниз» ---------------------------------------- */
+@keyframes nrld-hint-drop {
+  0%   { transform: translateY(-6px); opacity: 0; }
+  30%  { opacity: 1; }
+  100% { transform: translateY(14px); opacity: 0; }
+}
+.nrld-hint-dot {
+  animation: nrld-hint-drop 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* --- подсветка ирисцентным градиентом (ключевые слова) ---------- */
+.nrld-irid {
+  background: linear-gradient(
+    92deg,
+    #3d7db8 0%,
+    #5b9bd5 22%,
+    #e39fd0 46%,
+    #7fd6c2 64%,
+    #3d7db8 88%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: nr-desc-shimmer 6s ease-in-out infinite alternate; /* переиспользуем keyframes ленты */
+}
+
+/* --- FAQ <details>: плавное раскрытие через grid ---------------- */
+.nrld-faq-item summary {
+  list-style: none;
+  cursor: pointer;
+}
+.nrld-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+.nrld-faq-item .nrld-faq-icon {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nrld-faq-item[open] .nrld-faq-icon {
+  transform: rotate(45deg);
+}
+.nrld-faq-item .nrld-faq-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* детали открыты — но <details> скрывает контент сам; анимируем только
+   первые 350мс через появление, иначе двойное скрытие. Простое решение:
+   контент внутри open показывается сразу, плавность даёт marker-поворот. */
+
+/* --- пульс «live»-точки ----------------------------------------- */
+@keyframes nrld-live {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(61, 125, 184, 0.35); opacity: 0.7; }
+  50%      { box-shadow: 0 0 0 6px rgba(61, 125, 184, 0); opacity: 1; }
+}
+.nrld-live-dot {
+  animation: nrld-live 2.6s ease-in-out infinite;
+}
+
+/* --- уважение к reduced-motion: всё статично -------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .nrld-reveal {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+  .nrld-hero-in,
+  .nrld-float,
+  .nrld-blob,
+  .nrld-marquee-track,
+  .nrld-hint-dot,
+  .nrld-irid,
+  .nrld-live-dot {
+    animation: none;
+  }
+  .nrld-tilt {
+    transition: none;
+  }
+}
