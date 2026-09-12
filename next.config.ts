@@ -9,13 +9,23 @@ const isNetlify = Boolean(process.env.NETLIFY);
      недоверенных пакетов, поэтому клиент генерится явно в build-команде). */
 const serverlessIncludes = [
   "./data/posts.csv",
+  "./data/prompts.csv",
   "./db/custom.db",
   "./prisma/schema.prisma",
   "./node_modules/.prisma/**",
   "./node_modules/@prisma/client/**",
 ];
 
-const tracedRoutes = ["/", "/v/[code]", "/r/[code]", "/api/admin/refresh"];
+const tracedRoutes = [
+  "/",
+  "/v/[code]",
+  "/r/[code]",
+  "/api/admin/refresh",
+  "/api/admin/payouts",
+  "/api/prompts/[code]/checkout",
+  "/api/prompts/[code]/status",
+  "/api/webhooks/2328",
+];
 
 const nextConfig: NextConfig = {
   /* На Netlify работает свой Next-runtime (@netlify/plugin-nextjs) —

@@ -12,6 +12,13 @@ export interface FeedPost {
   boostUntil?: number;  // unix ms: пост поднят на первое место до этого момента
   badge?: string;       // анимированный бейдж на карточке (напр. "CREEPY")
   pin?: number;         // абсолютный слот в ленте (1 — самая верхняя карточка)
+  // --- платный промпт (маркетплейс) ---
+  // ВАЖНО: prompt_full сюда НЕ добавляем — posts.csv сериализуется на клиент
+  // (RSC-пейлоад). Полный текст живёт в lib/prompts/paid.ts (server-only).
+  isPaid?: boolean;      // промпт продаётся
+  priceUsdt?: string;    // цена в USDT, decimal-строка ("3.00")
+  promptPreview?: string; // публичный тизер промпта (виден до оплаты)
+  sellerWallet?: string; // USDT-кошелёк автора (публичный блокчейн-адрес)
 }
 
 /**
@@ -75,6 +82,12 @@ function load(): PostCache {
     const boostMs = boostRaw ? Date.parse(boostRaw) : NaN;
     const pin = Number.parseInt((row.pin || "").trim(), 10);
 
+    const isPaidRaw = (row.is_paid || "").trim().toLowerCase();
+    const isPaid = isPaidRaw === "1" || isPaidRaw === "true" || isPaidRaw === "yes";
+    const priceUsdt = (row.price_usdt || "").trim();
+    const promptPreview = (row.prompt_preview || "").trim();
+    const sellerWallet = (row.seller_wallet || "").trim();
+
     const post: FeedPost = {
       url,
       title: (row.title || "").trim(),
@@ -86,6 +99,10 @@ function load(): PostCache {
         ? { badge: (row.badge || "").trim().toUpperCase() }
         : {}),
       ...((row.pin || "").trim() && Number.isFinite(pin) ? { pin } : {}),
+      ...(isPaid ? { isPaid: true } : {}),
+      ...(isPaid && priceUsdt ? { priceUsdt } : {}),
+      ...(promptPreview ? { promptPreview } : {}),
+      ...(sellerWallet ? { sellerWallet } : {}),
     };
     posts.push(post);
     byCode.set(utmCode, post);
