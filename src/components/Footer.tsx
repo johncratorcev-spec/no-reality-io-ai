@@ -21,23 +21,37 @@ export default function Footer() {
         }}
       />
 
-      <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-5">
-        <p className="text-[0.7rem] font-semibold tracking-tight text-[#10161d]/55 sm:text-[0.78rem]">
+      <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-3 px-5">
+        <p className="hidden text-[0.7rem] font-semibold tracking-tight text-[#10161d]/55 sm:block sm:text-[0.78rem]">
           your only limit is mind
         </p>
 
-        <a
-          href="https://t.me/your_betfriend"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="group flex items-center gap-1.5 text-[0.7rem] font-bold tracking-tight text-[#0a0a0a] sm:text-[0.78rem]"
-        >
-          @your_betfriend
-          <Send
-            className="h-3 w-3 text-[#0a0a0a] transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-            style={{ filter: "drop-shadow(0 0 5px rgba(16,22,29,.35))" }}
-          />
-        </a>
+        <div className="flex items-center gap-4">
+          <a
+            href="/terms"
+            className="text-[0.68rem] font-semibold tracking-tight text-[#10161d]/50 transition-colors hover:text-[#0a0a0a] sm:text-[0.75rem]"
+          >
+            terms
+          </a>
+          <a
+            href="/creators"
+            className="text-[0.68rem] font-semibold tracking-tight text-[#10161d]/50 transition-colors hover:text-[#0a0a0a] sm:text-[0.75rem]"
+          >
+            for creators
+          </a>
+          <a
+            href="https://t.me/your_betfriend"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-1.5 text-[0.7rem] font-bold tracking-tight text-[#0a0a0a] sm:text-[0.78rem]"
+          >
+            @your_betfriend
+            <Send
+              className="h-3 w-3 text-[#0a0a0a] transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+              style={{ filter: "drop-shadow(0 0 5px rgba(16,22,29,.35))" }}
+            />
+          </a>
+        </div>
       </div>
     </footer>
   );
