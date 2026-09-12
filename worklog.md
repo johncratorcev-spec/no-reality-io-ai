@@ -477,3 +477,22 @@ Work Log:
 Stage Summary:
 - Лента 47 постов: 10×SWAG, 3×CREEPY, 9×WELCOME, 0×ROCKET. Пины 1–5 на месте.
 - Legal-страницы /terms и /creators в проде после редеплоя; связи: футер ленты → обе страницы, шапка страниц → лента.
+
+---
+Task ID: 28
+Agent: Super Z (main agent)
+Task: (1) Перенести созданный код задач 27 (fallback + 2328-платежи + analytics) в отдельную ветку. (2) Лендинг-главная с анимациями/3D без тяжёлых библиотек, EN SEO/GEO-текст, описание проекта, соцсети (Instagram/Threads/Telegram), секция про децентрализованную команду — сделать и пуш сразу.
+
+Work Log:
+- РЕОРГАНИЗАЦИЯ ВЕТОК: origin/main (после fetch) = d1ac6b4 (task 26 уже на проде). Локальный main был ahead на 4 коммита Task 27 (e181f39, 8e3b2c7, 13a5e23, 67e1a7e) + незакоммиченный bun.lock. Сделано: git config core.filemode false (шум chmod-ов), ветка feature/video-fallback-and-2328-payments передвинута на 67e1a7e + коммит a9b53b8 (lockfile), main = reset --hard d1ac6b4 (= origin). Ветка НЕ запушена (ждёт разрешения).
+- ИНЦИДЕНТ (повтор паттерна): после сборки data/posts.csv и posts.snapshot.ts были изменены средой (не мной; diff по всем строкам, включая реальное отличие контента). Лечение по протоколу: git checkout -- из HEAD, регенерация снапшота → байт-идентично HEAD. В коммит CSV не попал.
+- ЛЕНДИНГ: новая главная / — src/app/page.tsx (server: metadata + JSON-LD) + src/components/landing/{Landing,HeroCanvas,Globe,Tilt,Reveal,CountUp,faq.ts,landing.css}. Фид переехал на /feed (src/app/feed/page.tsx), deep-link'и /v/[code] не тронуты, Header/Footer ленты не менялись.
+- АНИМАЦИИ БЕЗ БИБЛИОТЕК: WebGL-шейдер органического потока в герое (domain-warped fbm, реакция на курсор, 30fps cap, DPR≤1.5, pause on hidden, CSS-fallback; паттерн WebGLBanner); 3D-tilt карточки (pointermove, блик-глейр, off на тач/reduced-motion); плавающие бейджи-спутники героя (переиспользование nr-swag/nr-ufo/nr-creepy классов + параллакс-слои); канвас-глобус команды (Fibonacci sphere 700 точек, драг с инерцией, пульс-хабы 8 городов); scroll-reveal через IntersectionObserver; marquee, count-up статистика; prefers-reduced-motion всюду.
+- SEO/GEO: EN-копирайтинг (hero, about, how, marketplace 2328.io/75-25, creators, team «decentralized across the planet», FAQ×8, socials, footer с дисклеймером «not affiliated with Meta/Threads»); metadata + OG/Twitter + canonical (metadataBase = https://no-reality.io из имени репо — проверить домен!); JSON-LD WebSite+Organization(sameAs соцсети)+FAQPage; src/app/sitemap.xml (/,/feed,/terms,/creators); robots.txt + Sitemap.
+- СОЦСЕТИ: единый конфиг src/lib/site.ts. Telegram t.me/your_betfriend — подтверждён футером/legal; Instagram и Threads хэндлы — ЗАГЛУШКИ your_betfriend, пользователю уточнить ре хэндлы и поправить один файл.
+- Проверки: npx tsc --noEmit чисто; eslint новых файлов чисто (CountUp переписан императивно из-за react-hooks/set-state-in-effect); npm run build — / статика, /feed динамика, /sitemap.xml статика, 47 постов; смоук next start: 200 на /, /feed, /sitemap.xml, /v/j59dA1Ld, /terms, /creators; JSON-LD/маркеры контента в HTML подтверждены.
+- ПУШ ЗАБЛОКИРОВАН: PAT в окружении не сохранён (в worklog только маскированный след, .env/credentials/SSH пусты). Коммит 5540ed9 на main готов локально; push одной командой, как только пользователь пришлёт свежий PAT.
+
+Stage Summary:
+- main = d1ac6b4 (origin) + 5540ed9 (лендинг, локально, ждёт PAT). Ветка feature/video-fallback-and-2328-payments = весь код задач 27 (fallback, 2328-платежи, analytics) локально, не запушена.
+- Лента на проде не менялась: 47 постов, пины 1–5. Лендинг собирается статикой, фид динамикой.
