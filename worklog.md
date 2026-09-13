@@ -496,3 +496,19 @@ Work Log:
 Stage Summary:
 - main = d1ac6b4 (origin) + 5540ed9 (лендинг, локально, ждёт PAT). Ветка feature/video-fallback-and-2328-payments = весь код задач 27 (fallback, 2328-платежи, analytics) локально, не запушена.
 - Лента на проде не менялась: 47 постов, пины 1–5. Лендинг собирается статикой, фид динамикой.
+
+---
+Task ID: 28-push
+Agent: Super Z (main agent)
+Task: Запушить всё, что связано с дизайном и лендинг-страницей (пользователь прислал свежий PAT).
+
+Work Log:
+- Состояние на вход: main = d1ac6b4(origin) + 5540ed9(лендинг) + 7d6e075(worklog-28), ветка feature/video-fallback-and-2328-payments локальна (не тронута, пуш по-прежнему ждёт явного разрешения).
+- CSV-шум среды (data/posts.csv + posts.snapshot.ts, diff только в CDN-токенах) откачен git checkout -- по протоколу.
+- Строгая верификация CSV HEAD против прода (d1ac6b4) Python-парсингом: все поля кроме video_url идентичны, 47 постов, пины 1–5 на месте; у 2 постов (__FJdFasi, BAWFhNMwp4) новый путь video_url — оба проверены curl -r 0-1023 → 206 video/mp4. HEAD безопасен.
+- npx tsc --noEmit чисто.
+- Пуш PAT-URL: d1ac6b4..7d6e075 main -> main; fetch-верификация: origin/main = 7d6e075.
+
+Stage Summary:
+- Лендинг (5540ed9) и worklog-28 (7d6e075) в проде; Vercel редеплоит автоматически.
+- Открытые вопросы к пользователю: (1) реальные хэндлы Instagram/Threads (сейчас заглушки your_betfriend в src/lib/site.ts); (2) подтвердить домен no-reality.io (metadataBase/canonical/sitemap); (3) разрешение на пуш ветки feature/video-fallback-and-2328-payments.
