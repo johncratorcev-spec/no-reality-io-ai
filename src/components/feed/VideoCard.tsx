@@ -25,6 +25,7 @@ import {
 import type { FeedPost } from "@/lib/csv";
 import { isBoosted } from "@/lib/boost";
 import { pseudoViews } from "@/lib/utils";
+import MediaCarousel from "./MediaCarousel";
 
 export type PostWithScore = FeedPost & { score: number };
 
@@ -269,6 +270,9 @@ export default function VideoCard({
   const [error, setError] = useState(false);
   const [blocked, setBlocked] = useState(false);
 
+  /* карусельный пост: слайды вместо одиночного видео */
+  const isCarousel = Boolean(post.media && post.media.length > 0);
+
   /* флуд-контроль кнопок: не чаще раза в cooldown мс */
   const guarded = (cooldownMs: number) => {
     const now = Date.now();
@@ -459,7 +463,7 @@ export default function VideoCard({
       className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-[#eef5fb]"
     >
       {/* ---------- размытый фон: canvas-снимок кадра (только у активной) ---------- */}
-      {isActive && (
+      {isActive && !isCarousel && (
         <canvas
           ref={bgCanvasRef}
           width={64}
@@ -468,8 +472,17 @@ export default function VideoCard({
           className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-50 blur-3xl"
         />
       )}
+      {/* ---------- карусель: слайды stories-стилем (только в зоне active±1) ---------- */}
+      {shouldLoad && isCarousel && (
+        <MediaCarousel
+          slides={post.media!}
+          active={isActive}
+          loop={index === total - 1}
+          onEnded={onEnded}
+        />
+      )}
       {/* ---------- основное видео: монтируется только в зоне active±1 ---------- */}
-      {shouldLoad && (
+      {shouldLoad && !isCarousel && (
         <video
           ref={videoRef}
           src={post.videoUrl}
@@ -538,20 +551,22 @@ export default function VideoCard({
         </div>
       )}
 
-      {/* ---------- звук ---------- */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          const v = videoRef.current;
-          if (!v) return;
-          v.muted = !v.muted;
-          setMuted(v.muted);
-        }}
-        aria-label={muted ? "Unmute" : "Mute"}
-        className="nr-glass absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(16,22,29,.3)]"
-      >
-        {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-      </button>
+      {/* ---------- звук (только у видео-карточек) ---------- */}
+      {!isCarousel && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const v = videoRef.current;
+            if (!v) return;
+            v.muted = !v.muted;
+            setMuted(v.muted);
+          }}
+          aria-label={muted ? "Unmute" : "Mute"}
+          className="nr-glass absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(16,22,29,.3)]"
+        >
+          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </button>
+      )}
 
       {/* ---------- левый верхний ряд: скрепка + профиль автора ----------
           скрепка копирует deep-link /v/[code] (wiggle цепляет взгляд);
@@ -782,14 +797,16 @@ export default function VideoCard({
         <Wrench className="h-4 w-4 text-[#0a0a0a]" />
       </button>
 
-      {/* ---------- выразительный прогресс-бар ---------- */}
-      <ProgressBar
-        videoRef={videoRef}
-        active={isActive}
-        onSeek={seekWithBg}
-        onScrubStart={() => showStatus(false)}
-        onScrubEnd={hideStatusSoon}
-      />
+      {/* ---------- выразительный прогресс-бар (только видео; у карусели — stories-сегменты) ---------- */}
+      {!isCarousel && (
+        <ProgressBar
+          videoRef={videoRef}
+          active={isActive}
+          onSeek={seekWithBg}
+          onScrubStart={() => showStatus(false)}
+          onScrubEnd={hideStatusSoon}
+        />
+      )}
     </section>
   );
 }

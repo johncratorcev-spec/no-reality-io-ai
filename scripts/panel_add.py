@@ -241,7 +241,12 @@ def run(args):
         fail("этот пост уже в ленте (добавился, пока шло извлечение)")
         return
     utm = nanoid()
-    rows.append([url, title, author, utm, video_url, "", args.badge, ""])
+    # добиваем строку пустыми колонками до ширины заголовка CSV
+    # (в CSV появились доп. колонки: media, is_paid, price_usdt, …)
+    width = len(rows[0]) if rows else 8
+    new_row = [url, title, author, utm, video_url, "", args.badge, ""]
+    new_row += [""] * max(0, width - len(new_row))
+    rows.append(new_row)
     with open(CSV, "w", newline="", encoding="utf-8") as f:
         csv.writer(f).writerows(rows)
     log(f"строка добавлена в CSV (utm {utm}), постов: {len(rows) - 1}")

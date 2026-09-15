@@ -3,15 +3,39 @@ import path from "path";
 import Papa from "papaparse";
 import { POSTS_CSV_SNAPSHOT } from "./posts.snapshot";
 
+export interface FeedMedia {
+  type: "image" | "video";
+  url: string;
+}
+
 export interface FeedPost {
   url: string;          // оригинальная ссылка на пост в Threads
   title: string;
   author: string;
   utmCode: string;
   videoUrl: string;     // прямой MP4 для встраивания (CDN Threads)
+  media?: FeedMedia[];  // карусель (фото/видео-слайды, JSON из колонки media)
   boostUntil?: number;  // unix ms: пост поднят на первое место до этого момента
   badge?: string;       // анимированный бейдж на карточке (напр. "CREEPY")
   pin?: number;         // абсолютный слот в ленте (1 — самая верхняя карточка)
+}
+
+/** Колонка media: компактный JSON [{"t":"i"|"v","u":"https://…"}] → слайды */
+function parseMedia(raw: string): FeedMedia[] | undefined {
+  const s = (raw || "").trim();
+  if (!s.startsWith("[")) return undefined;
+  try {
+    const arr = JSON.parse(s) as Array<{ t?: string; u?: string }>;
+    const media = arr
+      .map((m) => ({
+        type: m.t === "v" ? ("video" as const) : ("image" as const),
+        url: (m.u || "").trim(),
+      }))
+      .filter((m) => m.url.startsWith("http"));
+    return media.length > 0 ? media : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -68,8 +92,10 @@ function load(): PostCache {
     const url = (row.url || "").trim();
     const utmCode = (row.utm_code || "").trim();
     const videoUrl = (row.video_url || "").trim();
+    const media = parseMedia(row.media || "");
 
-    if (!url || !utmCode || !videoUrl) continue; // неполная строка — в ленту не идёт
+    // неполная строка — в ленту не идёт (видео ИЛИ хотя бы один слайд карусели)
+    if (!url || !utmCode || (!videoUrl && !media)) continue;
 
     const boostRaw = (row.boost_until || "").trim();
     const boostMs = boostRaw ? Date.parse(boostRaw) : NaN;
@@ -81,6 +107,7 @@ function load(): PostCache {
       author: (row.author || "").trim(),
       utmCode,
       videoUrl,
+      ...(media ? { media } : {}),
       ...(Number.isFinite(boostMs) ? { boostUntil: boostMs } : {}),
       ...((row.badge || "").trim()
         ? { badge: (row.badge || "").trim().toUpperCase() }

@@ -6,6 +6,7 @@ import Tilt from "./Tilt";
 import CountUp from "./CountUp";
 import HeroCanvas from "./HeroCanvas";
 import Globe from "./Globe";
+import Partner from "./Partner";
 import { FAQ_ITEMS } from "./faq";
 import { SITE, SOCIALS } from "@/lib/site";
 import "./landing.css";
@@ -22,6 +23,7 @@ const NAV = [
   { href: "#prompts", label: "prompts" },
   { href: "#creators", label: "creators" },
   { href: "#team", label: "team" },
+  { href: "#partner", label: "partner" },
   { href: "#faq", label: "faq" },
 ];
 
@@ -497,6 +499,9 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* ================= PARTNER OF THE WEEK ================= */}
+      <Partner />
 
       {/* ================= FAQ ================= */}
       <section id="faq" className="scroll-mt-24 pb-24 sm:pb-32">

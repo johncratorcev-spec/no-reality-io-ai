@@ -164,3 +164,207 @@
     transition: none;
   }
 }
+
+/* ================================================================
+   Partner of the week — кошачий блок (nrld-cat-*)
+   Тёплая кремовая палитра, мягкие анимации, reduced-motion учтён.
+   ================================================================ */
+
+.nrld-cat-card {
+  background:
+    radial-gradient(120% 90% at 12% 0%, #fff3e2 0%, rgba(255, 243, 226, 0) 55%),
+    linear-gradient(135deg, #fff6ec 0%, #ffe9d4 58%, #ffdfc2 100%);
+  box-shadow:
+    0 24px 70px rgba(214, 137, 88, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nrld-cat-card:hover {
+  transform: translateY(-3px);
+}
+
+/* уши на верхней кромке карточки */
+.nrld-cat-ear {
+  position: absolute;
+  top: -26px;
+  width: 58px;
+  height: 58px;
+  background: linear-gradient(135deg, #ffd9b4 0%, #ffc593 100%);
+  border-radius: 14px 40px 6px 40px;
+  transform: rotate(-8deg);
+  box-shadow: 0 8px 22px rgba(214, 137, 88, 0.25);
+  animation: nrld-cat-twitch 6s ease-in-out infinite;
+  transform-origin: bottom left;
+}
+.nrld-cat-ear.right-\[14\%\] {
+  border-radius: 40px 14px 40px 6px;
+  transform: rotate(8deg);
+  transform-origin: bottom right;
+  animation-delay: 3s;
+}
+@keyframes nrld-cat-twitch {
+  0%, 88%, 100% { translate: 0 0; }
+  91% { translate: 0 -5px; }
+  94% { translate: 0 0; }
+  97% { translate: 0 -3px; }
+}
+
+/* плавающие лапки */
+.nrld-cat-paw {
+  opacity: 0.5;
+  filter: drop-shadow(0 6px 14px rgba(214, 137, 88, 0.25));
+}
+
+.nrld-cat-eyebrow {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #c26d3f;
+}
+.nrld-cat-accent {
+  color: #e8925a;
+}
+
+/* CTA-кнопка: тёплый градиент + мягкое дыхание свечения */
+.nrld-cat-btn {
+  background: linear-gradient(135deg, #f08c4a 0%, #e4713b 100%);
+  box-shadow: 0 10px 30px rgba(228, 113, 59, 0.35);
+  animation: nrld-cat-btn-glow 3.6s ease-in-out infinite;
+}
+@keyframes nrld-cat-btn-glow {
+  0%, 100% { box-shadow: 0 10px 30px rgba(228, 113, 59, 0.3); }
+  50%      { box-shadow: 0 10px 38px rgba(228, 113, 59, 0.5); }
+}
+
+/* ---- мордочка ---- */
+.nrld-cat-face {
+  position: relative;
+  aspect-ratio: 1 / 0.92;
+  background: linear-gradient(160deg, #fffdf9 0%, #ffeeda 100%);
+  border-radius: 48% 48% 46% 46%;
+  box-shadow:
+    0 20px 50px rgba(214, 137, 88, 0.22),
+    inset 0 -8px 24px rgba(228, 113, 59, 0.08);
+  animation: nrld-cat-breathe 4.5s ease-in-out infinite;
+}
+@keyframes nrld-cat-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-6px) scale(1.015); }
+}
+
+.nrld-cat-face-ear {
+  position: absolute;
+  top: -7%;
+  width: 30%;
+  height: 34%;
+  background: linear-gradient(135deg, #ffddba 0%, #ffc593 100%);
+  border-radius: 90% 20% 0 0;
+  transform: rotate(-6deg);
+}
+.nrld-cat-face-ear.right-\[6\%\] {
+  border-radius: 20% 90% 0 0;
+  transform: rotate(6deg);
+}
+
+/* глаза: белок + зрачок (зрачок двигает JS) */
+.nrld-cat-eye {
+  position: absolute;
+  top: 34%;
+  width: 17%;
+  height: 21%;
+  background: #2f1a0e;
+  border-radius: 50%;
+  overflow: hidden;
+  animation: nrld-cat-blink 4.8s ease-in-out infinite;
+}
+.nrld-cat-eye.right-\[22\%\] {
+  animation-delay: 0.05s;
+}
+.nrld-cat-pupil {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34%;
+  height: 34%;
+  margin: -17% 0 0 -17%;
+  background: #fff8f0;
+  border-radius: 50%;
+  will-change: transform;
+  box-shadow: 0 0 0 1px rgba(255, 248, 240, 0.4);
+}
+@keyframes nrld-cat-blink {
+  0%, 91%, 100% { transform: scaleY(1); }
+  94%           { transform: scaleY(0.08); }
+  97%           { transform: scaleY(1); }
+}
+
+.nrld-cat-nose {
+  position: absolute;
+  left: 50%;
+  top: 57%;
+  width: 9%;
+  height: 6.5%;
+  transform: translateX(-50%);
+  background: #f0a18a;
+  border-radius: 50% 50% 60% 60%;
+}
+
+.nrld-cat-mouth {
+  position: absolute;
+  left: 50%;
+  top: 66%;
+  width: 14%;
+  height: 7%;
+  transform: translateX(-50%);
+  border: 2.4px solid rgba(120, 74, 45, 0.5);
+  border-top: none;
+  border-radius: 0 0 90px 90px;
+}
+
+.nrld-cat-whisker {
+  position: absolute;
+  top: 56%;
+  width: 22%;
+  height: 2.4px;
+  background: linear-gradient(90deg, rgba(120, 74, 45, 0.45), rgba(120, 74, 45, 0));
+  border-radius: 2px;
+  transform: rotate(4deg);
+}
+.nrld-cat-whisker.left-\[8\%\] { left: 8%; }
+.nrld-cat-whisker.left-\[10\%\] { left: 10%; transform: rotate(-5deg); }
+.nrld-cat-whisker.right-\[8\%\] {
+  right: 8%;
+  background: linear-gradient(270deg, rgba(120, 74, 45, 0.45), rgba(120, 74, 45, 0));
+  transform: rotate(-4deg);
+}
+.nrld-cat-whisker.right-\[10\%\] {
+  right: 10%;
+  background: linear-gradient(270deg, rgba(120, 74, 45, 0.45), rgba(120, 74, 45, 0));
+  transform: rotate(5deg);
+}
+
+/* клубок: медленно разматывается */
+.nrld-cat-yarn-wrap {
+  margin: 14px auto 0;
+  width: 52px;
+}
+.nrld-cat-yarn {
+  animation: nrld-cat-yarn-spin 9s linear infinite;
+  transform-origin: center;
+}
+@keyframes nrld-cat-yarn-spin {
+  to { rotate: 360deg; }
+}
+
+/* reduced-motion: всё статично */
+@media (prefers-reduced-motion: reduce) {
+  .nrld-cat-card,
+  .nrld-cat-card:hover { transform: none; }
+  .nrld-cat-ear,
+  .nrld-cat-face,
+  .nrld-cat-eye,
+  .nrld-cat-yarn,
+  .nrld-cat-btn { animation: none; }
+  .nrld-cat-paw { animation: none; opacity: 0.55; }
+}

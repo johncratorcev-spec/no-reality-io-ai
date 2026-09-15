@@ -115,6 +115,8 @@ def main():
     ap.add_argument("--force", action="store_true", help="обновить все ссылки, а не только истекающие")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--min-hours", type=float, default=48.0)
+    ap.add_argument("--budget", type=float, default=0.0,
+                    help="мягкий лимит времени в секундах (0 — без лимита)")
     args = ap.parse_args()
 
     log = (lambda *a: None) if args.quiet else (lambda *a: print(*a, flush=True))
@@ -137,11 +139,27 @@ def run(args, log):
         rows = list(reader)
         fieldnames = reader.fieldnames or list(rows[0].keys())
 
+    deadline = time.time() + args.budget if args.budget else float("inf")
     now = time.time()
     threshold = now + args.min_hours * 3600
     updated, failed, skipped, revived = 0, 0, 0, 0
 
+    def save_rows():
+        """Атомарная запись CSV (вызывается после каждого обновления —
+        фоновый процесс может быть убит средой, работа не должна теряться)."""
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(csv_path), suffix=".tmp")
+        with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
+            w.writeheader()
+            w.writerows(rows)
+        os.chmod(tmp, 0o644)  # mkstemp создаёт 0600 — возвращаем обычные права
+        os.replace(tmp, csv_path)
+
     for row in rows:
+        if time.time() > deadline:
+            log(f"[refresh] бюджет {args.budget:.0f}с исчерпан — мягкий выход (прогресс сохранён)")
+            break
+
         share_url = (row.get("url") or "").strip()
         video_url = (row.get("video_url") or "").strip()
         if not share_url or "threads.com" not in share_url:
@@ -179,19 +197,11 @@ def run(args, log):
                 updated += 1
                 if not video_url:
                     revived += 1
-                log(f"[refresh] {row['utm_code']}: OK, новая ссылка ({'оживлена' if not video_url else 'обновлена'})")
+                save_rows()  # инкрементально: убитый процесс = потерянные секунды, не часы
+                log(f"[refresh] {row['utm_code']}: OK ({'оживлена' if not video_url else 'обновлена'}), сохранено {updated}/{len(rows)}")
             else:
                 log(f"[refresh] {row['utm_code']}: ссылка не изменилась, оставляю")
-        time.sleep(1.5)
-
-    if updated or revived:
-        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(csv_path), suffix=".tmp")
-        with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
-            w.writeheader()
-            w.writerows(rows)
-        os.chmod(tmp, 0o644)  # mkstemp создаёт 0600 — возвращаем обычные права
-        os.replace(tmp, csv_path)
+        time.sleep(1.2)
 
     log(f"[refresh] итог: обновлено {updated}, оживлено {revived}, пропущено {skipped}, ошибок {failed}")
     return 0 if failed == 0 else 2

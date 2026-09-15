@@ -37,3 +37,17 @@ export const SOCIALS = [
     blurb: "Daily best-of clips, prompt giveaways and the crew’s notes.",
   },
 ] as const;
+
+/**
+ * Партнёр недели: кастомный блок на лендинге (#partner).
+ * Меняется раз в неделю правкой этого объекта — оформление подставится само.
+ */
+export const PARTNER_OF_WEEK = {
+  week: "this week’s partner",
+  name: "paw crew daily",
+  handle: "@pawcrewdaily",
+  url: "https://www.instagram.com/pawcrewdaily",
+  kind: "cats, every single day",
+  blurb:
+    "A daily dose of dopamine from the fluffiest crew on Instagram — the team curates the most expressive cats on the planet while we curate the machines that dream. Different feed, same obsession: catching the perfect frame.",
+} as const;

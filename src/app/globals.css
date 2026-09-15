@@ -598,3 +598,66 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* ================================================================
+   MediaCarousel — вирусная фото-карусель карточки (nr-mc-*)
+   ================================================================ */
+
+/* трек слайдов: пружинистый переход между слайдами */
+.nr-mc-track {
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+/* размытый фон-подложка текущего фото (кроссфейд) */
+.nr-mc-bg {
+  background-size: cover;
+  background-position: center;
+  filter: blur(46px) saturate(1.25);
+  transform: scale(1.3);
+  opacity: 0;
+  animation: nr-mc-bg-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes nr-mc-bg-in {
+  to { opacity: 0.55; }
+}
+
+/* ken-burns: медленный органический зум-дрейф активного фото */
+.nr-mc-kb {
+  animation: nr-mc-kenburns 7.5s ease-out forwards;
+}
+@keyframes nr-mc-kenburns {
+  from { transform: scale(1.02) translate3d(0, 0, 0); }
+  to   { transform: scale(1.14) translate3d(0, -1.8%, 0); }
+}
+
+/* сегменты stories-прогресса */
+.nr-mc-seg {
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 6px rgba(27, 21, 35, 0.25);
+}
+
+/* стрелки: появляются при ховере карточки */
+.nr-mc-arrow {
+  opacity: 0;
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+section:hover .nr-mc-arrow,
+.nr-mc-arrow:focus-visible {
+  opacity: 1;
+}
+
+/* вход слайда: мягкое проявление из лёгкого масштаба */
+.nr-mc-img {
+  opacity: 0.96;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nr-mc-track { transition: none; }
+  .nr-mc-bg { animation: none; opacity: 0.55; }
+  .nr-mc-kb { animation: none; transform: none; }
+  .nr-mc-arrow { opacity: 1; transition: none; }
+}
