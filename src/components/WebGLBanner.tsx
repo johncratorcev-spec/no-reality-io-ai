@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-export const VIRAL_URL = "https://t.me/smartluvon_bot?start=ref_PCQ8ECMN";
+import { PARTNER_OF_WEEK } from "@/lib/site";
+import { playMeow } from "@/lib/meow";
 
 /* ------------------------------------------------------------------ */
 /*  WebGL-шейдер: перламутрово-голубые шёлковые волны                  */
-/*  (лёд + жемчуг + лёгкая радужная иридисценция + блик-шимер)         */
-/*  Рендер ограничен 30fps — волны медленные, батарея экономится заметно. */
+/*  (лёд + жемчуг + лёгкая радужная иридисценция + блик-шиммер)        */
+/*  Рендер ограничен 30fps — волны медленные, батарея экономится.      */
+/*  Центр — арт-баннер партнёра недели, весь баннер ведёт в их IG.     */
 /* ------------------------------------------------------------------ */
 
 const VERT = `
@@ -193,7 +194,7 @@ export default function WebGLBanner() {
     <section
       className="nr-anim-fade-down relative z-40 h-[var(--nr-banner-h)] shrink-0 overflow-hidden"
       style={{ animationDuration: "0.8s", animationDelay: "0.15s" }}
-      aria-label="Banner: smartluvon — Partner of the Week"
+      aria-label="Banner: paw crew daily — Partner of the Week"
     >
       {/* WebGL-полотно / CSS-fallback */}
       {failed ? (
@@ -223,28 +224,47 @@ export default function WebGLBanner() {
         }}
       />
 
-      {/* весь баннер — вирусная ссылка */}
+      {/* весь баннер — ссылка на профиль партнёра (переход мяукает) */}
       <a
-        href={VIRAL_URL}
+        href={PARTNER_OF_WEEK.url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="smartluvon — Partner of the Week. Open in Telegram"
-        className="nr-anim-fade-in nr-anim-late group relative flex h-full w-full items-center justify-center transition-transform duration-300 hover:scale-[1.01] active:scale-[0.99]"
+        onClick={playMeow}
+        aria-label="paw crew daily — Partner of the Week. Open on Instagram"
+        className="nr-anim-fade-in nr-anim-late group relative flex h-full w-full items-center justify-center gap-4 px-4 transition-transform duration-300 hover:scale-[1.01] active:scale-[0.99] sm:gap-5"
       >
-        <div className="flex flex-col items-center leading-none">
-          <span className="text-[0.95rem] font-extrabold tracking-tight text-[#0a0a0a] sm:text-[1.15rem]">
-            smartluvon
-          </span>
-          <span className="mt-1 text-[0.58rem] font-bold uppercase tracking-[0.28em] text-[#10161d]/60 sm:text-[0.65rem]">
-            — Partner of the Week —
-          </span>
-        </div>
+        {/* арт-баннер: рыжий экипаж партнёра (фокус на котах, правая часть арта) */}
+        <span
+          aria-hidden
+          className="nr-banner-art block h-[86%] shrink-0 overflow-hidden rounded-[1.4rem]"
+          style={{ aspectRatio: "16 / 9" }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/partner/pawcrew-banner.png"
+            alt=""
+            draggable={false}
+            className="h-full w-full select-none object-cover object-[65%_center]"
+          />
+        </span>
 
-        {/* мягкое ч/б свечение подписи при ховере */}
+        <span className="flex flex-col items-start leading-none">
+          <span className="text-[0.55rem] font-extrabold uppercase tracking-[0.3em] text-[#c26d3f]">
+            🐾 partner of the week
+          </span>
+          <span className="mt-1.5 text-[0.95rem] font-extrabold tracking-tight text-[#0a0a0a] sm:text-[1.15rem]">
+            paw crew daily
+          </span>
+          <span className="mt-1 text-[0.58rem] font-bold uppercase tracking-[0.24em] text-[#10161d]/60 sm:text-[0.62rem]">
+            {PARTNER_OF_WEEK.handle} · cats, every single day
+          </span>
+        </span>
+
+        {/* мягкое свечение при ховере */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-700 group-hover:opacity-100"
-          style={{ backdropFilter: "brightness(1.06)" }}
+          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-700 group-hover:opacity-100"
+          style={{ backdropFilter: "brightness(1.05)" }}
         />
       </a>
     </section>

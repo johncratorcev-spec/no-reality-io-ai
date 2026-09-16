@@ -144,6 +144,6 @@ export async function get2328PaymentInfo(
   const body: Record<string, unknown> = {};
   if (ref.uuid) body.uuid = ref.uuid;
   if (ref.orderId) body.order_id = ref.orderId;
-  if (!body.uuid && !body.orderId) return null;
+  if (!body.uuid && !body.order_id) return null;
   return callApi("/v1/payment/info", body);
 }

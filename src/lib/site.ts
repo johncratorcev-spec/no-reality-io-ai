@@ -46,10 +46,12 @@ export const PARTNER_OF_WEEK = {
   week: "this week’s partner",
   name: "paw crew daily",
   handle: "@pawcrewdaily",
-  url: "https://www.instagram.com/pawcrewdaily",
+  url: "https://www.instagram.com/pawcrewdaily?stkn=MTR0eDRnYTVqaDhtMw==",
   kind: "cats, every single day",
   blurb:
     "A daily dose of dopamine from the fluffiest crew on Instagram — the team curates the most expressive cats on the planet while we curate the machines that dream. Different feed, same obsession: catching the perfect frame.",
   /** их пост, закреплённый первым в ленте (pin 1) — на нём тоже мяукает переход */
   partnerPostUtm: "TK4_0wTI",
+  /** пресеты крипто-доната (USDT) на пост партнёра — пилот 2328.io */
+  donatePresetsUsdt: ["1.00", "3.00", "5.00"],
 } as const;

@@ -13,7 +13,7 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "no reality.",
   description:
-    "A feed of AI video from Threads. Watch. Share reality. smartluvon — Partner of the Week.",
+    "A feed of AI video from Threads. Watch. Share reality. pawcrewdaily — Partner of the Week.",
   icons: {
     icon:
       "data:image/svg+xml," +

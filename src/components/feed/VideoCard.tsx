@@ -30,6 +30,7 @@ import { pseudoViews } from "@/lib/utils";
 import { playMeow } from "@/lib/meow";
 import { PARTNER_OF_WEEK } from "@/lib/site";
 import MediaCarousel from "./MediaCarousel";
+import DonateBox from "./DonateBox";
 import { extractPrompt } from "@/lib/prompts/extract";
 import VideoFallback from "./VideoFallback";
 import UnlockModal from "./UnlockModal";
@@ -1008,6 +1009,12 @@ export default function VideoCard({
           <Wrench className="h-4 w-4 text-[#0a0a0a]" />
         )}
       </button>
+
+      {/* ---------- пилот 2328.io: крипто-донат на посте партнёра недели ---------- */}
+      {post.utmCode === PARTNER_OF_WEEK.partnerPostUtm &&
+        PARTNER_OF_WEEK.donatePresetsUsdt.length > 0 && (
+          <DonateBox utmCode={post.utmCode} />
+        )}
 
       {/* ---------- вспышка разблокировки: кольцо + конфетти ---------- */}
       {unlockFlash && (
