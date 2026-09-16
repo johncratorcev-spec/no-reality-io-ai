@@ -1009,3 +1009,97 @@ section:hover .nr-mc-arrow,
   .nr-donate-btn { animation: none; }
   .nr-donate-card { animation-duration: 0.01s; }
 }
+
+/* ============================================================
+   CHARITY DRIVE — 72ч акция «каждая лапка на счету»:
+   чип-таймер над донат-кнопкой + модалка акции (портал в body).
+   ============================================================ */
+.nr-charity-chip {
+  background: linear-gradient(135deg, #fff3e2 0%, #ffd9b3 100%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 6px 18px rgba(194, 109, 63, 0.3);
+  animation: nr-charity-glow 2.6s ease-in-out infinite;
+}
+@keyframes nr-charity-glow {
+  0%, 100% { box-shadow: 0 6px 18px rgba(194, 109, 63, 0.3); }
+  50%      { box-shadow: 0 8px 26px rgba(228, 113, 59, 0.55); }
+}
+
+.nr-charity-backdrop {
+  background: rgba(30, 15, 5, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: nr-charity-fade 0.3s ease-out both;
+}
+@keyframes nr-charity-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.nr-charity-card {
+  background:
+    radial-gradient(130% 70% at 50% 0%, #fff3e2 0%, rgba(255, 243, 226, 0) 55%),
+    linear-gradient(155deg, #fff6ec 0%, #ffe9d4 55%, #ffdcbf 100%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 30px 80px rgba(20, 10, 4, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  animation: nr-charity-pop 0.5s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+@keyframes nr-charity-pop {
+  from { transform: translate3d(0, 28px, 0) scale(0.88); opacity: 0; }
+  to   { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+}
+
+/* летающие лапки/сердечки в модалке */
+.nr-charity-float {
+  animation-name: nr-charity-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  opacity: 0.5;
+  will-change: transform;
+}
+@keyframes nr-charity-float {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-8deg); }
+  50%      { transform: translate3d(0, -18px, 0) rotate(10deg); }
+}
+
+/* шиммер-заголовок: тёплый градиент пробегает по буквам */
+.nr-charity-shimmer {
+  background: linear-gradient(
+    110deg,
+    #c26d3f 20%, #e4713b 38%, #ffb26b 50%, #e4713b 62%, #c26d3f 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: nr-charity-shimmer 3.2s linear infinite;
+}
+@keyframes nr-charity-shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* лёгкий «пружинный» тик на смене цифр отсчёта (remount по key) */
+.nr-charity-sec {
+  animation: nr-charity-tick 0.35s ease-out;
+}
+@keyframes nr-charity-tick {
+  0%   { transform: translateY(-35%) scale(0.85); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nr-charity-chip,
+  .nr-charity-float,
+  .nr-charity-sec { animation: none; }
+  .nr-charity-shimmer {
+    animation: none;
+    color: #c26d3f;
+    -webkit-text-fill-color: #c26d3f;
+  }
+  .nr-charity-card, .nr-charity-backdrop {
+    animation-duration: 0.01s;
+    animation-delay: 0s;
+  }
+}

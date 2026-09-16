@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Heart, Loader2 } from "lucide-react";
+import { Heart, Loader2, PawPrint } from "lucide-react";
 import { PARTNER_OF_WEEK } from "@/lib/site";
+import { formatHMS, useCountdown } from "@/lib/charity";
+import CharityModal from "./CharityModal";
 
 /* ================================================================
    DonateBox — пилот крипто-доната 2328.io на посте партнёра недели.
    Пресеты сумм → hosted checkout 2328 (новая вкладка) → поллинг
    статуса у провайдера → «спасибо». Тёплый кошачий стиль.
+   + благотворительная акция: чип-таймер 72ч → модалка CharityModal.
    ================================================================ */
 
 type Phase = "choose" | "creating" | "waiting" | "thanks" | "error";
@@ -20,12 +23,16 @@ const PRESET_LABEL: Record<string, string> = {
 
 export default function DonateBox({ utmCode }: { utmCode: string }) {
   const presets = PARTNER_OF_WEEK.donatePresetsUsdt;
+  const drive = PARTNER_OF_WEEK.charityDrive;
   const [open, setOpen] = useState(false);
+  const [charityOpen, setCharityOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("choose");
   const [amount, setAmount] = useState<string>("");
   const [hint, setHint] = useState<string>("");
   const orderIdRef = useRef<string>("");
   const pollRef = useRef<number | null>(null);
+  const { ready, msLeft, expired } = useCountdown(drive.deadlineUtc);
+  const charityLive = ready && !expired;
 
   /* поллинг статуса: 4с × 150 попыток (10 мин), потом тихо сдаёмся */
   const startPolling = useCallback((orderId: string) => {
@@ -114,17 +121,36 @@ export default function DonateBox({ utmCode }: { utmCode: string }) {
   return (
     <div className="absolute bottom-[6.4rem] right-3 z-20 flex flex-col items-end">
       {!open ? (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpen(true);
-          }}
-          aria-label="Donate crypto to the partner of the week"
-          className="nr-donate-btn flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[0.68rem] font-extrabold text-white transition-transform duration-300 hover:scale-[1.05] active:scale-95"
-        >
-          <Heart className="h-3.5 w-3.5 fill-current" aria-hidden />
-          donate crypto
-        </button>
+        <>
+          {/* чип благотворительной акции: тикающий 72-часовой отсчёт */}
+          {charityLive && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCharityOpen(true);
+              }}
+              aria-label="Charity drive — tap to see where donations go"
+              className="nr-charity-chip mb-1.5 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.58rem] font-extrabold text-[#5b3013] transition-transform duration-200 hover:scale-105 active:scale-95"
+            >
+              <PawPrint className="h-3 w-3 text-[#c26d3f]" aria-hidden />
+              <span>charity drive</span>
+              <span className="tabular-nums text-[#c26d3f]">
+                {msLeft !== null ? formatHMS(msLeft) : "--:--:--"}
+              </span>
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(true);
+            }}
+            aria-label="Donate crypto to the partner of the week"
+            className="nr-donate-btn flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[0.68rem] font-extrabold text-white transition-transform duration-300 hover:scale-[1.05] active:scale-95"
+          >
+            <Heart className="h-3.5 w-3.5 fill-current" aria-hidden />
+            donate crypto
+          </button>
+        </>
       ) : (
         <div
           role="dialog"
@@ -139,6 +165,9 @@ export default function DonateBox({ utmCode }: { utmCode: string }) {
               </p>
               <p className="mt-1 text-[0.6rem] font-semibold leading-relaxed text-[#6b4a33]/80">
                 your crypto landed. the crew purrs in your honor.
+              </p>
+              <p className="mt-1 text-[0.56rem] font-bold text-[#c26d3f]">
+                every cent goes to cat shelters 🐾
               </p>
               <button
                 onClick={reset}
@@ -155,6 +184,16 @@ export default function DonateBox({ utmCode }: { utmCode: string }) {
               <p className="mt-0.5 text-[0.58rem] font-semibold text-[#6b4a33]/75">
                 crypto (USDT) via 2328.io — you pick the coin &amp; network
               </p>
+
+              {charityLive && (
+                <button
+                  onClick={() => setCharityOpen(true)}
+                  className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg bg-[#3d2314]/8 py-1 text-[0.55rem] font-extrabold text-[#c26d3f] transition-colors duration-200 hover:bg-[#3d2314]/15"
+                >
+                  <PawPrint className="h-2.5 w-2.5" aria-hidden />
+                  charity drive: 100% to cat shelters
+                </button>
+              )}
 
               <div className="mt-2.5 flex flex-col gap-1.5">
                 {presets.map((p) => (
@@ -222,6 +261,16 @@ export default function DonateBox({ utmCode }: { utmCode: string }) {
           )}
         </div>
       )}
+
+      {/* модалка благотворительной акции — портал в body */}
+      <CharityModal
+        open={charityOpen}
+        onClose={() => setCharityOpen(false)}
+        onDonate={() => {
+          setCharityOpen(false);
+          setOpen(true);
+        }}
+      />
     </div>
   );
 }

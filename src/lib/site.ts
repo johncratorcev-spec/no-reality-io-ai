@@ -54,4 +54,33 @@ export const PARTNER_OF_WEEK = {
   partnerPostUtm: "TK4_0wTI",
   /** пресеты крипто-доната (USDT) на пост партнёра — пилот 2328.io */
   donatePresetsUsdt: ["1.00", "3.00", "5.00"],
+  /**
+   * Благотворительная акция: 72 часа, все донаты — приютам для котиков.
+   * Дедлайн фиксированный (один для всех), таймер тикает на клиенте.
+   */
+  charityDrive: {
+    /** дедлайн акции в UTC (ISO) — 72 часа от запуска пилота */
+    deadlineUtc: "2026-09-19T20:00:00Z",
+    /** полная длительность в часах — для честного прогресс-бара времени */
+    durationHours: 72,
+    eyebrow: "charity drive · 72 hours",
+    title: "every paw counts",
+    body: "for the next 72 hours we’re running a charity drive: every crypto donation on this post goes straight to cat shelters — food, warm beds, litter and vet care for cats waiting for their human.",
+    badge: "100% goes to shelters",
+    steps: [
+      { icon: "heart", text: "you donate crypto" },
+      { icon: "coins", text: "2328.io settles it" },
+      { icon: "home", text: "shelters get supplies" },
+    ],
+    cta: "donate now",
+  } as {
+    deadlineUtc: string;
+    durationHours: number;
+    eyebrow: string;
+    title: string;
+    body: string;
+    badge: string;
+    steps: readonly { icon: "heart" | "coins" | "home"; text: string }[];
+    cta: string;
+  },
 } as const;
