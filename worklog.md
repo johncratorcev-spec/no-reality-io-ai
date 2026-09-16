@@ -512,3 +512,20 @@ Work Log:
 Stage Summary:
 - Лендинг (5540ed9) и worklog-28 (7d6e075) в проде; Vercel редеплоит автоматически.
 - Открытые вопросы к пользователю: (1) реальные хэндлы Instagram/Threads (сейчас заглушки your_betfriend в src/lib/site.ts); (2) подтвердить домен no-reality.io (metadataBase/canonical/sitemap); (3) разрешение на пуш ветки feature/video-fallback-and-2328-payments.
+
+---
+Task ID: 29
+Agent: Super Z (main agent)
+Task: (1) Актуализировать все ссылки на загруженный контент. (2) Карусели фото «вирально, с анимациями». (3) @pawcrewdaily — партнёр недели, кастомный блок (кошечки, анимации мягко и стильно). Финал: запушить готовые изменения (PAT от пользователя).
+
+Work Log:
+- Реализация задачи была закоммичена ранее локально (8a17886, без worklog-записи): MediaCarousel.tsx (stories-паттерн: сегментный прогресс, авто-переход rAF, свайп/драг, ken-burns, видео-слайды, fallback на битых слайдах), Partner.tsx + landing.css (кошачья карточка: уши, лапки, моргающая мордочка, зрачки следят за курсором через rAF, клубок; тёплая кремовая палитра, prefers-reduced-motion), PARTNER_OF_WEEK в site.ts, колонка media в CSV + parseMedia в csv.ts, VideoCard рендерит карусель вместо видео (+ mute-кнопка скрыта у карусель-постов, onEnded -> листание ленты), refresh_links.py: инкрементальное сохранение + --budget.
+- АУДИТ CDN (scripts/verify_all_cdn.py, параллельно 8 потоков): 47 реальных постов -> все 206 video/mp4, 0 битых. NRTEST01 — тестовая строка карусели («remove before commit»), найдена и удалена из CSV + снапшот пересобран (47 постов, пины 1–5 на месте).
+- CSV-шум среды (diff 43 поста только в токенах _nc_ohc/_nc_gid/oh, оба набора URL валидны 206) откачен по протоколу git checkout --.
+- Проверки: npx tsc --noEmit чисто; npm run build ок (47 постов); smoke next start: 200 на /, /feed, /v/j59dA1Ld, /sitemap.xml; в HTML лендинга pawcrewdaily ×2, partner of the week, follow the crew.
+- Пуш main -> origin (PAT), fetch-верификация remote HEAD.
+
+Stage Summary:
+- Лента 47 постов, пины 1–5, все ссылки живые (47/47 → 206). Тестовая строка удалена.
+- Карусели: колонка media в CSV (JSON [{"t":"i"|"v","u":…}]), stories-компонент без библиотек.
+- Партнёр недели @pawcrewdaily на лендинге #partner, кошачья тема, мягкие анимации.
