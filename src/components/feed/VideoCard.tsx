@@ -11,7 +11,9 @@ import {
   ArrowUpRight,
   AtSign,
   Check,
+  Copy,
   Eye,
+  Lock,
   Paperclip,
   Pause,
   Play,
@@ -28,6 +30,9 @@ import { pseudoViews } from "@/lib/utils";
 import { playMeow } from "@/lib/meow";
 import { PARTNER_OF_WEEK } from "@/lib/site";
 import MediaCarousel from "./MediaCarousel";
+import { extractPrompt } from "@/lib/prompts/extract";
+import VideoFallback from "./VideoFallback";
+import UnlockModal from "./UnlockModal";
 
 export type PostWithScore = FeedPost & { score: number };
 
@@ -274,6 +279,16 @@ export default function VideoCard({
 
   /* карусельный пост: слайды вместо одиночного видео */
   const isCarousel = Boolean(post.media && post.media.length > 0);
+  /* --- платный промпт: статус разблокировки + полный текст --- */
+  const [unlocked, setUnlocked] = useState(false);
+  const [statusReady, setStatusReady] = useState(false);
+  const [fullPrompt, setFullPrompt] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
+  const [unlockFlash, setUnlockFlash] = useState(false);
+  /* nonce <video>: ретрай без перезагрузки страницы (CDN-ссылка получает
+     второй шанс, позиция в ленте сохраняется) */
+  const [videoNonce, setVideoNonce] = useState(0);
 
   /* флуд-контроль кнопок: не чаще раза в cooldown мс */
   const guarded = (cooldownMs: number) => {
@@ -345,6 +360,65 @@ export default function VideoCard({
       cancelAnimationFrame(raf);
     };
   }, [isActive, showStatus]);
+
+  /* видео может упасть ДО гидрации (CDN отдаёт 404 быстро) — onError
+     повесятся уже после события. Ловим такие случаи свойством .error */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v && v.error) setError(true);
+  }, [videoNonce, shouldLoad]);
+
+  /* ---------------- платный промпт: статус и разблокировка ---------------- */
+
+  const isPaidPost = Boolean(post.isPaid);
+
+  /* Тянем статус разблокировки только у платных карточек (лента не должна
+     стрелять 47 запросов на каждый монтированный пост) и только когда
+     карточка видима: return с оплаты / первый показ — оба покрываются. */
+  const refreshUnlock = useCallback(async (): Promise<boolean> => {
+    try {
+      const r = await fetch(
+        `/api/prompts/${encodeURIComponent(post.utmCode)}/status`,
+        { cache: "no-store" }
+      );
+      if (!r.ok) return false;
+      const data = (await r.json()) as {
+        unlocked?: boolean;
+        prompt?: string | null;
+        priceUsdt?: string | null;
+      };
+      setUnlocked(Boolean(data.unlocked));
+      if (data.unlocked && data.prompt) {
+        setFullPrompt(data.prompt);
+        return true; // переход из закрытого состояния
+      }
+    } catch {
+      /* сеть/БД недоступны — остаёмся в текущем состоянии */
+    } finally {
+      setStatusReady(true);
+    }
+    return false;
+  }, [post.utmCode]);
+
+  const firstStatus = useRef(true);
+  useEffect(() => {
+    if (!isPaidPost) return;
+    if (!firstStatus.current) return;
+    firstStatus.current = false;
+    void refreshUnlock();
+  }, [isPaidPost, refreshUnlock, isActive]);
+
+  /* переход locked → unlocked: праздничная вспышка на карточке */
+  const prevUnlocked = useRef(false);
+  useEffect(() => {
+    if (unlocked && !prevUnlocked.current) {
+      setUnlockFlash(true);
+      const t = setTimeout(() => setUnlockFlash(false), 1700);
+      prevUnlocked.current = true;
+      return () => clearTimeout(t);
+    }
+    prevUnlocked.current = unlocked;
+  }, [unlocked]);
 
   /* ---------------- пауза по клику ---------------- */
 
@@ -434,18 +508,45 @@ export default function VideoCard({
     }
   };
 
-  /* ---------------- репост в Threads (убран) → панель «скоро промпт» ---------------- */
+  /* ---------------- репост в Threads (убран) → панель промпта ---------------- */
 
-  const togglePrompt = (e: React.MouseEvent) => {
+  const togglePrompt = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!guarded(600)) return;
+    /* платный и закрытый — гаечный ключ открывает модалку оплаты,
+       а не панель; разблокированный/бесплатный — панель с текстом.
+       Статус ещё не доехал (медленная сеть/холодный роут)? Догружаем
+       на клике: купивший пользователь увидит свой промпт, а не заглушку. */
+    if (lockedPrompt) {
+      setPromptOpen(false);
+      setModalOpen(true);
+      return;
+    }
+    if (isPaidPost && !statusReady) {
+      const nowUnlocked = await refreshUnlock();
+      if (!nowUnlocked) {
+        setModalOpen(true);
+        return;
+      }
+    }
     setPromptOpen((open) => {
       const next = !open;
       if (next) {
-        setTimeout(() => setPromptOpen(false), 6000); // авто-скрытие
+        setTimeout(() => setPromptOpen(false), 9000); // авто-скрытие
       }
       return next;
     });
+  };
+
+  const copyPromptText = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const text = effectivePrompt;
+    if (!text || !guarded(1200)) return;
+    const ok = await writeClipboard(text);
+    if (ok) {
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 2400);
+    }
   };
 
   /* ---------------- render ---------------- */
@@ -458,6 +559,49 @@ export default function VideoCard({
     post.author && post.author !== "@unknown"
       ? post.author.replace(/^@/, "")
       : "";
+
+  /* --- промпт: бесплатный извлекаем из текста, платный приходит с API --- */
+  const freePrompt = extractPrompt(post.title);
+  const effectivePrompt = unlocked
+    ? fullPrompt || freePrompt
+    : isPaidPost
+      ? null
+      : freePrompt;
+  const lockedPrompt = isPaidPost && !unlocked;
+
+  /* fallback: битая CDN-ссылка или отсутствующий video_url */
+  const showFallback = error || !post.videoUrl;
+
+  const retryVideo = useCallback(() => {
+    setError(false);
+    setBlocked(false);
+    setVideoNonce((n) => n + 1);
+  }, []);
+
+  /* режим панели промпта: разблокированный / бесплатный с текстом / заглушка */
+  const panelMode: "unlocked" | "free" | "soon" = unlocked
+    ? "unlocked"
+    : freePrompt
+      ? "free"
+      : "soon";
+
+  /* конфетти-осколки: детерминированные векторы, цвет — палитра ленты */
+  const CONFETTI = [
+    { dx: "-120px", dy: "-90px", rot: "-160deg", c: "#a8cfea", d: "0s" },
+    { dx: "110px", dy: "-70px", rot: "140deg", c: "#e8f1f8", d: ".04s" },
+    { dx: "-70px", dy: "-130px", rot: "-60deg", c: "#5b9bd5", d: ".08s" },
+    { dx: "80px", dy: "-125px", rot: "90deg", c: "#a8cfea", d: ".02s" },
+    { dx: "-140px", dy: "-20px", rot: "-110deg", c: "#e8f1f8", d: ".1s" },
+    { dx: "140px", dy: "-15px", rot: "70deg", c: "#c3ddf0", d: ".06s" },
+    { dx: "-40px", dy: "-150px", rot: "30deg", c: "#5b9bd5", d: ".12s" },
+    { dx: "46px", dy: "-148px", rot: "-30deg", c: "#a8cfea", d: ".03s" },
+    { dx: "-100px", dy: "100px", rot: "120deg", c: "#e8f1f8", d: ".09s" },
+    { dx: "100px", dy: "95px", rot: "-140deg", c: "#5b9bd5", d: ".05s" },
+    { dx: "0px", dy: "130px", rot: "180deg", c: "#a8cfea", d: ".11s" },
+    { dx: "130px", dy: "55px", rot: "-90deg", c: "#c3ddf0", d: ".07s" },
+    { dx: "-130px", dy: "60px", rot: "50deg", c: "#e8f1f8", d: ".13s" },
+    { dx: "18px", dy: "-160px", rot: "10deg", c: "#5b9bd5", d: ".01s" },
+  ] as const;
 
   return (
     <section
@@ -483,9 +627,12 @@ export default function VideoCard({
           onEnded={onEnded}
         />
       )}
-      {/* ---------- основное видео: монтируется только в зоне active±1 ---------- */}
-      {shouldLoad && !isCarousel && (
+      {/* ---------- основное видео: монтируется только в зоне active±1 ----------
+          nonce позволяет перемонтировать <video> после ретрая; битая ссылка
+          у видео-постов заменяется fallback-сценой (у каруселей фолбэка нет) */}
+      {shouldLoad && !isCarousel && !showFallback && (
         <video
+          key={videoNonce}
           ref={videoRef}
           src={post.videoUrl}
           muted={muted}
@@ -501,6 +648,20 @@ export default function VideoCard({
           onError={() => setError(true)}
           onClick={togglePlay}
           className="relative h-full w-full cursor-pointer object-contain"
+        />
+      )}
+
+      {/* ---------- премиальный fallback: SIGNAL LOST (только у видео-постов) ---------- */}
+      {!isCarousel && showFallback && (
+        <VideoFallback
+          author={post.author}
+          title={post.title}
+          prompt={effectivePrompt}
+          lockedPrompt={lockedPrompt}
+          priceUsdt={post.priceUsdt}
+          onUnlockClick={() => setModalOpen(true)}
+          onRetry={retryVideo}
+          utmCode={post.utmCode}
         />
       )}
 
@@ -663,19 +824,8 @@ export default function VideoCard({
         </div>
       )}
 
-      {/* ---------- ошибка загрузки ---------- */}
-      {error && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center px-6">
-          <div className="nr-glass-deep max-w-xs rounded-3xl px-6 py-7 text-center">
-            <p className="font-bold tracking-tight">video temporarily unavailable</p>
-            <p className="mt-2 text-xs leading-relaxed text-[#10161d]/60">
-              the CDN link may have expired — update{" "}
-              <code className="font-mono">video_url</code> in{" "}
-              <code className="font-mono">/data/posts.csv</code>
-            </p>
-          </div>
-        </div>
-      )}
+      {/* ---------- ошибка загрузки (старый текстовый фолбэк убран:
+          теперь сцену SIGNAL LOST рисует VideoFallback) ---------- */}
 
       {/* ---------- glass-статус: живёт в DOM, анимация через transition ---------- */}
       <div
@@ -766,40 +916,130 @@ export default function VideoCard({
         </a>
       </div>
 
-      {/* ---------- панель «prompt coming soon» ---------- */}
+      {/* ---------- панель промпта: разблокированный / бесплатный / заглушка ---------- */}
       {promptOpen && (
         <div
           role="dialog"
-          aria-label="Prompt coming soon"
+          aria-label="Prompt"
           onClick={(e) => e.stopPropagation()}
-          className="nr-anim-hint absolute bottom-[12rem] right-3 left-3 z-30 sm:left-auto sm:max-w-xs"
+          className="nr-anim-hint absolute bottom-[12rem] right-3 left-3 z-30 sm:left-auto sm:max-w-sm"
         >
           <div className="nr-glass-deep rounded-2xl px-4 py-3.5">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 shrink-0 text-[#3d7db8]" />
-              <span className="text-[0.82rem] font-bold tracking-tight text-[#0a0a0a]">
-                Prompt coming soon
-              </span>
-            </div>
-            <p className="mt-1.5 text-[0.75rem] leading-relaxed text-[#10161d]/80">
-              Soon you&apos;ll be able to watch the exact prompt used to generate
-              this video — and reuse it to create your own.
-            </p>
+            {panelMode === "soon" ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 shrink-0 text-[#3d7db8]" />
+                  <span className="text-[0.82rem] font-bold tracking-tight text-[#0a0a0a]">
+                    Prompt coming soon
+                  </span>
+                </div>
+                <p className="mt-1.5 text-[0.75rem] leading-relaxed text-[#10161d]/80">
+                  Soon you&apos;ll be able to watch the exact prompt used to generate
+                  this video — and reuse it to create your own.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  {panelMode === "unlocked" ? (
+                    <Sparkles className="h-4 w-4 shrink-0 text-[#3d7db8]" />
+                  ) : (
+                    <Copy className="h-4 w-4 shrink-0 text-[#3d7db8]" />
+                  )}
+                  <span className="text-[0.82rem] font-bold tracking-tight text-[#0a0a0a]">
+                    {panelMode === "unlocked" ? "Your prompt" : "Prompt"}
+                  </span>
+                  {panelMode === "unlocked" && (
+                    <span className="ml-auto rounded-full bg-[#0a0a0a] px-2 py-0.5 text-[0.55rem] font-black tracking-[0.14em] text-white">
+                      UNLOCKED
+                    </span>
+                  )}
+                </div>
+                <p
+                  className={`nr-unlock-reveal mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap break-words font-mono text-[0.72rem] leading-relaxed text-[#10161d]/90 ${
+                    unlocked ? "" : ""
+                  }`}
+                >
+                  {effectivePrompt}
+                </p>
+                <button
+                  onClick={copyPromptText}
+                  className={`mt-2.5 flex items-center gap-2 rounded-full bg-[#0a0a0a] px-3.5 py-2 text-[0.7rem] font-bold text-white transition-transform duration-300 hover:scale-[1.03] active:scale-95 ${
+                    promptCopied ? "nr-anim-copied nr-ring-glow" : ""
+                  }`}
+                >
+                  {promptCopied ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" />
+                      copy prompt
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {/* ---------- Reveal Prompt: гаечный ключ над видео-баром ----------
-          sonar-ping привлекает внимание; клик раскрывает панель о промпте.
-          Стоит на одной линии с Share Reality / Threads слева ---------- */}
+      {/* ---------- кнопка промпта: замок (платный) / ключ (разблокирован) / гаечный ключ ----------
+          sonar-ping привлекает внимание; платный закрытый промпт открывает модалку оплаты ---------- */}
       <button
         onClick={togglePrompt}
-        aria-expanded={promptOpen}
-        aria-label="Reveal prompt for this video"
-        className="nr-glass nr-play-pulse absolute bottom-[2rem] right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-transform duration-300 hover:rotate-12 hover:scale-[1.08] active:scale-95"
+        aria-expanded={promptOpen || modalOpen}
+        aria-label={
+          lockedPrompt
+            ? `Unlock the prompt for ${post.priceUsdt ?? "3.00"} USDT`
+            : "Reveal prompt for this video"
+        }
+        className={`nr-glass absolute bottom-[2rem] right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full text-[#10161d] transition-transform duration-300 hover:rotate-12 hover:scale-[1.08] active:scale-95 ${
+          lockedPrompt ? "nr-play-pulse" : ""
+        }`}
       >
-        <Wrench className="h-4 w-4 text-[#0a0a0a]" />
+        {lockedPrompt ? (
+          <Lock className="h-4 w-4 text-[#0a0a0a]" />
+        ) : panelMode === "unlocked" ? (
+          <Sparkles className="h-4 w-4 text-[#0a0a0a]" />
+        ) : (
+          <Wrench className="h-4 w-4 text-[#0a0a0a]" />
+        )}
       </button>
+
+      {/* ---------- вспышка разблокировки: кольцо + конфетти ---------- */}
+      {unlockFlash && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-40">
+          <div className="nr-unlock-ring" />
+          {CONFETTI.map((p, i) => (
+            <span
+              key={i}
+              className="nr-unlock-confetti"
+              style={{
+                ["--dx" as string]: p.dx,
+                ["--dy" as string]: p.dy,
+                ["--rot" as string]: p.rot,
+                ["--c" as string]: p.c,
+                ["--d" as string]: p.d,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ---------- модалка оплаты (2328.io hosted checkout) ---------- */}
+      {modalOpen && (
+        <UnlockModal
+          utmCode={post.utmCode}
+          author={post.author}
+          title={post.title}
+          priceUsdt={post.priceUsdt}
+          preview={post.promptPreview}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
 
       {/* ---------- выразительный прогресс-бар (только видео; у карусели — stories-сегменты) ---------- */}
       {!isCarousel && (

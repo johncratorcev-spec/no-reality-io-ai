@@ -29,3 +29,44 @@ model PostStats {
   score     Int      @default(0)
   updatedAt DateTime @updatedAt
 }
+
+// Покупка промпта: оплата через 2328.io → разблокировка prompt_full.
+//
+// Жизненный цикл status:
+//   pending          — платёжная сессия создана, ждём оплату (webhook)
+//   paid             — оплата подтверждена подписанным webhook'ом
+//   ready_for_payout — ждёт выплаты автору (полуавто-режим по умолчанию)
+//   payout_sent      — выплата отправлена/завершена (payout webhook completed)
+//   failed           — cancel/underpaid или payout failed без ретрая
+//   aml_hold         — 2328 пометил платёж AML-локом (ручная работа)
+//
+// Идемпотентность:
+//   orderId   ("nr-" + id) — ключ создания платежа в 2328: повторный POST
+//                      с тем же orderId возвращает существующую сессию;
+//   paymentId (uuid 2328) — уникальный, повторный webhook не создаёт дубль;
+//   payoutOrderId — генерируется с номером попытки, чтобы ретрай после
+//                      failed делал НОВУЮ выплату, а не возвращал старую.
+model Purchase {
+  id            String    @id @default(uuid())
+  utmCode       String
+  buyerHash     String
+  orderId       String    @unique
+  paymentId     String    @unique
+  paymentStatus String    @default("pending")
+  currency      String    @default("USDT")
+  amountUsdt    String    @default("0")
+  platformFee   String    @default("0")
+  sellerAmount  String    @default("0")
+  status        String    @default("pending")
+  txid          String?
+  payoutId      String?
+  payoutOrderId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  paidAt        DateTime?
+  payoutAt      DateTime?
+
+  @@index([utmCode])
+  @@index([buyerHash])
+  @@index([status])
+}

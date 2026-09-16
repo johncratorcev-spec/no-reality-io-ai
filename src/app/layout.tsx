@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -40,6 +41,11 @@ export default function RootLayout({
         className={`${manrope.variable} antialiased bg-white text-[#1B1523] font-[family-name:var(--font-manrope)]`}
       >
         {children}
+        {/* Vercel Web Analytics: счётчик посетителей.
+            Активируется в Vercel Dashboard → Analytics (нужен один клик,
+            код уже подключён). На других хостингах компонент просто
+            ничего не отправляет. */}
+        <Analytics />
       </body>
     </html>
   );
