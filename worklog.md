@@ -568,3 +568,21 @@ Stage Summary:
 - Пилот 2328.io жив: кнопка «donate crypto» на закреплённом посте pawcrewdaily (pin 1), чекаут на pay.2328.io, поллинг статуса. Для прода: добавить env TWOTHOUSAND328_PAYMENT_API_KEY + TWOTHOUSAND328_PROJECT_UUID в Vercel (публичный домен подставится из заголовков).
 - smartluvon полностью убран из ленты и метаданных; баннер ленты = арт pawcrewdaily → IG (stkn).
 - Ветка payments влита в main и уходит в прод этим пушем (fallback-видео и paid-prompt UI едут вместе с ней).
+
+---
+Task ID: 32
+Agent: Super Z (main agent)
+Task: 72-часовой таймер на крипто-донате + модалка благотворительной акции (EN, красиво, с анимациями): «все деньги — приютам для котиков».
+
+Work Log:
+- src/lib/charity.ts: useCountdown (тики 1с, SSR-безопасный ready-флаг против hydration mismatch) + formatHMS («71:59:59», часы суммарные) + splitHMS для блоков модалки.
+- src/lib/site.ts: PARTNER_OF_WEEK.charityDrive — deadlineUtc 2026-09-19T20:00:00Z (72ч от запуска, фиксированный для всех), durationHours 72, EN-копирайт: eyebrow «charity drive · 72 hours», заголовок «every paw counts», бейдж «100% goes to shelters», 3 шага «how it works», CTA «donate now».
+- src/components/feed/CharityModal.tsx (новый): портал в body (карточка видео с трансформами ловит fixed), z-[80] (под toasts z-[100]); тёмный блюр-бэкдроп, spring-pop карточки в кремовой палитре доната, 6 летающих лапок/сердечек (CSS float, стаггер), шиммер-градиент по заголовку, 3 живых блока отсчёта HRS/MIN/SEC с пружинным тиком на смене цифры (remount по key), честный прогресс-бар «time remaining» (остаток/72ч, width transition 1s), бейдж-щит 100%, шаги heart→coins→home, CTA (glow-кнопка) → закрыть модалку и открыть донат-бокс, футер «settled on-chain via 2328.io». ESC + клик по бэкдропу + блокировка скролла + фокус на крестик (hover rotate-90).
+- src/components/feed/DonateBox.tsx: чип «🐾 charity drive 71:59:12» с glow-пульсом над кнопкой «donate crypto» (клик → модалка, stopPropagation); строка «charity drive: 100% to cat shelters» внутри донат-карточки; в thanks-фазе добавлено «every cent goes to cat shelters 🐾»; при истечении срока чип/строки/модалка исчезают (charityLive = ready && !expired).
+- globals.css: nr-charity-{chip,glow,backdrop,fade,card,pop,float,shimmer,tick,sec} + reduced-motion (шиммеру возвращаем -webkit-text-fill-color, декорации off).
+- Проверки: tsc чисто; build ок; smoke /v/TK4_0wTI 200 с «donate crypto», / 200, /feed 200; маркеры «charity drive»/«every paw counts» в клиентском чанке. Шум среды (CSV+снапшот, 17 строк токенов) откачен по протоколу.
+- Пуш caea184..5886c13 (PAT), remote verified: refs/heads/main = 5886c13.
+
+Stage Summary:
+- На закреплённом посте pawcrewdaily (pin 1) теперь чип-таймер 72ч: тикающий отсчёт, тёплое свечение; тап — модальное окно акции на английском: анимированные лапки, шиммер-заголовок «every paw counts», живой отсчёт, прогресс-бар времени, «100% goes to shelters», 3 шага, CTA «donate now» ведёт в донат-бокс.
+- Дедлайн фиксированный 2026-09-19T20:00:00Z — когда истечёт, таймер и акционные элементы сами исчезнут (донат-кнопка остаётся). Продлить акцию = поменять deadlineUtc в site.ts.
