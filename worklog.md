@@ -529,3 +529,22 @@ Stage Summary:
 - Лента 47 постов, пины 1–5, все ссылки живые (47/47 → 206). Тестовая строка удалена.
 - Карусели: колонка media в CSV (JSON [{"t":"i"|"v","u":…}]), stories-компонент без библиотек.
 - Партнёр недели @pawcrewdaily на лендинге #partner, кошачья тема, мягкие анимации.
+
+---
+Task ID: 30
+Agent: Super Z (main agent)
+Task: (1) Кошачий баннер «не обновился» — сделать. (2) Закрепить видео threads.com/share/_wiokPyGI вверху ленты. (3) Мяу-звук при переходе на профиль.
+
+Work Log:
+- ДИАГНОСТИКА БАННЕРА: код Partner.tsx подтверждён на origin/main (ba99f35) — блок на месте; «не обновился» = деплой/кеш у пользователя. Решение: усилен до полноценного баннера + свежий деплой этим пушем.
+- ПИН: извлечение _wiokPyGI через panel_add (2-я попытка, wall-обход) → @themacrosift, EN-заголовок «Good morning, my friends…», карусель 6 видео, srcs[0] → 206. Инцидент среды: панель записала строку, среда ОТКАТИЛА CSV и снапшот к HEAD (повтор паттерна) → повторная вставка scripts/add_partner_pin.py из кэша извлечения (детерминированно, тот же utm zXMNjL2F): pin=1, старые пины 1–5 → 2–6, 48 постов.
+- МЯУ: scripts/make_meow.py — синтез мягкого мультяшного «мяу» (pitch-контур 430→760→330 Hz, вибрато 5.5 Hz, формантный намёк, ADSR, low-pass) → public/sfx/meow.mp3 (4.6 KB). src/lib/meow.ts — playMeow() (один Audio, volume 0.55, без жеста молчит).
+- ПРОВОДКА МЯУ: (a) CTA «follow the crew» в блоке партнёра → IG-профиль pawcrewdaily; (b) кнопка профиля автора на карточке поста-партнёра (проверка post.utmCode === PARTNER_OF_WEEK.partnerPostUtm, конфиг в site.ts).
+- БАННЕР: z-ai image 1344×768 → public/partner/pawcrew-banner.png (рыжие коты, кремово-оранжевая палитра блока). Partner.tsx переписан: CSS-мордочка/клубок/eye-tracking убраны, вместо них арт с float-анимацией, тёплой рамкой и бейджем «🐾 pinned in the feed» (линк на /feed, тоже мяукает); мёртвый CSS мордочки вычищен, reduced-motion обновлён.
+- ИНЦИДЕНТ ПУША: среда пересоздала локальный worklog-коммит task 29 (ba99f35 → 33d5665, тот же контент) → non-fast-forward; rebase: дубль skipped (конфликт), CSV взят из origin, вставка пина повторена, аменд в коммит task 30. Пуш ba99f35..4443435, remote verified (CSV/snapshot/site.ts содержат zXMNjL2F/partnerPostUtm).
+- Проверки: tsc чисто, build ок, smoke: 200 на /, /feed, /v/zXMNjL2F, /sfx/meow.mp3, /partner/pawcrew-banner.png; /r/zXMNjL2F → 302 на threads.com/share/_wiokPyGI/.
+
+Stage Summary:
+- Лента 48 постов: pin 1 = zXMNjL2F (@themacrosift, видео партнёрской недели), пины 2–6 = прежние 1–5.
+- Баннер партнёра = арт с рыжим экипажем + уши/лапки/мягкие float-анимации; переходы на профиль (CTA + карточка пина) озвучены «мяу».
+- Ветка payments по-прежнему локальна и не запушена.
