@@ -548,3 +548,23 @@ Stage Summary:
 - Лента 48 постов: pin 1 = zXMNjL2F (@themacrosift, видео партнёрской недели), пины 2–6 = прежние 1–5.
 - Баннер партнёра = арт с рыжим экипажем + уши/лапки/мягкие float-анимации; переходы на профиль (CTA + карточка пина) озвучены «мяу».
 - Ветка payments по-прежнему локальна и не запушена.
+
+---
+Task ID: 31
+Agent: Super Z (main agent)
+Task: (1) Закрепить BASRuarluc первым. (2) Вместо smartluvon — арт-баннер pawcrewdaily + ссылка на их IG (stkn). (3) ПЕРВЫЙ ПИЛОТ 2328.io: крипто-донат на этот пост; тестовые инвойсы до пуша (ключ+project id от пользователя).
+
+Work Log:
+- ПИН: BASRuarluc извлечён (панель, 1-я попытка) → АВТОР = @pawcrewdaily, «Giant cheese wheel meets lava 🧀🔥», 206 ok. utm TK4_0wTI → pin 1, прежние 1–6 → 2–7 (49 постов). partnerPostUtm в site.ts = TK4_0wTI (мяу теперь на их посте).
+- SMARTLUVON: WebGLBanner (лента) переведён на арт public/partner/pawcrew-banner.png + «partner of the week / paw crew daily», весь баннер — ссылка на IG со stkn, клик мяукает; VIRAL_URL (t.me smartluvon_bot) удалён; layout.tsx description обновлён.
+- MERGE: feature/video-fallback-and-2328-payments влита в main (пользователь запросил пилот в прод). Конфликты: VideoCard (карусель+мяу vs fallback+paid UI — собрано всё, fallback только у видео-постов), globals.css (оба блока), CSV/снапшот/worklog — ours. npm install (vercel/analytics), prisma generate, tsc чисто.
+- ДОНАТ-ПИЛОТ (stateless, без БД): POST/GET /api/donate/[code] — пресеты 1/3/5 USDT из PARTNER_OF_WEEK.donatePresetsUsdt, только партнёрский пост (404 иначе), hosted checkout 2328, url_return → /v/<code>; статус поллится у провайдера (/v1/payment/info) — DonateBox: пресеты «tuna/milk/feast», «i paid — check it», thanks-стейт; поллинг 4с×150.
+- ★ НАЙДЕН И ПОЧИНЕН БАГ ЛИБЫ: get2328PaymentInfo возвращал null всегда при поиске по order_id — null-чек смотрел body.orderId вместо body.order_id (snake_case). Из-за этого статус был «unknown». Фикс + проверено tsx и роутом.
+- ★ WAF-ГРАДА: api.2328.io за BunnyCDN — 403 HTML на localhost-колбэки (SSRF-защита). publicBase из Host-заголовка в деве даёт localhost → нужен PUBLIC_BASE_URL с https-доменом (в .env.local для тестов; на Vercel возьмётся из заголовков автоматически).
+- ТЕСТОВЫЕ ИНВОЙСЫ (реальный API, до пуша, TTL 300с, неоплаченные): 7 шт созданы и проверены — diag-серия (sign-схема HMAC-SHA256(base64(compact JSON)) hex — подтверждена) + через роут: $1 (don-CJhuFzFxjAeR), $5 (don-NwxepDhJ5Snr), статус → payment_status «check»; guard'ы: неверная сумма 400, чужой пост 404, плохой orderId 400. /feed и / 200, баннер с арт-маркерами в HTML.
+- CSV-шум среды (токены) откачен по протоколу; .next снесён средой между build и start — пересобран.
+
+Stage Summary:
+- Пилот 2328.io жив: кнопка «donate crypto» на закреплённом посте pawcrewdaily (pin 1), чекаут на pay.2328.io, поллинг статуса. Для прода: добавить env TWOTHOUSAND328_PAYMENT_API_KEY + TWOTHOUSAND328_PROJECT_UUID в Vercel (публичный домен подставится из заголовков).
+- smartluvon полностью убран из ленты и метаданных; баннер ленты = арт pawcrewdaily → IG (stkn).
+- Ветка payments влита в main и уходит в прод этим пушем (fallback-видео и paid-prompt UI едут вместе с ней).
