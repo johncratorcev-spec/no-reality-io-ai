@@ -25,6 +25,8 @@ import {
 import type { FeedPost } from "@/lib/csv";
 import { isBoosted } from "@/lib/boost";
 import { pseudoViews } from "@/lib/utils";
+import { playMeow } from "@/lib/meow";
+import { PARTNER_OF_WEEK } from "@/lib/site";
 import MediaCarousel from "./MediaCarousel";
 
 export type PostWithScore = FeedPost & { score: number };
@@ -595,6 +597,8 @@ export default function VideoCard({
             rel="noopener noreferrer"
             onClick={(e) => {
               e.stopPropagation();
+              /* пост партнёра недели: переход на профиль мяукает */
+              if (post.utmCode === PARTNER_OF_WEEK.partnerPostUtm) playMeow();
               if (!guarded(800)) e.preventDefault(); // флуд-контроль
             }}
             aria-label={`Open ${post.author} profile on Threads`}

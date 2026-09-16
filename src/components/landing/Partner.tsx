@@ -1,68 +1,22 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { ArrowUpRight } from "lucide-react";
 import Reveal from "./Reveal";
 import { PARTNER_OF_WEEK } from "@/lib/site";
+import { playMeow } from "@/lib/meow";
 
 /* ================================================================
-   Partner of the week — кастомный блок под @pawcrewdaily.
-   Кошачья тема: уши на карточке, плавающие лапки, моргающие глаза,
-   зрачки следят за курсором (vanilla rAF, без setState на кадр).
-   Тёплая кремовая палитра + мягкие ease-анимации.
+   Partner of the week — кастомный баннер под @pawcrewdaily.
+   Кошачья тема: уши на карточке, плавающие лапки, баннер-арт
+   с рыжим экипажем. Тёплая кремовая палитра + мягкие ease-анимации.
+   Клик на «follow the crew» (переход на их профиль) мяукает.
    ================================================================ */
 
-/* следящие зрачки: pointermove → лёгкий сдвиг к курсору */
-function useEyeTracking(cardRef: React.RefObject<HTMLElement | null>) {
-  useEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    const pupils = card.querySelectorAll<HTMLElement>(".nrld-cat-pupil");
-    let raf = 0;
-    let tx = 0;
-    let ty = 0;
-    let cx = 0;
-    let cy = 0;
-
-    const onMove = (e: PointerEvent) => {
-      const r = card.getBoundingClientRect();
-      const dx = (e.clientX - (r.left + r.width / 2)) / r.width;
-      const dy = (e.clientY - (r.top + r.height / 2)) / r.height;
-      tx = Math.max(-1, Math.min(1, dx * 2)) * 5; // ±5px
-      ty = Math.max(-1, Math.min(1, dy * 2)) * 4;
-    };
-
-    const tick = () => {
-      cx += (tx - cx) * 0.08; // мягкое пружинное догоняние
-      cy += (ty - cy) * 0.08;
-      pupils.forEach((p) => {
-        p.style.transform = `translate(${cx.toFixed(2)}px, ${cy.toFixed(2)}px)`;
-      });
-      raf = requestAnimationFrame(tick);
-    };
-
-    card.addEventListener("pointermove", onMove);
-    raf = requestAnimationFrame(tick);
-    return () => {
-      card.removeEventListener("pointermove", onMove);
-      cancelAnimationFrame(raf);
-    };
-  }, [cardRef]);
-}
-
 export default function Partner() {
-  const cardRef = useRef<HTMLDivElement>(null);
-  useEyeTracking(cardRef);
-
   return (
     <section id="partner" className="scroll-mt-24 px-3 pb-24 sm:px-5 sm:pb-32">
       <Reveal>
-        <div
-          ref={cardRef}
-          className="nrld-cat-card relative mx-auto max-w-5xl overflow-visible rounded-[2.5rem]"
-        >
+        <div className="nrld-cat-card relative mx-auto max-w-5xl overflow-visible rounded-[2.5rem]">
           {/* уши на верхней кромке карточки */}
           <span className="nrld-cat-ear left-[14%]" aria-hidden />
           <span className="nrld-cat-ear right-[14%]" aria-hidden />
@@ -91,7 +45,7 @@ export default function Partner() {
             </span>
           ))}
 
-          <div className="grid items-center gap-10 px-7 py-14 sm:px-12 lg:grid-cols-[1.2fr_1fr]">
+          <div className="grid items-center gap-10 px-7 py-14 sm:px-12 lg:grid-cols-[1.15fr_1fr]">
             {/* текстовая часть */}
             <div>
               <p className="nrld-cat-eyebrow">🐾 partner of the week</p>
@@ -110,6 +64,7 @@ export default function Partner() {
                   href={PARTNER_OF_WEEK.url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={playMeow}
                   className="nrld-cat-btn inline-flex items-center gap-2 rounded-full px-6 py-3 text-[0.82rem] font-extrabold tracking-tight text-white transition-transform duration-300 hover:scale-[1.04] active:scale-95"
                 >
                   follow the crew
@@ -121,42 +76,32 @@ export default function Partner() {
               </div>
             </div>
 
-            {/* кошачья мордочка: моргает, зрачки следят за курсором */}
-            <div className="mx-auto w-full max-w-[19rem]">
-              <div className="nrld-cat-face" role="img" aria-label="Friendly cat mascot">
-                {/* уши мордочки */}
-                <span className="nrld-cat-face-ear left-[6%]" aria-hidden />
-                <span className="nrld-cat-face-ear right-[6%]" aria-hidden />
-                {/* глаза */}
-                <span className="nrld-cat-eye left-[22%]">
-                  <span className="nrld-cat-pupil" />
-                </span>
-                <span className="nrld-cat-eye right-[22%]">
-                  <span className="nrld-cat-pupil" />
-                </span>
-                {/* нос + усы */}
-                <span className="nrld-cat-nose" aria-hidden />
-                <span className="nrld-cat-whisker left-[8%]" aria-hidden />
-                <span className="nrld-cat-whisker left-[10%] top-[62%]" aria-hidden />
-                <span className="nrld-cat-whisker right-[8%]" aria-hidden />
-                <span className="nrld-cat-whisker right-[10%] top-[62%]" aria-hidden />
-                {/* ротик */}
-                <span className="nrld-cat-mouth" aria-hidden />
+            {/* баннер-арт: рыжий экипаж партнёра, мягко дышит/плавает */}
+            <div className="mx-auto w-full max-w-[24rem]">
+              <div
+                role="img"
+                aria-label="The paw crew daily — a pile of fluffy ginger cats on a warm cream background"
+                className="nrld-cat-photo"
+              >
+                <img
+                  src="/partner/pawcrew-banner.png"
+                  alt=""
+                  loading="lazy"
+                  draggable={false}
+                  className="h-full w-full select-none object-cover"
+                />
+                {/* их пост закреплён первым в ленте */}
+                <a
+                  href="/feed"
+                  onClick={playMeow}
+                  className="nrld-cat-pin absolute -left-4 top-5 inline-flex -rotate-6 items-center gap-1.5 rounded-full bg-[#3d2314] px-3.5 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-[#ffe9d4] shadow-[0_10px_24px_rgba(61,35,20,0.35)] transition-transform duration-300 hover:rotate-0 hover:scale-105"
+                >
+                  🐾 pinned in the feed
+                </a>
               </div>
-              {/* клубок */}
-              <div className="nrld-cat-yarn-wrap" aria-hidden>
-                <svg viewBox="0 0 40 40" className="nrld-cat-yarn">
-                  <circle cx="20" cy="20" r="17" fill="none" stroke="#e8925a" strokeWidth="2.6" />
-                  <path
-                    d="M6 16 Q 20 10 34 16 M4 24 Q 20 18 36 24 M9 31 Q 20 26 31 31"
-                    fill="none"
-                    stroke="#e8925a"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                  />
-                  <path d="M34 30 Q 40 33 38 38" fill="none" stroke="#e8925a" strokeWidth="2.2" strokeLinecap="round" />
-                </svg>
-              </div>
+              <p className="mt-4 text-center text-[0.7rem] font-bold tracking-[0.18em] text-[#c26d3f]/70">
+                the crew, stacked and judgment-free
+              </p>
             </div>
           </div>
         </div>

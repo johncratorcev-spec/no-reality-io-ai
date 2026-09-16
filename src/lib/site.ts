@@ -50,4 +50,6 @@ export const PARTNER_OF_WEEK = {
   kind: "cats, every single day",
   blurb:
     "A daily dose of dopamine from the fluffiest crew on Instagram — the team curates the most expressive cats on the planet while we curate the machines that dream. Different feed, same obsession: catching the perfect frame.",
+  /** их пост, закреплённый первым в ленте (pin 1) — на нём тоже мяукает переход */
+  partnerPostUtm: "zXMNjL2F",
 } as const;
