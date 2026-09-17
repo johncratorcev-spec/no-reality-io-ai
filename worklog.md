@@ -586,3 +586,21 @@ Work Log:
 Stage Summary:
 - На закреплённом посте pawcrewdaily (pin 1) теперь чип-таймер 72ч: тикающий отсчёт, тёплое свечение; тап — модальное окно акции на английском: анимированные лапки, шиммер-заголовок «every paw counts», живой отсчёт, прогресс-бар времени, «100% goes to shelters», 3 шага, CTA «donate now» ведёт в донат-бокс.
 - Дедлайн фиксированный 2026-09-19T20:00:00Z — когда истечёт, таймер и акционные элементы сами исчезнут (донат-кнопка остаётся). Продлить акцию = поменять deadlineUtc в site.ts.
+
+---
+Task ID: 33
+Agent: Super Z (main agent)
+Task: (1) Убрать таймер 72ч с крипто-доната. (2) Кнопку donate → «make world better». (3) Закрепить первым главное видео коллаборации threads.com/share/BABB-GSGO9/.
+
+Work Log:
+- ИЗВЛЕЧЕНИЕ (сложный кейс): panel_add 3 попытки + extract_retry 6 попыток — NO_SRCS; embed 404; curl-HTML — антиспам-шелл. Диагноз: share-страница отдаёт SSR-мету (og:title «Crypto trader cat has a bad night 📉 @mmayrday»), но клиентский фетч падает «Something went wrong» (Retry не спасает, каноникал тоже). РЕШЕНИЕ: share-страница → al:android:url/og:url/canonical = https://www.threads.com/@pawcrewdaily/post/DdX3O2eEo-z (пост партнёра, цитирует @mmayrday). Каноникал тоже «Something went wrong» → видео взято из КАРТОЧКИ поста в ЛЕНТЕ профиля @pawcrewdaily (video в ancestors ссылки карточки) → полный URL 1043 симв. → CDN 206 video/mp4 (63-сек. видео, xpv_asset_id 17911970889462942).
+- ПИН: scripts/add_collab_pin.py (по образцу add_partner_pin): кэш extract_out/BABB-GSGO9.json, CDN-верификация, utm 71vsIPUu → pin 1, старые 1–7 → 2–8, 50 постов; gen-posts-snapshot → 50. Первый запуск упал на регэкспе автора (нет trailing slash в кэше) — поправил кэш.
+- ТАЙМЕР УБРАН: DonateBox без чипа/использования useCountdown; src/lib/charity.ts удалён; charityDrive в site.ts без deadlineUtc/durationHours; globals.css — nr-charity-chip/glow/tick/sec вычищены (модалка и её анимации остались).
+- КНОПКА: «donate crypto» → «make world better» (aria-label «Make the world better — donate crypto to cat shelters»). Модалка акции (без отсчёта) осталась: триггер — строка «charity drive: 100% to cat shelters» в донат-карточке; летающие лапки/шиммер/pop-in сохранены; CTA закрывает модалку.
+- КОММЕНТАРИЙ: partnerPostUtm = TK4_0wTI (донат остаётся на его посте, теперь pin 2; комментарий в site.ts обновлён).
+- Проверки: tsc чисто, build ок; smoke: /feed 200 (71vsIPUu + видео + заголовок в HTML, «make world better» ×1), /v/71vsIPUu 200, /v/TK4_0wTI 200 с «make world better», /r/71vsIPUu → 302 threads.com/share/BABB-GSGO9/. Коммит сделан ДО build по протоколу среды.
+- Пуш b84f0a1..a72489a (PAT), remote verified.
+
+Stage Summary:
+- Pin 1 = 71vsIPUu @pawcrewdaily «Crypto trader cat has a bad night 📉 @mmayrday» (главное видео коллаба, 63с); пины 2–8 сдвинуты; лента 50 постов.
+- Таймера 72ч больше нет; кнопка «make world better» на посте с донатом (TK4_0wTI, pin 2); благотворительная модалка сохранена (без отсчёта) — открывается из донат-карточки.
