@@ -4,14 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Coins, Heart, Home, PawPrint, ShieldCheck, X } from "lucide-react";
 import { PARTNER_OF_WEEK } from "@/lib/site";
-import { splitHMS, useCountdown } from "@/lib/charity";
 
 /* ================================================================
-   CharityModal — красивая модалка благотворительной акции.
-   Открывается тапом по чипу-таймеру на крипто-донате.
-   Портал в body (родитель-карточка с трансформами ловит fixed),
-   летающие лапки, шиммер-заголовок, живой отсчёт, честный
-   прогресс-бар «времени осталось», CTA в донат-бокс.
+   CharityModal — модалка благотворительной акции «make world
+   better»: куда идут деньги. Портал в body (карточка видео с
+   трансформами ловит fixed), летающие лапки, шиммер-заголовок,
+   бейдж 100%, шаги «как это работает». Без таймера — по решению
+   пользователя таймер 72ч убран.
    ================================================================ */
 
 const STEP_ICON = { heart: Heart, coins: Coins, home: Home } as const;
@@ -29,14 +28,11 @@ const FLOATERS = [
 export default function CharityModal({
   open,
   onClose,
-  onDonate,
 }: {
   open: boolean;
   onClose: () => void;
-  onDonate: () => void;
 }) {
   const drive = PARTNER_OF_WEEK.charityDrive;
-  const { msLeft, expired, ready } = useCountdown(drive.deadlineUtc);
   const [mounted, setMounted] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -58,16 +54,7 @@ export default function CharityModal({
     };
   }, [open, onClose]);
 
-  if (!mounted || !open || expired || !ready) return null;
-
-  const pct =
-    msLeft !== null
-      ? Math.max(
-          0,
-          Math.min(100, (msLeft / (drive.durationHours * 3600 * 1000)) * 100)
-        )
-      : 100;
-  const hms = msLeft !== null ? splitHMS(msLeft) : { h: "--", m: "--", s: "--" };
+  if (!mounted || !open) return null;
 
   return createPortal(
     <div
@@ -120,57 +107,18 @@ export default function CharityModal({
             {drive.title}
           </h2>
 
-          {/* живой отсчёт */}
-          <div className="mt-4 flex items-stretch justify-center gap-2">
-            {(
-              [
-                ["hrs", hms.h],
-                ["min", hms.m],
-                ["sec", hms.s],
-              ] as const
-            ).map(([label, val]) => (
-              <div
-                key={label}
-                className="min-w-[3.9rem] rounded-2xl bg-[#3d2314] px-2.5 py-2 shadow-lg shadow-[#3d2314]/25"
-              >
-                <span
-                  key={val}
-                  className="nr-charity-sec block text-[1.35rem] font-black tabular-nums leading-none text-[#ffe9d4]"
-                >
-                  {val}
-                </span>
-                <span className="mt-1 block text-[0.5rem] font-bold uppercase tracking-[0.18em] text-[#ffe9d4]/55">
-                  {label}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* честный прогресс-бар: сколько времени осталось */}
-          <div className="mt-3.5 px-1">
-            <div className="h-1.5 overflow-hidden rounded-full bg-[#3d2314]/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#e4713b] to-[#ffb26b] transition-[width] duration-1000 ease-linear"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <p className="mt-1 text-[0.52rem] font-bold uppercase tracking-[0.14em] text-[#6b4a33]/50">
-              time remaining
-            </p>
-          </div>
-
-          <p className="mx-auto mt-3.5 max-w-[19rem] text-[0.68rem] font-semibold leading-relaxed text-[#5b3013]">
+          <p className="mx-auto mt-4 max-w-[19rem] text-[0.68rem] font-semibold leading-relaxed text-[#5b3013]">
             {drive.body}
           </p>
 
           {/* бейдж 100% */}
-          <div className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-[#3d2314] px-3.5 py-1.5 text-[0.6rem] font-extrabold text-[#ffd9b3] shadow-md shadow-[#3d2314]/25">
+          <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[#3d2314] px-3.5 py-1.5 text-[0.6rem] font-extrabold text-[#ffd9b3] shadow-md shadow-[#3d2314]/25">
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
             {drive.badge}
           </div>
 
           {/* как это работает */}
-          <div className="mt-3.5 flex flex-col gap-1.5 text-left">
+          <div className="mt-4 flex flex-col gap-1.5 text-left">
             {drive.steps.map((s) => {
               const Icon = STEP_ICON[s.icon];
               return (
@@ -191,7 +139,7 @@ export default function CharityModal({
 
           {/* CTA */}
           <button
-            onClick={onDonate}
+            onClick={onClose}
             className="nr-donate-btn mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[0.75rem] font-extrabold text-white transition-transform duration-200 hover:scale-[1.03] active:scale-95"
           >
             <PawPrint className="h-4 w-4" aria-hidden />

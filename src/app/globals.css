@@ -1011,20 +1011,9 @@ section:hover .nr-mc-arrow,
 }
 
 /* ============================================================
-   CHARITY DRIVE — 72ч акция «каждая лапка на счету»:
-   чип-таймер над донат-кнопкой + модалка акции (портал в body).
+   CHARITY MODAL — «make world better»: куда идут деньги.
+   (чип-таймер 72ч убран по решению пользователя)
    ============================================================ */
-.nr-charity-chip {
-  background: linear-gradient(135deg, #fff3e2 0%, #ffd9b3 100%);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 6px 18px rgba(194, 109, 63, 0.3);
-  animation: nr-charity-glow 2.6s ease-in-out infinite;
-}
-@keyframes nr-charity-glow {
-  0%, 100% { box-shadow: 0 6px 18px rgba(194, 109, 63, 0.3); }
-  50%      { box-shadow: 0 8px 26px rgba(228, 113, 59, 0.55); }
-}
-
 .nr-charity-backdrop {
   background: rgba(30, 15, 5, 0.55);
   backdrop-filter: blur(10px);
@@ -1080,19 +1069,8 @@ section:hover .nr-mc-arrow,
   to { background-position: -200% 0; }
 }
 
-/* лёгкий «пружинный» тик на смене цифр отсчёта (remount по key) */
-.nr-charity-sec {
-  animation: nr-charity-tick 0.35s ease-out;
-}
-@keyframes nr-charity-tick {
-  0%   { transform: translateY(-35%) scale(0.85); opacity: 0; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .nr-charity-chip,
-  .nr-charity-float,
-  .nr-charity-sec { animation: none; }
+  .nr-charity-float { animation: none; }
   .nr-charity-shimmer {
     animation: none;
     color: #c26d3f;
