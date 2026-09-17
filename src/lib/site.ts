@@ -50,16 +50,19 @@ export const PARTNER_OF_WEEK = {
   kind: "cats, every single day",
   blurb:
     "A daily dose of dopamine from the fluffiest crew on Instagram — the team curates the most expressive cats on the planet while we curate the machines that dream. Different feed, same obsession: catching the perfect frame.",
-  /** их пост с крипто-донатом (сейчас pin 2; pin 1 — главное видео коллаба) */
-  partnerPostUtm: "TK4_0wTI",
-  /** пресеты крипто-доната (USDT) на пост партнёра — пилот 2328.io */
+  /** посты партнёра с крипто-донатом: pin 1 (главное видео коллаба) + pin 2 (пилот) — на обоих мяукает переход */
+  donatePostUtms: ["71vsIPUu", "TK4_0wTI"] as readonly string[],
+  /** пресеты крипто-доната (USDT) на постах партнёра — пилот 2328.io */
   donatePresetsUsdt: ["1.00", "3.00", "5.00"],
   /**
    * Благотворительная акция: все донаты — приютам для котиков.
-   * Таймер 72ч убран по решению пользователя; осталась история
-   * «куда идут деньги» (модалка с кнопки/строки в донат-карточке).
+   * Донат «закрыт» до момента openingAtUtc: на постах тикает таймер,
+   * клик по кнопке/чипу открывает модалку с отсчётом и историей акции.
+   * Когда время выйдет — кнопка открывает обычный донат-флоу.
    */
   charityDrive: {
+    /** момент открытия доната в UTC (ISO) — 24 часа от запуска */
+    openingAtUtc: "2026-09-18T06:00:00Z",
     eyebrow: "charity drive",
     title: "every paw counts",
     body: "we’re running a charity drive: every crypto donation on this post goes straight to cat shelters — food, warm beds, litter and vet care for cats waiting for their human.",
@@ -70,12 +73,15 @@ export const PARTNER_OF_WEEK = {
       { icon: "home", text: "shelters get supplies" },
     ],
     cta: "donate now",
+    lockedCta: "donations open soon",
   } as {
+    openingAtUtc: string;
     eyebrow: string;
     title: string;
     body: string;
     badge: string;
     steps: readonly { icon: "heart" | "coins" | "home"; text: string }[];
     cta: string;
+    lockedCta: string;
   },
 } as const;

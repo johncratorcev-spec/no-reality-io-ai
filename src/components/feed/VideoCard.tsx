@@ -759,8 +759,9 @@ export default function VideoCard({
             rel="noopener noreferrer"
             onClick={(e) => {
               e.stopPropagation();
-              /* пост партнёра недели: переход на профиль мяукает */
-              if (post.utmCode === PARTNER_OF_WEEK.partnerPostUtm) playMeow();
+              /* посты партнёра недели: переход на профиль мяукает */
+              if (PARTNER_OF_WEEK.donatePostUtms.includes(post.utmCode))
+                playMeow();
               if (!guarded(800)) e.preventDefault(); // флуд-контроль
             }}
             aria-label={`Open ${post.author} profile on Threads`}
@@ -1010,8 +1011,8 @@ export default function VideoCard({
         )}
       </button>
 
-      {/* ---------- пилот 2328.io: крипто-донат на посте партнёра недели ---------- */}
-      {post.utmCode === PARTNER_OF_WEEK.partnerPostUtm &&
+      {/* ---------- пилот 2328.io: крипто-донат на постах партнёра недели ---------- */}
+      {PARTNER_OF_WEEK.donatePostUtms.includes(post.utmCode) &&
         PARTNER_OF_WEEK.donatePresetsUsdt.length > 0 && (
           <DonateBox utmCode={post.utmCode} />
         )}

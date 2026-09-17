@@ -54,10 +54,10 @@ export async function POST(
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  // пилот: донат только на пост партнёра недели
-  if (code !== PARTNER_OF_WEEK.partnerPostUtm) {
+  // пилот: донат только на постах партнёра недели
+  if (!PARTNER_OF_WEEK.donatePostUtms.includes(code)) {
     return NextResponse.json(
-      { error: "Donations are open only for the pinned partner post" },
+      { error: "Donations are open only for the pinned partner posts" },
       { status: 404 }
     );
   }
@@ -130,7 +130,7 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> }
 ) {
   const { code } = await params;
-  if (code !== PARTNER_OF_WEEK.partnerPostUtm) {
+  if (!PARTNER_OF_WEEK.donatePostUtms.includes(code)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

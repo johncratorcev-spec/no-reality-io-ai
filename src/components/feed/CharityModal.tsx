@@ -4,13 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Coins, Heart, Home, PawPrint, ShieldCheck, X } from "lucide-react";
 import { PARTNER_OF_WEEK } from "@/lib/site";
+import { splitHMS, useCountdown } from "@/lib/charity";
 
 /* ================================================================
    CharityModal — модалка благотворительной акции «make world
-   better»: куда идут деньги. Портал в body (карточка видео с
-   трансформами ловит fixed), летающие лапки, шиммер-заголовок,
-   бейдж 100%, шаги «как это работает». Без таймера — по решению
-   пользователя таймер 72ч убран.
+   better». Портал в body (карточка видео с трансформами ловит
+   fixed), летающие лапки, шиммер-заголовок, бейдж 100%.
+   Два режима:
+   • locked  — донат ещё закрыт: большие живые блоки отсчёта
+     HRS/MIN/SEC с пружинным тиком, CTA-заглушка «open soon»;
+   • opened  — донат открыт: CTA «donate now» → донат-бокс.
    ================================================================ */
 
 const STEP_ICON = { heart: Heart, coins: Coins, home: Home } as const;
@@ -28,11 +31,14 @@ const FLOATERS = [
 export default function CharityModal({
   open,
   onClose,
+  onDonate,
 }: {
   open: boolean;
   onClose: () => void;
+  onDonate: () => void;
 }) {
   const drive = PARTNER_OF_WEEK.charityDrive;
+  const { msLeft, locked, opened } = useCountdown(drive.openingAtUtc);
   const [mounted, setMounted] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -55,6 +61,8 @@ export default function CharityModal({
   }, [open, onClose]);
 
   if (!mounted || !open) return null;
+
+  const hms = msLeft !== null ? splitHMS(msLeft) : { h: "--", m: "--", s: "--" };
 
   return createPortal(
     <div
@@ -107,6 +115,39 @@ export default function CharityModal({
             {drive.title}
           </h2>
 
+          {/* живой отсчёт до открытия доната — только пока закрыто */}
+          {locked && (
+            <div className="mt-4">
+              <div className="flex items-stretch justify-center gap-2">
+                {(
+                  [
+                    ["hrs", hms.h],
+                    ["min", hms.m],
+                    ["sec", hms.s],
+                  ] as const
+                ).map(([label, val]) => (
+                  <div
+                    key={label}
+                    className="min-w-[3.9rem] rounded-2xl bg-[#3d2314] px-2.5 py-2 shadow-lg shadow-[#3d2314]/25"
+                  >
+                    <span
+                      key={val}
+                      className="nr-charity-sec block text-[1.35rem] font-black tabular-nums leading-none text-[#ffe9d4]"
+                    >
+                      {val}
+                    </span>
+                    <span className="mt-1 block text-[0.5rem] font-bold uppercase tracking-[0.18em] text-[#ffe9d4]/55">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[0.52rem] font-bold uppercase tracking-[0.14em] text-[#6b4a33]/50">
+                until donations open
+              </p>
+            </div>
+          )}
+
           <p className="mx-auto mt-4 max-w-[19rem] text-[0.68rem] font-semibold leading-relaxed text-[#5b3013]">
             {drive.body}
           </p>
@@ -137,14 +178,21 @@ export default function CharityModal({
             })}
           </div>
 
-          {/* CTA */}
-          <button
-            onClick={onClose}
-            className="nr-donate-btn mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[0.75rem] font-extrabold text-white transition-transform duration-200 hover:scale-[1.03] active:scale-95"
-          >
-            <PawPrint className="h-4 w-4" aria-hidden />
-            {drive.cta}
-          </button>
+          {/* CTA: пока закрыто — заглушка, после открытия — донат */}
+          {opened ? (
+            <button
+              onClick={onDonate}
+              className="nr-donate-btn mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[0.75rem] font-extrabold text-white transition-transform duration-200 hover:scale-[1.03] active:scale-95"
+            >
+              <PawPrint className="h-4 w-4" aria-hidden />
+              {drive.cta}
+            </button>
+          ) : (
+            <div className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#3d2314]/8 px-4 py-3 text-[0.72rem] font-extrabold text-[#6b4a33]/60">
+              <PawPrint className="h-4 w-4" aria-hidden />
+              {drive.lockedCta}
+            </div>
+          )}
 
           <p className="mt-2.5 text-[0.52rem] font-semibold text-[#6b4a33]/55">
             settled on-chain via 2328.io · every cent to the shelters
