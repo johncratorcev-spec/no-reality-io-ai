@@ -604,3 +604,23 @@ Work Log:
 Stage Summary:
 - Pin 1 = 71vsIPUu @pawcrewdaily «Crypto trader cat has a bad night 📉 @mmayrday» (главное видео коллаба, 63с); пины 2–8 сдвинуты; лента 50 постов.
 - Таймера 72ч больше нет; кнопка «make world better» на посте с донатом (TK4_0wTI, pin 2); благотворительная модалка сохранена (без отсчёта) — открывается из донат-карточки.
+
+---
+Task ID: 34
+Agent: Super Z (main agent)
+Task: Донат «make world better» на ОБА поста pawcrewdaily + таймер 24ч до открытия благотворительного доната.
+
+Work Log:
+- site.ts: partnerPostUtm → donatePostUtms = ["71vsIPUu", "TK4_0wTI"] (readonly string[] — иначе as const ломает .includes(string)); charityDrive.openingAtUtc = 2026-09-18T06:00:00Z (24ч от запуска, UTC 05:58 на момент правки) + lockedCta «donations open soon».
+- src/lib/charity.ts: восстановлен useCountdown (locked/opened флаги) + formatHMS/splitHMS.
+- DonateBox: чип «🐾 opens in 23:59:59» (glow-пульс) над кнопкой на ОБОИХ постах, пока locked; клик по чипу И по кнопке «make world better» до открытия → CharityModal (донат-флоу заблокирован); после openingAtUtc кнопка открывает донат-карточку как раньше (чип исчезает).
+- CharityModal: два режима — locked (большие блоки HRS/MIN/SEC с пружинным тиком, подпись «until donations open», CTA-заглушка lockedCta, CTA «donate now» скрыт) и opened (CTA «donate now» → onDonate → донат-бокс). Летающие лапки/шиммер/pop-in сохранены.
+- VideoCard: meow на переход к профилю + рендер DonateBox → donatePostUtms.includes(post.utmCode) (оба поста мяукают и имеют донат).
+- API /api/donate/[code]: POST+GET guard → donatePostUtms.includes(code); description по-прежнему из поста.
+- globals.css: возвращены nr-charity-chip/glow/sec/tick (+reduced-motion).
+- Проверки: tsc чисто; build ок; smoke /feed 200 («make world better» ×2 — по кнопке на каждый пост), /v/71vsIPUu 200, /v/TK4_0wTI 200; POST /api/donate/71vsIPUu → 503 (принят, до конфига ключей на локали), TK4_0wTI → 503, чужой zXMNjL2F → 404 (guard). Маркеры «until donations open|opens in» в клиентском чанке. Коммит 2ac6760 до build по протоколу.
+- Пуш 476d910..2ac6760 (PAT), remote verified.
+
+Stage Summary:
+- Оба поста pawcrewdaily (pin 1 главное видео коллаба 71vsIPUu + pin 2 пилотный TK4_0wTI) имеют кнопку «make world better», чип-таймер и модалку акции; мяу на обоих.
+- Донат откроется автоматически 2026-09-18T06:00:00Z: чип исчезнет, кнопка начнёт открывать донат-карточку, в модалке появится CTA. Продлить/сдвинуть — правка openingAtUtc в site.ts.
