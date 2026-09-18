@@ -66,3 +66,7 @@ scripts/panel_jobs/
 __pycache__/
 *.pyc
 .secrets/
+
+# extrakt kadrov dlya prompt drop (binarnye artefakty sredy)
+scripts/extract_out/
+scripts/url_check_report.json

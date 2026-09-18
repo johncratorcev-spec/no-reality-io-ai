@@ -688,3 +688,20 @@ Stage Summary:
 - Автосвежение ссылок — РАБОТАЕТ ИНФРАСТРУКТУРНО: воркфлоу активен на GitHub (cron 23 */12 * * * + ручной Run workflow), refresh → commit от no-reality-feed-bot → Vercel автодеплой. Порог 20ч: полный прогон ~раз в сутки, чередующиеся прогоны — быстрые no-op.
 - Prompt drop жив: кадр LOKI (13.4с) как реклама в ленте после коллаб-видео и на /collab; инвойс $100 через 2328.io; промпт показывается 60 секунд и исчезает; один платёж = один взгляд.
 - ДЛЯ ПРОДА добавить в Vercel env: TWOTHOUSAND328_PAYMENT_API_KEY, TWOTHOUSAND328_PROJECT_UUID, PUBLIC_BASE_URL=https://no-reality.io и НОВЫЙ PROMPT_LOKI_FLASH (текст промпта — в .secrets/prompt-loki.txt и в .env.local локали). Без PROMPT_LOKI_FLASH чекаут дропа честно отдаёт 503.
+
+---
+Task ID: 38
+Agent: Super Z (main agent)
+Task: Диагностика «рекламная карточка не отображается под закреплённым видео с коллабой».
+
+Work Log:
+- Проверена вся цепочка локально на актуальном HEAD (a9cef86..87fc60a): CSV/снапшот — коллаб-пост 71vsIPUu первый (pin=1), Feed вставляет ad-слот сразу после него; SSR /feed — data-index 0=пин, 1=Prompt drop, 2=видео; getRankedPosts ставит пины поверх; /v/[code]?drop=1 прокидывает dropOpen.
+- Прод-билд + next start :3111 + agent-browser: слот 1280×401, h2 «the cat from the collab», img loki-prompt.webp загружен; скриншот подтверждает карточку под пином; deep-link ?drop=1 прыгает на слот. КОД РАБОЧИЙ — у пользователя проблема деплой/окружение.
+- Проверить прод из песочницы нельзя: no-reality.io = NXDOMAIN (подтверждено Google DoH и Cloudflare DoH — НЕТ даже NS-записей, домен не делегирован у регистратора). vercel.app-имя проекта из песочницы не угадывается.
+- ВАЖНО: мёртвый домен ломает флоу оплаты — url_return/webhook 2328.io указывают на PUBLIC_BASE_URL=https://no-reality.io; после оплаты покупателя редиректит на неживой домен, resume-поллинг в той же вкладке не сработает.
+- Среда снова намусорила UUID-коммит 09bb6a9 (scripts/extract_out mp4+фреймы, НЕ запушен) — размотан reset --soft origin/main, файлы выведены из индекса; scripts/extract_out/ добавлен в .gitignore (лечит рецидив).
+- Сервер :3111 остановлен; CSV не тронут.
+
+Stage Summary:
+- Код prompt drop верифицирован end-to-end локально (SSR + реальный браузер + deep-link). Пушить в код нечего — деплой-сторона.
+- Чек-лист пользователю: (1) hard-refresh Ctrl+Shift+R; (2) в Vercel проверить, что деплой коммита 87fc60a статусом Ready (пересоздать при ошибке); (3) в Vercel env должны быть TWOTHOUSAND328_PROJECT_UUID, TWOTHOUSAND328_PAYMENT_API_KEY, PUBLIC_BASE_URL, PROMPT_LOKI_FLASH (без него чекаут 503); (4) СРОЧНО настроить DNS no-reality.io у регистратора (A 76.76.21.21 / CNAME cname.vercel-dns.com) ЛИБО сменить PUBLIC_BASE_URL на рабочий домен — иначе оплаченный промпт не «вернёт» покупателя на страницу reveal.
