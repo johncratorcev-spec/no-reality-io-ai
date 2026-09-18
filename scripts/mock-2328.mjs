@@ -93,6 +93,17 @@ const server = http.createServer(async (req, res) => {
         payment_status: "pending",
         created_at: new Date().toISOString(),
       });
+      // авто-оплата через 3с (эмуляция успешной оплаты покупателем)
+      setTimeout(() => {
+        const rec = payments.get(order_id);
+        if (rec && rec.payment_status !== "paid") {
+          rec.payment_status = "paid";
+          rec.txid = `mock-tx-${randomUUID().slice(0, 8)}`;
+          rec.payment_amount = rec.amount;
+          rec.updated_at = new Date().toISOString();
+          console.log(`[mock-2328] auto-paid ${order_id}`);
+        }
+      }, 3000);
     }
     const p = payments.get(order_id);
     return json(res, 200, {
