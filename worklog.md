@@ -624,3 +624,23 @@ Work Log:
 Stage Summary:
 - Оба поста pawcrewdaily (pin 1 главное видео коллаба 71vsIPUu + pin 2 пилотный TK4_0wTI) имеют кнопку «make world better», чип-таймер и модалку акции; мяу на обоих.
 - Донат откроется автоматически 2026-09-18T06:00:00Z: чип исчезнет, кнопка начнёт открывать донат-карточку, в модалке появится CTA. Продлить/сдвинуть — правка openingAtUtc в site.ts.
+
+---
+Task ID: 35
+Agent: Super Z (main agent)
+Task: (1) Обновить ленту — ссылки протухли, главную коллаборацию восстановить обязательно. (2) Тестовый инвойс 2328.io (project 240478b4-…-c5ffa3a58a03 + pay key) и доказать работоспособность.
+
+Work Log:
+- Синк с remote: среда пересобрала worklog-коммит (a30a006), rebase локального 2829b5c поверх — конфликтов нет; убран мусор среды (untracked src/app/api/route.ts «Hello world», src/app/api/posts/).
+- Аудит ленты (scripts/check_urls.py, range-GET 0-1023): 46/50 живых, 4 мёртвых (403): y7KQ3mNc, M4uledti, ZKiccR64, Ekxi_A6H; у всех 50 oe-подписи истекают в пределах 48ч (5 уже истекли).
+- МАССОВОЕ ОБНОВЛЕНИЕ: сервер на :3111 через instrumentation сам запустил refresh_links.py --quiet (дефолтный порог 48ч покрывает все 50); мой параллельный nohup-запуск умер (завис на pin1 + моё вмешательство в agent-browser-сессию при проверке чекаута — урок: не трогать браузер во время джобы). Итог тихой джобы: 46/50 обновлены, включая pin1 (71vsIPUu) — стена Threads в этот раз пропустила. Догоняющий прогон с --min-hours 24: +1 (UkoN8r2X).
+- 4 неоживляемых: share → каноникал (@creator_nastya1/DdBZa4GAh9O, @yurii_yeltsov/DdG-OcziKrb, @verse.dim/DdH54yEAFwI ×2 — дубль) показывают «This content isn't available to everyone» — Threads ограничил показ, видео публично не существует. curl-мета теперь login-шелл (title «Threads», без og/canonical) — каноникал достаётся только браузером. Решение: строки удалены из CSV (50 → 46), мёртвых плееров в ленте больше нет; пины 1–8 целы (1=71vsIPUu, 2=TK4_0wTI).
+- Финал: 46/46 живых (206 video/mp4); snapshot 46 постов; удалённые коды в HTML ленты отсутствуют; «make world better» ×2; видео-URL пина 1 и 2 в HTML.
+- ИНВОЙС 2328.io: ключ в .env.local (в git не попадает, .env* в gitignore). Первый POST через сервер → 403: publicBase() на локали собрал url_callback https://127.0.0.1:3111/… — 2328 отклоняет; фикс PUBLIC_BASE_URL=https://no-reality.io в .env.local. Прямой вызов scripts/debug2328.mjs подтвердил: ключ/проект/подпись верны (state:0).
+- E2E-доказательства (прод-билд, next start :3111): POST /api/donate/71vsIPUu {3.00} → ok:true, payUrl pay.2328.io/857f…, orderId don-Oe3dwBI8q0Mq; GET статус → {status:check, paid:false}; пресеты 1.00/5.00 → инвойсы созданы; 4.99/null → 400 «Choose one of the suggested amounts»; TK4_0wTI → инвойс ок; чужой код → 404 guard; webhook-роут на месте. Финальный контроль на пересобранном билде: don-9mp4DoQkZF4f создан + статус check. Checkout-страница за Bunny Shield JS-челленджем (curl 403 — норма, браузеры проходят).
+- Коммит a2f2c8e ДО build по протоколу: CSV+snapshot+скрипты (check_urls/fix_dead4/debug2328 — без секретов). Пуш a30a006..a2f2c8e, remote verified.
+
+Stage Summary:
+- Лента: 46 живых постов со свежими CDN-подписями, коллаборация pin 1 (71vsIPUu) восстановлена, 4 ограниченных Threads поста удалены.
+- ВАЖНО: Threads сейчас выдаёт lease ~34ч (замер 31.8–35.8ч) — ленту надо обновлять каждые ~сутки (refresh_links.py → commit → push → редеплой Vercel; на серверлесе автоджоба не работает — agent-browser недоступен). Кандидат на следующую задачу: GitHub Action по расписанию.
+- Донат 2328.io работает end-to-end (создание инвойса + поллинг статуса + guard'ы). ДЛЯ ПРОДА: добавить в Vercel env TWOTHOUSAND328_PAYMENT_API_KEY и TWOTHOUSAND328_PROJECT_UUID (без них прод отдаёт 503), опционально PUBLIC_BASE_URL=https://no-reality.io.
