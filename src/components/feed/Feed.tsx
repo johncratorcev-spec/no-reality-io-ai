@@ -7,6 +7,8 @@ interface FeedProps {
   posts: PostWithScore[];
   /** utm-код поста с deep-link страницы /v/[code] — к нему прыгаем при монтировании */
   focusCode?: string;
+  /** deep-link ?donate=1: авто-открыть донат на сфокусированной карточке */
+  donateOpen?: boolean;
 }
 
 /**
@@ -18,7 +20,7 @@ interface FeedProps {
  * а адресная строка всегда синхронизируется с активным видео
  * (history.replaceState — без записей в истории, Next это поддерживает).
  */
-export default function Feed({ posts, focusCode }: FeedProps) {
+export default function Feed({ posts, focusCode, donateOpen }: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [activeIndex, setActiveIndex] = useState(() => {
@@ -133,6 +135,7 @@ export default function Feed({ posts, focusCode }: FeedProps) {
           shouldLoad={Math.abs(i - activeIndex) <= 1}
           /* следующее видео грузим полностью — переход мгновенный */
           eagerPreload={i === activeIndex + 1}
+          autoDonate={donateOpen === true && post.utmCode === focusCode}
           onEnded={() => handleEnded(i)}
         />
       ))}

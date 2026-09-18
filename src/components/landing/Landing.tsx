@@ -23,7 +23,7 @@ const NAV = [
   { href: "#prompts", label: "prompts" },
   { href: "#creators", label: "creators" },
   { href: "#team", label: "team" },
-  { href: "#partner", label: "partner" },
+  { href: "/collab", label: "🐾 cat collab" },
   { href: "#faq", label: "faq" },
 ];
 

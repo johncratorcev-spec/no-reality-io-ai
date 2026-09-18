@@ -46,6 +46,8 @@ interface VideoCardProps {
   shouldLoad: boolean;
   /** следующая за активной — preload="auto" для мгновенного перехода */
   eagerPreload?: boolean;
+  /** deep-link ?donate=1 — авто-открыть донат на этой карточке */
+  autoDonate?: boolean;
   onEnded: () => void;
 }
 
@@ -261,6 +263,7 @@ export default function VideoCard({
   isActive,
   shouldLoad,
   eagerPreload = false,
+  autoDonate = false,
   onEnded,
 }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1014,7 +1017,7 @@ export default function VideoCard({
       {/* ---------- пилот 2328.io: крипто-донат на постах партнёра недели ---------- */}
       {PARTNER_OF_WEEK.donatePostUtms.includes(post.utmCode) &&
         PARTNER_OF_WEEK.donatePresetsUsdt.length > 0 && (
-          <DonateBox utmCode={post.utmCode} />
+          <DonateBox utmCode={post.utmCode} autoOpen={autoDonate} />
         )}
 
       {/* ---------- вспышка разблокировки: кольцо + конфетти ---------- */}

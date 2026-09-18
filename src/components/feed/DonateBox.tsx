@@ -23,7 +23,14 @@ const PRESET_LABEL: Record<string, string> = {
   "5.00": "a full cat feast",
 };
 
-export default function DonateBox({ utmCode }: { utmCode: string }) {
+export default function DonateBox({
+  utmCode,
+  autoOpen = false,
+}: {
+  utmCode: string;
+  /** deep-link /v/<code>?donate=1 — карточка доната открывается сама */
+  autoOpen?: boolean;
+}) {
   const presets = PARTNER_OF_WEEK.donatePresetsUsdt;
   const drive = PARTNER_OF_WEEK.charityDrive;
   const [open, setOpen] = useState(false);
@@ -66,6 +73,16 @@ export default function DonateBox({ utmCode }: { utmCode: string }) {
     },
     []
   );
+
+  /* deep-link ?donate=1: как только countdown готов (SSR-безопасно) —
+     авто-открываем донат-карточку, а до открытия акции — модалку с отсчётом */
+  const autoFiredRef = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || autoFiredRef.current || !ready) return;
+    autoFiredRef.current = true;
+    if (locked) setCharityOpen(true);
+    else setOpen(true);
+  }, [autoOpen, ready, locked]);
 
   const donate = async () => {
     if (!amount || phase === "creating") return;

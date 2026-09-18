@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ code: string }>;
+  searchParams: Promise<{ donate?: string }>;
 }
 
 /* кэш на один запрос: generateMetadata и страница делят один fetch */
@@ -39,12 +40,16 @@ export async function generateMetadata({
  * Рендерим ту же ленту (чтобы соседние видео оставались доступными),
  * а Feed сам проскроллится к запрошенному посту и синхронизирует адрес.
  */
-export default async function VideoByCodePage({ params }: PageProps) {
+export default async function VideoByCodePage({ params, searchParams }: PageProps) {
   const { code } = await params;
+  const sp = await searchParams;
   const posts = await getFeed();
   const post = posts.find((p) => p.utmCode === code.trim());
 
   if (!post) notFound();
 
-  return <FeedScreen posts={posts} focusCode={post.utmCode} />;
+  /* ?donate=1 — виральный deep-link с коллаб-страницы: донат открывается сам */
+  const donateOpen = sp.donate === "1";
+
+  return <FeedScreen posts={posts} focusCode={post.utmCode} donateOpen={donateOpen} />;
 }

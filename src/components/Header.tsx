@@ -9,12 +9,25 @@ export default function Header() {
           no reality.
         </a>
 
-        {/* деликатный живой индикатор — чёрный */}
-        <span
-          aria-hidden
-          className="nr-anim-dot ml-auto h-1.5 w-1.5 rounded-full bg-[#0a0a0a]"
-          style={{ boxShadow: "0 0 10px 2px rgba(16,22,29,.35)" }}
-        />
+        <div className="ml-auto flex items-center gap-3">
+          {/* ссылка на страницу коллаборации — всегда под рукой */}
+          <a
+            href="/collab"
+            className="nr-anim-fade-down group inline-flex items-center gap-1.5 rounded-full bg-[#fff3e8] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#c26d3f] transition-all duration-300 hover:scale-105 hover:bg-[#ffe7d2] active:scale-95"
+          >
+            <span className="inline-block transition-transform duration-300 group-hover:-rotate-12" aria-hidden>
+              🐾
+            </span>
+            collab
+          </a>
+
+          {/* деликатный живой индикатор — чёрный */}
+          <span
+            aria-hidden
+            className="nr-anim-dot h-1.5 w-1.5 rounded-full bg-[#0a0a0a]"
+            style={{ boxShadow: "0 0 10px 2px rgba(16,22,29,.35)" }}
+          />
+        </div>
       </div>
       {/* мягкая перламутровая линия под шапкой */}
       <div
