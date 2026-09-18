@@ -65,3 +65,4 @@ scripts/panel_jobs/
 # python
 __pycache__/
 *.pyc
+.secrets/

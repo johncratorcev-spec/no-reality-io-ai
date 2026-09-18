@@ -1,7 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VideoCard, { type PostWithScore } from "./VideoCard";
+import PromptDropCard from "./PromptDropCard";
+import { PROMPT_DROP } from "@/lib/site";
+
+type Slot =
+  | { kind: "post"; post: PostWithScore }
+  | { kind: "ad" };
 
 interface FeedProps {
   posts: PostWithScore[];
@@ -9,6 +15,8 @@ interface FeedProps {
   focusCode?: string;
   /** deep-link ?donate=1: авто-открыть донат на сфокусированной карточке */
   donateOpen?: boolean;
+  /** deep-link ?drop=1: авто-прыжок на рекламную карточку prompt drop после сфокусированного поста */
+  dropOpen?: boolean;
 }
 
 /**
@@ -16,16 +24,59 @@ interface FeedProps {
  * Активная карточка определяется IntersectionObserver'ом,
  * по окончании видео — мягкий автопереход к следующей.
  *
+ * Слоты: между постами вставляется рекламная карточка prompt drop
+ * (после поста PROMPT_DROP.afterUtm). Слот-реклама участвует в
+ * навигации, но не меняет адресную строку и не играет видео.
+ *
  * Deep-link (/v/[code]): начальный активный индекс берётся из focusCode,
  * а адресная строка всегда синхронизируется с активным видео
  * (history.replaceState — без записей в истории, Next это поддерживает).
  */
-export default function Feed({ posts, focusCode, donateOpen }: FeedProps) {
+export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const slots = useMemo<Slot[]>(() => {
+    const s: Slot[] = [];
+    for (const post of posts) {
+      s.push({ kind: "post", post });
+      if (post.utmCode === PROMPT_DROP.afterUtm) s.push({ kind: "ad" });
+    }
+    return s;
+  }, [posts]);
+
+  const findPostSlot = useCallback(
+    (code: string) =>
+      slots.findIndex(
+        (s) => s.kind === "post" && s.post.utmCode === code
+      ),
+    [slots]
+  );
+
+  const findAdAfterPost = useCallback(
+    (code: string) => {
+      for (let i = 1; i < slots.length; i++) {
+        const s = slots[i];
+        const prev = slots[i - 1];
+        if (
+          s.kind === "ad" &&
+          prev.kind === "post" &&
+          prev.post.utmCode === code
+        ) {
+          return i;
+        }
+      }
+      return -1;
+    },
+    [slots]
+  );
+
   const [activeIndex, setActiveIndex] = useState(() => {
+    if (dropOpen && focusCode) {
+      const ad = findAdAfterPost(focusCode);
+      if (ad > 0) return ad;
+    }
     if (!focusCode) return 0;
-    const i = posts.findIndex((p) => p.utmCode === focusCode);
+    const i = findPostSlot(focusCode);
     return i >= 0 ? i : 0;
   });
 
@@ -34,29 +85,32 @@ export default function Feed({ posts, focusCode, donateOpen }: FeedProps) {
       активный индекс уже установлен выше — нужное видео монтируется сразу) */
   useEffect(() => {
     if (!focusCode) return;
-    const idx = posts.findIndex((p) => p.utmCode === focusCode);
+    const idx = dropOpen
+      ? findAdAfterPost(focusCode)
+      : findPostSlot(focusCode);
     if (idx <= 0) return;
     containerRef.current
       ?.querySelector<HTMLElement>(`[data-index="${idx}"]`)
       ?.scrollIntoView({ block: "start" });
-  }, [focusCode, posts]);
+  }, [focusCode, dropOpen, findAdAfterPost, findPostSlot]);
 
   /* адресная строка всегда указывает на активное видео.
      Первый запуск пропускаем: на /v/[code] URL уже верный,
-     на / пока пользователь не листал — не трогаем адрес. */
+     на / пока пользователь не листал — не трогаем адрес.
+     Слот-реклама адрес не меняет: предыдущий пост остаётся в адресной строке. */
   const skipUrlSync = useRef(true);
   useEffect(() => {
     if (skipUrlSync.current) {
       skipUrlSync.current = false;
       return;
     }
-    const post = posts[activeIndex];
-    if (!post) return;
-    const url = `/v/${post.utmCode}`;
+    const slot = slots[activeIndex];
+    if (!slot || slot.kind !== "post") return;
+    const url = `/v/${slot.post.utmCode}`;
     if (window.location.pathname !== url) {
       window.history.replaceState(null, "", url);
     }
-  }, [activeIndex, posts]);
+  }, [activeIndex, slots]);
 
   useEffect(() => {
     const root = containerRef.current;
@@ -76,7 +130,7 @@ export default function Feed({ posts, focusCode, donateOpen }: FeedProps) {
 
     root.querySelectorAll("[data-index]").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [posts.length]);
+  }, [slots.length]);
 
   const goTo = useCallback((idx: number) => {
     const el = containerRef.current?.querySelector<HTMLElement>(
@@ -87,15 +141,15 @@ export default function Feed({ posts, focusCode, donateOpen }: FeedProps) {
 
   const handleEnded = useCallback(
     (idx: number) => {
-      if (idx < posts.length - 1) goTo(idx + 1);
+      if (idx < slots.length - 1) goTo(idx + 1);
     },
-    [posts.length, goTo]
+    [slots.length, goTo]
   );
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      goTo(Math.min(activeIndex + 1, posts.length - 1));
+      goTo(Math.min(activeIndex + 1, slots.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       goTo(Math.max(activeIndex - 1, 0));
@@ -125,20 +179,32 @@ export default function Feed({ posts, focusCode, donateOpen }: FeedProps) {
       aria-label="Video feed"
       className="nr-feed h-full w-full snap-y snap-mandatory overflow-y-auto outline-none"
     >
-      {posts.map((post, i) => (
-        <VideoCard
-          key={post.utmCode}
-          post={post}
-          index={i}
-          total={posts.length}
-          isActive={i === activeIndex}
-          shouldLoad={Math.abs(i - activeIndex) <= 1}
-          /* следующее видео грузим полностью — переход мгновенный */
-          eagerPreload={i === activeIndex + 1}
-          autoDonate={donateOpen === true && post.utmCode === focusCode}
-          onEnded={() => handleEnded(i)}
-        />
-      ))}
+      {slots.map((slot, i) =>
+        slot.kind === "post" ? (
+          <VideoCard
+            key={slot.post.utmCode}
+            post={slot.post}
+            index={i}
+            total={slots.length}
+            isActive={i === activeIndex}
+            shouldLoad={Math.abs(i - activeIndex) <= 1}
+            /* следующее видео грузим полностью — переход мгновенный */
+            eagerPreload={i === activeIndex + 1}
+            autoDonate={donateOpen === true && slot.post.utmCode === focusCode}
+            onEnded={() => handleEnded(i)}
+          />
+        ) : (
+          /* рекламная карточка prompt drop — полноэкранный snap-слот */
+          <section
+            key="prompt-drop-ad"
+            data-index={i}
+            aria-label="Prompt drop — the loki prompt"
+            className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden"
+          >
+            <PromptDropCard variant="feed" />
+          </section>
+        )
+      )}
     </div>
   );
 }

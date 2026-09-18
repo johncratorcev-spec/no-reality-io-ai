@@ -10,6 +10,8 @@ interface FeedScreenProps {
   focusCode?: string;
   /** deep-link ?donate=1 — авто-открыть карточку доната на сфокусированном посте */
   donateOpen?: boolean;
+  /** deep-link ?drop=1 — авто-прыжок на рекламную карточку prompt drop после сфокусированного поста */
+  dropOpen?: boolean;
 }
 
 /**
@@ -17,14 +19,24 @@ interface FeedScreenProps {
  * Используется и на главной /, и на deep-link странице /v/[code] —
  * чтобы обе точки входа всегда выглядели и вели себя одинаково.
  */
-export default function FeedScreen({ posts, focusCode, donateOpen }: FeedScreenProps) {
+export default function FeedScreen({
+  posts,
+  focusCode,
+  donateOpen,
+  dropOpen,
+}: FeedScreenProps) {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-white">
       <Header />
       <WebGLBanner />
 
       <main className="relative min-h-0 flex-1">
-        <Feed posts={posts} focusCode={focusCode} donateOpen={donateOpen} />
+        <Feed
+          posts={posts}
+          focusCode={focusCode}
+          donateOpen={donateOpen}
+          dropOpen={dropOpen}
+        />
       </main>
 
       <Footer />

@@ -16,6 +16,7 @@ import Reveal from "@/components/collab/Reveal";
 import ShareButton from "@/components/collab/ShareButton";
 import CollabPlayer from "@/components/collab/CollabPlayer";
 import CatEgg from "@/components/collab/CatEgg";
+import PromptDropCard from "@/components/feed/PromptDropCard";
 
 /**
  * /collab — страница коллаборации no reality. × paw crew daily.
@@ -204,6 +205,9 @@ export default async function CollabPage() {
           </div>
         </div>
       </section>
+
+      {/* ================= PROMPT DROP ================= */}
+      <PromptDropCard variant="section" />
 
       {/* ================= ИСТОРИЯ ================= */}
       <section className="bg-[#fff7ef]/60 py-20 sm:py-24">

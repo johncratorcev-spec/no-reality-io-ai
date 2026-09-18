@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ donate?: string }>;
+  searchParams: Promise<{ donate?: string; drop?: string }>;
 }
 
 /* кэш на один запрос: generateMetadata и страница делят один fetch */
@@ -48,8 +48,18 @@ export default async function VideoByCodePage({ params, searchParams }: PageProp
 
   if (!post) notFound();
 
-  /* ?donate=1 — виральный deep-link с коллаб-страницы: донат открывается сам */
+  /* ?donate=1 — виральный deep-link с коллаб-страницы: донат открывается сам.
+     ?drop=1 — возврат с чекаута prompt drop: лента прыгает на рекламную карточку,
+     где session-инвойс поллит статус и сам раскрывает промпт. */
   const donateOpen = sp.donate === "1";
+  const dropOpen = sp.drop === "1";
 
-  return <FeedScreen posts={posts} focusCode={post.utmCode} donateOpen={donateOpen} />;
+  return (
+    <FeedScreen
+      posts={posts}
+      focusCode={post.utmCode}
+      donateOpen={donateOpen}
+      dropOpen={dropOpen}
+    />
+  );
 }
