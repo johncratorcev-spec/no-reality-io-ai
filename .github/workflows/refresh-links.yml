@@ -1,0 +1,87 @@
+# Автосвежение подписанных CDN-ссылок ленты (Threads отдаёт lease ~34ч).
+# Расписание: каждые 12ч — с запасом: даже при одном пропуске следующая
+# попытка успевает до истечения подписей.
+# Пайплайн: refresh_links.py → commit CSV → push → Vercel авто-редеплой.
+name: refresh-feed-links
+
+on:
+  schedule:
+    # 23-я минута чётных часов UTC — в стороне от топа часа, меньше шумных соседей
+    - cron: "23 */12 * * *"
+  workflow_dispatch: {} # ручной запуск из вкладки Actions
+
+permissions:
+  contents: write # push обновлённого CSV от имени GITHUB_TOKEN
+
+concurrency:
+  group: refresh-feed-links
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # agent-browser тянет Chrome-for-testing при первом запуске;
+      # системные библиотеки для headless chrome на раннере в основном есть,
+      # но дотягиваем недостающее best-effort (не валим джобу).
+      - name: Install agent-browser
+        run: |
+          npm install -g agent-browser@0.38.1
+          agent-browser --version
+
+      - name: Install chrome system deps (best-effort)
+        run: |
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq \
+            libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+            libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+            libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 \
+            fonts-liberation || true
+
+      # exit code 2 = «часть строк не удалось обновить» — это не провал:
+      # всё, что успело, уже сохранено в CSV инкрементально.
+      - name: Refresh CDN links
+        run: python3 scripts/refresh_links.py --min-hours 20 --quiet
+        id: refresh
+
+      - name: Commit and push
+        id: commit
+        run: |
+          if git diff --quiet -- data/posts.csv; then
+            echo "Ссылки не изменились — коммитить нечего." >> "$GITHUB_STEP_SUMMARY"
+            echo "updated=0" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name "no-reality-feed-bot"
+            git config user.email "bot@no-reality.io"
+            CHANGED=$(git diff --numstat -- data/posts.csv | awk '{print $1}')
+            git add data/posts.csv
+            git commit -m "chore(links): refresh CDN signatures (scheduled)"
+            git push
+            {
+              echo "### Лента обновлена"
+              echo "- строк изменено: ~${CHANGED}"
+              echo "- Vercel подхватит пуш и передеплоит автоматически"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "updated=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report failures
+        if: always() && steps.refresh.outcome == 'failure'
+        run: |
+          echo "### refresh_links.py упал с необработанной ошибкой" >> "$GITHUB_STEP_SUMMARY"
+          echo "Проверь лог шага Refresh; среду Threads могла закрыть стеной —" >> "$GITHUB_STEP_SUMMARY"
+          echo "следующий запуск по расписанию повторит попытку." >> "$GITHUB_STEP_SUMMARY"
