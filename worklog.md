@@ -644,3 +644,23 @@ Stage Summary:
 - Лента: 46 живых постов со свежими CDN-подписями, коллаборация pin 1 (71vsIPUu) восстановлена, 4 ограниченных Threads поста удалены.
 - ВАЖНО: Threads сейчас выдаёт lease ~34ч (замер 31.8–35.8ч) — ленту надо обновлять каждые ~сутки (refresh_links.py → commit → push → редеплой Vercel; на серверлесе автоджоба не работает — agent-browser недоступен). Кандидат на следующую задачу: GitHub Action по расписанию.
 - Донат 2328.io работает end-to-end (создание инвойса + поллинг статуса + guard'ы). ДЛЯ ПРОДА: добавить в Vercel env TWOTHOUSAND328_PAYMENT_API_KEY и TWOTHOUSAND328_PROJECT_UUID (без них прод отдаёт 503), опционально PUBLIC_BASE_URL=https://no-reality.io.
+
+---
+Task ID: 36
+Agent: Super Z (main agent)
+Task: (1) Автосвежение ссылок по расписанию (GitHub Action: refresh → push → редеплой). (2) Отдельная страница про коллаборацию с котами — вирально, стильно, на лёгких библиотеках.
+
+Work Log:
+- GitHub Action .github/workflows/refresh-links.yml: cron «23 */12 * * *» + workflow_dispatch, permissions contents:write, concurrency-группа, ubuntu-latest, python 3.12 + node 22, npm i -g agent-browser@0.38.1, best-effort apt-зависимости chrome, refresh_links.py (exit 2 = частичный успех — не провал), коммит CSV только при изменениях (git diff --quiet) от no-reality-feed-bot, шаг-саммари. Пуш воркфлоу ОТКЛОНЁН: PAT без скоупа workflow — файл готов локально (.github/workflows/refresh-links.yml, YAML валиден), нужен скоуп workflow на PAT или ручная загрузка через web-UI; из диапазона пуша он вычленен (reset --soft на FETCH_HEAD + restore --staged).
+- Среда опять переписала историю (677f3b2 «UUID» с url_check_report.json поверх 581048f) — размотано reset --soft FETCH_HEAD, мусор не закоммичен.
+- Страница /collab (src/app/collab/page.tsx, серверный компонент): hero с шиммер-заголовком «no reality. × paw crew daily» и парящими лапками, бесшовный CSS-marquee, видео коллаба (CollabPlayer: тот же CDN-URL из CSV + onError-фолбэк на Threads), таймлайн истории 01–02–03, charity-блок с копирайтом из PARTNER_OF_WEEK.charityDrive и CTA «donate now», карточки крева (@pawcrewdaily IG stkn, @mmayrday, 2328.io), финальный share-блок.
+- Вирусные анимации НА ЛЁГКИХ БИБЛИОТЕКАХ: единственная зависимость canvas-confetti (~2KB gzip) — залпы лапками/сердечками/рыбками (shapeFromText); остальное чистый CSS/IntersectionObserver/rAF: Reveal (scroll-reveal с reduced-motion), marquee (два трека, -100%), шиммер (background-clip:text), парение, glow-пульс CTA, wiggle кота. Никаких framer-motion — страница статическая и быстрая.
+- ShareButton: нативный Web Share API (мобильный шеринг-шит) → фолбэк clipboard + состояние «link copied — thank you!». CatEgg: клик по коту → playMeow() (тот же sfx, что в ленте) + конфетти.
+- Deep-link /v/<code>?donate=1: page → FeedScreen → Feed → VideoCard → DonateBox autoOpen; hydration-безопасно (fired-ref + useEffect по ready; locked → модалка акции, opened → донат-карточка). С коллаб-страницы обе CTA ведут на /v/71vsIPUu?donate=1.
+- Навигация: Header (/feed и /v) — тёплая пилюля «🐾 collab»; лендинг — NAV-пункт «🐾 cat collab» ВМЕСТО мёртвого якоря #partner; sitemap + /collab (0.8 weekly).
+- Проверки: tsc чисто; build ок; smoke /collab 200 (все маркеры: paw crew daily/every paw counts/make world better/share the love/pet the cat/2328.io/видео-URL/100% goes to shelters), /v/71vsIPUu?donate=1 200, анимационные классы в CSS, ссылки /collab в лендинге и шапке ленты, sitemap. Ловушка среды: EADDRINUSE — старый next-server держал порт, убит по PID.
+- Коммиты: 6dbf671 (task 36) запушен 581048f..6dbf671, remote verified.
+
+Stage Summary:
+- /collab жива: вирусная страница коллаборации с лёгкими анимациями, share-механикой и прямыми CTA в донат (?donate=1 открывает карточку сама).
+- Воркфлоу автосвежения ГОТОВ, но не запушен: PAT без скоупа workflow. Два пути: добавить скоуп workflow PAT → я пушу одной командой; или залить файл через web-UI (Add file → .github/workflows/refresh-links.yml). До этого момента обновление ссылок — вручную (refresh_links.py → commit → push).
