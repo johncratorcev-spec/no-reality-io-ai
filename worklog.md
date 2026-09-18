@@ -664,3 +664,27 @@ Work Log:
 Stage Summary:
 - /collab жива: вирусная страница коллаборации с лёгкими анимациями, share-механикой и прямыми CTA в донат (?donate=1 открывает карточку сама).
 - Воркфлоу автосвежения ГОТОВ, но не запушен: PAT без скоупа workflow. Два пути: добавить скоуп workflow PAT → я пушу одной командой; или залить файл через web-UI (Add file → .github/workflows/refresh-links.yml). До этого момента обновление ссылок — вручную (refresh_links.py → commit → push).
+
+---
+Task ID: 37
+Agent: Super Z (main agent)
+Task: (1) Запушить воркфлоу автосвежения (пользователь добавил разрешение на workflow). (2) Кадр чёрного кота в толстовке из коллаб-видео → реклама продажи промпта персонажа (инвойс $100, после оплаты промпт показывается 60 секунд и исчезает).
+
+Work Log:
+- СРЕДА опять намусорила UUID-коммит (b4caaab: воркфлоу + CSV-токены + url_check_report.json + снапшот) — размотано reset --soft на FETCH_HEAD, закоммичен ТОЛЬКО воркфлоу; CSV откачен по протоколу.
+- Тюнинг воркфлоу: `refresh_links.py --min-hours 20 --quiet` (при каденции 12ч и lease 34ч порог 20ч = обновление раз в сутки с запасом 10ч; дефолтный 48ч обновлял бы все 46 ссылок каждый прогон ~40+ мин) + timeout 50 мин. YAML валиден.
+- ПУШ УСПЕШЕН (PAT со скоупом workflow): 7e7399b..3b3c109. GitHub API подтверждает: workflow refresh-feed-links ACTIVE. API-dispatch PAT-ом 403 (нет Actions:write у fine-grained PAT) — не критично: cron сработает сам, ручной запуск кнопкой Run workflow в Actions.
+- ФРЕЙМ: видео 71vsIPUu скачано (63.2с, 720×1280), 63 thumbnails fps=1 просмотрены визуально → чёрный кот (девон-рекс) в зип-толстовке «LOKI» — полнокадровые планы на 13.0–14.6с; выбран 13.4с (телефон у уха, LOKI читается, драматичный свет). 14.2с уже коллаж. Итог: public/images/loki-prompt.webp (720×1280, 20.5KB, PIL q80).
+- ПРОДУКТ «PROMPT DROP» (flash-модель): site.ts PROMPT_DROP {code, afterUtm:71vsIPUu, priceUsdt:"100.00", image, revealSeconds:60}. Stateless по образцу доната — состояние инвойса у 2328.io, у нас только orderId у покупателя (sessionStorage, переживает same-tab редирект на чекаут и возврат по url_return). Промпт живёт ТОЛЬКО в env PROMPT_LOKI_FLASH (в git не попадает; копия в .secrets/, .gitignore дополнен) — чекаут отдаёт 503 ДО создания инвойса, если env не задан: никто не платит зря.
+- API: POST /api/prompt-drop/checkout (rate 4/мин, orderId pd-<nanoid>, ttl 1800с, url_callback → webhook, url_return → /v/71vsIPUu?drop=1) + GET /api/prompt-drop/status (ORDER_RE ^pd-, реконсиляция /v1/payment/info; paid → и только тогда PROMPT_LOKI_FLASH покидает сервер; dead-статусы → флаг dead).
+- UI PromptDropCard (variant feed|section): фазы idle → invoicing → awaiting → revealed(60с) → gone. Поллинг 4с (стоп через 45 мин), resume из sessionStorage в rAF-отложенном эффекте, кольцо-отсчёт conic-gradient (--p, тик 250мс), vanish = CSS blur-out 1с → стейт «gone. the cat keeps its secrets» с кнопкой «get another look». Анимации лёгкие: ken-burns кадра 16s, sweep-блик, glow-CTA, pop-in; всё выключается при prefers-reduced-motion. Без копирования текста — «screenshot now».
+- ЛЕНТА: Feed переведён на слоты (post|ad) — рекламная карточка вставляется после PROMPT_DROP.afterUtm; activeIndex/data-index по слотам, URL-синк пропускает ad-слот, total=slots.length (loop последнего видео корректен), onEnded с пина 1 ведёт на рекламу. FeedScreen + /v/[code] прокидывают dropOpen (?drop=1 → прыжок на ad-слот). /collab: секция prompt drop между видео и историей.
+- ПРОТОКОЛ: коммит a9cef86 ДО build; build требовал node scripts/copy-standalone.mjs (next build сам не копирует public в standalone — вебп 404). Ловушка среды: старый next-server переименовывается и pkill -f "next start" его не берёт — убивать по PID из ss -tlnp; standalone НЕ читает .env.local — для локальных прода-тестов новый scripts/run-standalone.mjs (парсит dotenv сам, env уже в process.env не перетирает).
+- SMOKE (прод-билд :3111): /collab, /feed, /v/71vsIPUu?drop=1 → 200; маркеры «the cat from the collab», «get the prompt — $100», «one look · 60 seconds», loki-prompt.webp в HTML обоих страниц; webp 200 image/webp. РЕАЛЬНЫЙ инвойс 2328.io: pd-3UCyAwObPO9a → pay.2328.io/c34fac13…, статус {check, paid:false}; guard'ы: don-префикс 400, ../инъекция 400, без orderId 400.
+- PAID-ПУТЬ ДОКАЗАН: scripts/mock-2328.mjs дополнен автооплатой через 3с (как и было заявлено в его шапке); инстанс :3112 против мока: checkout → pd-Bz3iC5zvMDRN → автооплата → статус {paid:true, prompt:"TEST-PROMPT-xyz-60s"} — промпт уходит ТОЛЬКО при paid.
+- Коммит b74b7a9 (tooling) запушен; итоговый remote 3b3c109..b74b7a9, verified.
+
+Stage Summary:
+- Автосвежение ссылок — РАБОТАЕТ ИНФРАСТРУКТУРНО: воркфлоу активен на GitHub (cron 23 */12 * * * + ручной Run workflow), refresh → commit от no-reality-feed-bot → Vercel автодеплой. Порог 20ч: полный прогон ~раз в сутки, чередующиеся прогоны — быстрые no-op.
+- Prompt drop жив: кадр LOKI (13.4с) как реклама в ленте после коллаб-видео и на /collab; инвойс $100 через 2328.io; промпт показывается 60 секунд и исчезает; один платёж = один взгляд.
+- ДЛЯ ПРОДА добавить в Vercel env: TWOTHOUSAND328_PAYMENT_API_KEY, TWOTHOUSAND328_PROJECT_UUID, PUBLIC_BASE_URL=https://no-reality.io и НОВЫЙ PROMPT_LOKI_FLASH (текст промпта — в .secrets/prompt-loki.txt и в .env.local локали). Без PROMPT_LOKI_FLASH чекаут дропа честно отдаёт 503.
