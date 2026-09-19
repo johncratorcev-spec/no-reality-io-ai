@@ -705,3 +705,23 @@ Work Log:
 Stage Summary:
 - Код prompt drop верифицирован end-to-end локально (SSR + реальный браузер + deep-link). Пушить в код нечего — деплой-сторона.
 - Чек-лист пользователю: (1) hard-refresh Ctrl+Shift+R; (2) в Vercel проверить, что деплой коммита 87fc60a статусом Ready (пересоздать при ошибке); (3) в Vercel env должны быть TWOTHOUSAND328_PROJECT_UUID, TWOTHOUSAND328_PAYMENT_API_KEY, PUBLIC_BASE_URL, PROMPT_LOKI_FLASH (без него чекаут 503); (4) СРОЧНО настроить DNS no-reality.io у регистратора (A 76.76.21.21 / CNAME cname.vercel-dns.com) ЛИБО сменить PUBLIC_BASE_URL на рабочий домен — иначе оплаченный промпт не «вернёт» покупателя на страницу reveal.
+
+---
+Task ID: 39
+Agent: Super Z (main agent)
+Task: (1) Вкладка Prompt Market (/market) с LOKI-оффером. (2) На карточке продажи — ссылка на видео-источник и на саму карточку. (3) Реферальная модель (% от оплаты по приглашению). (4) Простейшая авторизация MetaMask. Домен сменился на no-reality.fun.
+
+Work Log:
+- СРЕДА ПЕРЕСОЗДАНА (все файлы 04:42, .env.local и .secrets/ УТЕРЯНЫ — реальный текст промпта LOKI восстановить неоткуда; в .env.local воссозданы ключи 2328.io из истории, домен, ADMIN_SECRET, REFERRAL_RATE_PCT и ТЕСТОВЫЙ PROMPT_LOKI_FLASH). В git всё уцелело.
+- ДОМЕН: SITE.url/PUBLIC_BASE_URL/UA/payouts → no-reality.fun (site.ts, payment.ts, payout.ts, payouts.ts, debug2328.mjs, .env.local). Юзеру: обновить PUBLIC_BASE_URL в Vercel!
+- /market (static, src/app/market/page.tsx): тёмный hero с топ-баром (лого, ▸ feed, 🐾 collab, WalletButton), «the prompts behind the characters», шаги watch/pay/unlock, LOKI-карточка (PromptDropCard variant=section, якорь #loki-hoodie), soon-плейсхолдеры, ReferralPanel «bring a buyer — keep 20%», футер-строка. Навигация: пилюля «✦ prompt market» в Header ленты, NAV лендинга (#prompts → /market + CTA в секции #prompts), sitemap 0.9 weekly.
+- ССЫЛКИ НА КАРТОЧКЕ (оба варианта): «watch the collab video» → /v/71vsIPUu; «copy card link» → {origin}/market[?ref=КОД]#loki-hoodie (код: свой при подключённом кошельке, иначе ?ref из localStorage — цепочка атрибуции живёт при шеринге).
+- МЕТАМАСК (MVP): POST/GET/DELETE /api/auth/metamask — валидация 0x[40hex], httpOnly-cookie nr_wallet 30 дней (Secure, Lax), GET → {wallet, refCode, inviteUrl}; подпись personal_sign — следующий шаг. use-wallet.ts хук (connect/disconnect/refresh/shareRefCode) + WalletButton в шапке (выпадашка с invite-ссылкой и правилом 20%) + ReferralPanel на витрине.
+- РЕФЕРКА: код детерминирован от кошелька (sha256(wallet+REFERRAL_SALT) → r+9 base36, src/lib/referral.ts); ловец ?ref= (RefCapture в layout, localStorage nr-ref 90 дней last-touch); checkout принимает {ref} → само-приглашение отбрасывается, код ВШИВАЕТСЯ в orderId (pd-<id>-<ref>) — атрибуция не зависит от нашей БД; ORDER_RE статуса расширен; при paid — ReferralEvent(kind=paid, payoutUsdt=amount×rate) best-effort; модели ReferralProfile/ReferralEvent (prisma db push ok); реестр выплат GET /api/admin/referrals?key=ADMIN_SECRET (агрегаты по кодам, code→wallet, 401 без ключа, 503 если БД недоступна).
+- SMOKE: tsc чисто; build ок; /market 200 + все маркеры; /feed ad-слот на месте; sitemap → no-reality.fun/market; auth: POST валид/невалид (200+cookie/400), GET с cookie → тот же детерминированный код; checkout: без ref чистый orderId, с ref → суффикс, само-ref отброшен, мусорный ref отброшен, 429 на 5-й вызов в минуту; РЕАЛЬНЫЙ 2328.io принял ref-orderId (pd-…-rabcdef123 → pay.2328.io); ПОЛНЫЙ ПУТЬ через mock-2328: автооплата → status {paid:true, prompt} → реестр: paid $100 → payout $20.00, профиль r4tbbbkftp→0x71c7….
+- Ловушки среды: (а) fuser -k не берёт переименованный next-server — EADDRINUSE у нового, старый отдавал СТАРЫЙ билд; убит по PID из ss; (б) refresh-job (интервал 6ч после сброса env) захватил agent-browser на ~8 мин — браузер не трогал до release лока, CSV откачен по протоколу.
+
+Stage Summary:
+- Витрина /market жива: hero + LOKI-дроп с ссылками на источник/шеринг + soon + рефпанель; вкладки в шапке и лендинге; sitemap.
+- MetaMask-сессии и рефералка работают end-to-end (мок + реальный провайдер); атрибуция переживает отсутствие БД (код в orderId).
+- Юзеру: 1) в Vercel env обновить PUBLIC_BASE_URL=https://no-reality.fun, добавить REFERRAL_RATE_PCT=0.2 (опционально) и РЕАЛЬНЫЙ PROMPT_LOKI_FLASH (локальный текст промпта утерян сбросом среды — только у владельца); 2) % реферера меняется env-ом; 3) выплаты — вручную по /api/admin/referrals?key=….
