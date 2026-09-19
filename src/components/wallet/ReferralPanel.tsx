@@ -30,14 +30,14 @@ export default function ReferralPanel() {
   };
 
   return (
-    <div className="nr-pd-shell mx-auto mt-16 max-w-4xl overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#151221] to-[#241d3a] p-6 text-white sm:p-10">
-      <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#b79dff]">
+    <div className="nr-pd-shell mx-auto mt-16 max-w-4xl overflow-hidden rounded-[2.5rem] border border-[#d9cdf5] bg-gradient-to-br from-[#f6f2fd] via-white to-[#f9f5ff] p-6 text-[#10161d] shadow-[0_24px_70px_rgba(122,92,224,0.14)] sm:p-10">
+      <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#6d4fc2]">
         invite &amp; earn
       </p>
       <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
-        bring a buyer — keep <span className="text-[#b79dff]">20%</span>
+        bring a buyer — keep <span className="text-[#8a68e8]">20%</span>
       </h2>
-      <p className="mt-3 max-w-xl text-[0.86rem] font-semibold leading-relaxed text-white/60">
+      <p className="mt-3 max-w-xl text-[0.86rem] font-semibold leading-relaxed text-[#10161d]/60">
         connect your MetaMask, share your personal invite link and get 20% of
         every invoice paid through it. paid out in USDT, no caps, no tricks.
       </p>
@@ -50,13 +50,13 @@ export default function ReferralPanel() {
         ].map((s) => (
           <div
             key={s.n}
-            className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10"
+            className="rounded-2xl bg-white/80 p-4 ring-1 ring-[#10161d]/8"
           >
-            <p className="font-mono text-[0.7rem] font-extrabold text-[#b79dff]">
+            <p className="font-mono text-[0.7rem] font-extrabold text-[#8a68e8]">
               {s.n}
             </p>
             <p className="mt-1 text-[0.8rem] font-extrabold">{s.t}</p>
-            <p className="mt-1 text-[0.68rem] font-semibold leading-snug text-white/50">
+            <p className="mt-1 text-[0.68rem] font-semibold leading-snug text-[#10161d]/50">
               {s.d}
             </p>
           </div>
@@ -67,28 +67,28 @@ export default function ReferralPanel() {
         {!ready ? (
           <span
             aria-hidden
-            className="inline-block h-12 w-40 animate-pulse rounded-full bg-white/10"
+            className="inline-block h-12 w-40 animate-pulse rounded-full bg-[#10161d]/8"
           />
         ) : wallet ? (
-          <div className="rounded-2xl bg-black/40 p-4 ring-1 ring-white/12">
+          <div className="rounded-2xl bg-white p-4 ring-1 ring-[#6d4fc2]/25">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#b79dff]/15 px-3 py-1.5 text-[0.68rem] font-extrabold text-[#cdbcff]">
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#6d4fc2]/12 px-3 py-1.5 text-[0.68rem] font-extrabold text-[#6d4fc2]">
                 <Wallet className="h-3.5 w-3.5" aria-hidden />
                 {short(wallet)}
               </span>
               <button
                 onClick={disconnect}
-                className="text-[0.64rem] font-bold text-white/40 transition-colors hover:text-white/75"
+                className="text-[0.64rem] font-bold text-[#10161d]/40 transition-colors hover:text-[#10161d]/75"
               >
                 disconnect
               </button>
             </div>
-            <p className="mt-3 font-mono text-[0.74rem] leading-relaxed text-white/80">
+            <p className="mt-3 font-mono text-[0.74rem] leading-relaxed text-[#10161d]/80">
               {inviteUrl ?? "…"}
             </p>
             <button
               onClick={copyInvite}
-              className="nr-pd-cta mt-3 inline-flex items-center gap-2 rounded-full bg-[#b79dff] px-6 py-3 text-[0.78rem] font-extrabold text-[#17121f] transition-transform duration-300 hover:scale-[1.04] active:scale-95"
+              className="nr-pd-cta mt-3 inline-flex items-center gap-2 rounded-full bg-[#8a68e8] px-6 py-3 text-[0.78rem] font-extrabold text-white transition-transform duration-300 hover:scale-[1.04] active:scale-95"
             >
               {copied ? (
                 <Check className="h-4 w-4" aria-hidden />
@@ -103,13 +103,13 @@ export default function ReferralPanel() {
             <button
               onClick={connect}
               disabled={connecting}
-              className="nr-pd-cta inline-flex items-center gap-2 rounded-full bg-[#b79dff] px-7 py-3.5 text-[0.85rem] font-extrabold text-[#17121f] transition-transform duration-300 hover:scale-[1.04] active:scale-95 disabled:opacity-60"
+              className="nr-pd-cta inline-flex items-center gap-2 rounded-full bg-[#8a68e8] px-7 py-3.5 text-[0.85rem] font-extrabold text-white transition-transform duration-300 hover:scale-[1.04] active:scale-95 disabled:opacity-60"
             >
               <Wallet className="h-4 w-4" aria-hidden />
               {connecting ? "connecting…" : "connect MetaMask"}
             </button>
             {error && (
-              <p className="mt-3 max-w-md rounded-xl bg-[#ff5470]/12 px-3 py-2 text-[0.7rem] font-semibold leading-snug text-[#ff9db0]">
+              <p className="mt-3 max-w-md rounded-xl bg-[#ff5470]/10 px-3 py-2 text-[0.7rem] font-semibold leading-snug text-[#d63d5e]">
                 {error.includes("MetaMask not found") ? (
                   <>
                     MetaMask not found —{" "}
@@ -128,7 +128,7 @@ export default function ReferralPanel() {
                 )}
               </p>
             )}
-            <p className="mt-2.5 text-[0.6rem] font-semibold text-white/40">
+            <p className="mt-2.5 text-[0.6rem] font-semibold text-[#10161d]/45">
               wallet sign-in is a cookie session — no seed phrases, no
               transactions, we never ask them.
             </p>

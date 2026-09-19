@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import PromptDropCard from "@/components/feed/PromptDropCard";
 import ReferralPanel from "@/components/wallet/ReferralPanel";
-import WalletButton from "@/components/wallet/WalletButton";
+import Menu from "@/components/menu/Menu";
 import { PROMPT_DROP } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -31,48 +31,36 @@ const SOON = [
 export default function MarketPage() {
   return (
     <main className="min-h-dvh bg-white">
-      {/* ---------- hero ---------- */}
-      <section className="relative overflow-hidden bg-[#0b0e13] py-16 text-white sm:py-20">
+      {/* ---------- hero (светлый, перламутровый) ---------- */}
+      <section className="relative overflow-hidden bg-white py-14 text-[#10161d] sm:py-20">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-40"
+          className="pointer-events-none absolute inset-0 opacity-70"
           style={{
             background:
-              "radial-gradient(60% 80% at 70% 10%, rgba(183,157,255,.25), transparent 60%), radial-gradient(50% 60% at 15% 90%, rgba(255,178,125,.18), transparent 60%)",
+              "radial-gradient(60% 80% at 70% 10%, rgba(183,157,255,.16), transparent 60%), radial-gradient(50% 60% at 15% 90%, rgba(255,178,125,.14), transparent 60%), radial-gradient(40% 44% at 40% 40%, rgba(168,207,234,.2), transparent 65%)",
           }}
         />
         <div className="relative mx-auto max-w-4xl px-5">
-          {/* верхняя строка: лого + навигация + кошелёк */}
-          <div className="mb-12 flex items-center gap-3">
+          {/* верхняя строка: лого + меню-бургер (все разделы + кошелёк) */}
+          <div className="mb-10 flex items-center gap-3">
             <a
               href="/"
-              className="nr-logo select-none text-[1.2rem] font-extrabold leading-none tracking-tight text-white"
+              className="nr-logo select-none text-[1.2rem] font-extrabold leading-none tracking-tight"
             >
               no reality.
             </a>
-            <div className="ml-auto flex items-center gap-2">
-              <a
-                href="/feed"
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-white/80 ring-1 ring-white/15 transition-all duration-300 hover:scale-105 hover:bg-white/14 active:scale-95"
-              >
-                ▸ feed
-              </a>
-              <a
-                href="/collab"
-                className="inline-flex items-center gap-1.5 rounded-full bg-[#fff3e8] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#c26d3f] transition-all duration-300 hover:scale-105 hover:bg-[#ffe7d2] active:scale-95"
-              >
-                🐾 collab
-              </a>
-              <WalletButton />
+            <div className="ml-auto">
+              <Menu />
             </div>
           </div>
-          <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#b79dff]">
+          <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#6d4fc2]">
             prompt market
           </p>
           <h1 className="nr-collab-shimmer mt-3 max-w-2xl text-4xl font-extrabold leading-[1.02] tracking-tight sm:text-6xl">
             the prompts behind the characters
           </h1>
-          <p className="mt-4 max-w-xl text-[0.92rem] font-semibold leading-relaxed text-white/60">
+          <p className="mt-4 max-w-xl text-[0.92rem] font-semibold leading-relaxed text-[#10161d]/60">
             every drop here is the exact prompt behind a character you&apos;ve
             already seen in the wild. flash mechanics: pay, unlock, screenshot —
             one look is all you get.
@@ -81,13 +69,13 @@ export default function MarketPage() {
             {STEPS.map((s) => (
               <div
                 key={s.n}
-                className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10"
+                className="rounded-2xl bg-white/70 p-4 ring-1 ring-[#10161d]/8"
               >
-                <p className="font-mono text-[0.7rem] font-extrabold text-[#ffb27d]">
+                <p className="font-mono text-[0.7rem] font-extrabold text-[#e4713b]">
                   {s.n}
                 </p>
                 <p className="mt-1 text-[0.82rem] font-extrabold">{s.t}</p>
-                <p className="mt-1 text-[0.68rem] font-semibold leading-snug text-white/50">
+                <p className="mt-1 text-[0.68rem] font-semibold leading-snug text-[#10161d]/50">
                   {s.d}
                 </p>
               </div>

@@ -61,7 +61,7 @@ export default function WalletButton() {
       )}
 
       {error && (
-        <p className="absolute right-0 top-[calc(100%+6px)] z-50 w-56 rounded-xl bg-[#0b0e13] px-3 py-2 text-[0.62rem] font-semibold leading-snug text-[#ffb27d] shadow-lg">
+        <p className="nr-glass-deep absolute right-0 top-[calc(100%+6px)] z-50 w-56 rounded-xl px-3 py-2 text-[0.62rem] font-semibold leading-snug text-[#c26d3f]">
           {error.includes("MetaMask not found") ? (
             <>
               MetaMask not found —{" "}
@@ -82,27 +82,27 @@ export default function WalletButton() {
       )}
 
       {wallet && open && (
-        <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-64 rounded-2xl bg-[#0b0e13] p-4 text-white shadow-xl ring-1 ring-white/10">
-          <p className="text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#ffb27d]">
+        <div className="nr-glass-deep absolute right-0 top-[calc(100%+6px)] z-50 w-64 rounded-2xl p-4 text-[#10161d]">
+          <p className="text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
             your invite link
           </p>
-          <p className="mt-1.5 font-mono text-[0.66rem] leading-relaxed text-white/70">
+          <p className="mt-1.5 font-mono text-[0.66rem] leading-relaxed text-[#10161d]/70">
             {inviteUrl ?? "…"}
           </p>
-          <p className="mt-2 text-[0.6rem] font-semibold leading-snug text-white/45">
+          <p className="mt-2 text-[0.6rem] font-semibold leading-snug text-[#10161d]/50">
             anyone who pays through it earns you{" "}
-            <span className="text-[#ffb27d]">20%</span> of the invoice.
+            <span className="text-[#6d4fc2]">20%</span> of the invoice.
           </p>
           <div className="mt-3 flex items-center gap-2">
             <button
               onClick={copyInvite}
-              className="rounded-full bg-white/10 px-3.5 py-1.5 text-[0.66rem] font-extrabold ring-1 ring-white/25 transition-colors hover:bg-white/16"
+              className="rounded-full bg-[#10161d]/5 px-3.5 py-1.5 text-[0.66rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10"
             >
               {copied ? "copied ✓" : "copy invite"}
             </button>
             <button
               onClick={disconnect}
-              className="text-[0.62rem] font-bold text-white/40 transition-colors hover:text-white/75"
+              className="text-[0.62rem] font-bold text-[#10161d]/40 transition-colors hover:text-[#10161d]/75"
             >
               disconnect
             </button>

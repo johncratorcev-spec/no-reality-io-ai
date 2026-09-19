@@ -7,6 +7,7 @@ import CountUp from "./CountUp";
 import HeroCanvas from "./HeroCanvas";
 import Globe from "./Globe";
 import Partner from "./Partner";
+import Menu from "@/components/menu/Menu";
 import { FAQ_ITEMS } from "./faq";
 import { SITE, SOCIALS } from "@/lib/site";
 import "./landing.css";
@@ -25,6 +26,13 @@ const NAV = [
   { href: "#team", label: "team" },
   { href: "/collab", label: "🐾 cat collab" },
   { href: "#faq", label: "faq" },
+];
+
+/** доп. ссылки для футера (в навигации-пилюле места нет — они в бургере) */
+const FOOTER_LINKS = [
+  ...NAV,
+  { href: "/future", label: "◑ in future" },
+  { href: "/feed", label: "▸ feed" },
 ];
 
 /** плавающие бейджи-«спутники» героя: классы бейджей ленты + параллакс */
@@ -143,6 +151,10 @@ export default function Landing() {
             watch the feed
             <IconArrow className="h-3 w-3" />
           </a>
+          {/* разделы сайта + кошелёк — в бургере (виден и на мобиле) */}
+          <div className="ml-1">
+            <Menu />
+          </div>
         </div>
       </header>
 
@@ -371,24 +383,24 @@ export default function Landing() {
               </a>
             </Reveal>
 
-            {/* интерактивный мок unlock-карточки */}
+            {/* интерактивный мок unlock-карточки (светлая тема) */}
             <Reveal delay={160}>
               <Tilt className="rounded-3xl" max={5}>
-                <div className="group overflow-hidden rounded-3xl border border-white/70 bg-[#0d1622] shadow-[0_24px_70px_rgba(13,22,34,0.35)]">
+                <div className="group overflow-hidden rounded-3xl border border-[#a8cfea]/60 bg-white shadow-[0_24px_70px_rgba(61,125,184,0.18)]">
                   <div className="relative flex aspect-[16/10] flex-col items-center justify-center overflow-hidden p-6">
                     <div
                       aria-hidden
                       className="absolute inset-0"
                       style={{
                         background:
-                          "radial-gradient(120% 120% at 20% 0%, #1d3250 0%, transparent 50%), radial-gradient(100% 100% at 90% 100%, #16324a 0%, transparent 55%), linear-gradient(160deg, #0d1622 0%, #12202f 100%)",
+                          "radial-gradient(120% 120% at 20% 0%, #dcebf7 0%, transparent 50%), radial-gradient(100% 100% at 90% 100%, #e9ddf0 0%, transparent 55%), linear-gradient(160deg, #f4f9fd 0%, #e8f1f9 100%)",
                       }}
                     />
                     {/* «видео»-глушь: тихие блики */}
                     <div aria-hidden className="absolute -left-10 top-8 h-32 w-40 rounded-full bg-[#5b9bd5]/15 blur-2xl" />
-                    <div aria-hidden className="absolute bottom-6 right-0 h-28 w-36 rounded-full bg-[#e39fd0]/10 blur-2xl" />
+                    <div aria-hidden className="absolute bottom-6 right-0 h-28 w-36 rounded-full bg-[#e39fd0]/15 blur-2xl" />
 
-                    <p className="relative max-w-sm text-center text-[0.82rem] font-bold leading-relaxed text-white/85 blur-[7px] transition-all duration-700 group-hover:blur-0">
+                    <p className="relative max-w-sm text-center text-[0.82rem] font-bold leading-relaxed text-[#10161d]/80 blur-[7px] transition-all duration-700 group-hover:blur-0">
                       cinematic aerial shot of a bioluminescent forest at dusk, volumetric fog,
                       fireflies drifting between giant trees, 35mm, hyper-detailed, slow dolly
                       forward — ar 9:16
@@ -398,12 +410,12 @@ export default function Landing() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-3 border-t border-white/10 bg-[#0a121c] px-5 py-4">
+                  <div className="flex items-center gap-3 border-t border-[#10161d]/8 bg-white px-5 py-4">
                     <div className="mr-auto">
-                      <p className="text-[0.8rem] font-extrabold tracking-tight text-white">@promptsmith</p>
-                      <p className="text-[0.66rem] font-bold text-white/45">premium prompt · instant unlock</p>
+                      <p className="text-[0.8rem] font-extrabold tracking-tight text-[#0a0a0a]">@promptsmith</p>
+                      <p className="text-[0.66rem] font-bold text-[#10161d]/45">premium prompt · instant unlock</p>
                     </div>
-                    <span className="rounded-full bg-white px-4 py-2 text-[0.72rem] font-extrabold tracking-tight text-[#0a0a0a]">
+                    <span className="rounded-full bg-[#0a0a0a] px-4 py-2 text-[0.72rem] font-extrabold tracking-tight text-white">
                       unlock · 3 USDT
                     </span>
                   </div>
@@ -470,28 +482,28 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ================= TEAM (тёмная секция) ================= */}
+      {/* ================= TEAM (светлая перламутровая секция) ================= */}
       <section id="team" className="scroll-mt-24 px-3 pb-24 sm:px-5 sm:pb-32">
-        <div className="mx-auto max-w-6xl overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#0a121c] via-[#0d1826] to-[#0a1420]">
+        <div className="overflow-hidden rounded-[2.5rem] border border-[#a8cfea]/50 bg-gradient-to-br from-[#eef5fb] via-[#f5f0fb] to-[#e9f3f9]">
           <div className="grid items-center gap-10 px-7 py-16 sm:px-12 lg:grid-cols-2">
             <Reveal>
-              <p className="text-[0.66rem] font-extrabold uppercase tracking-[0.3em] text-[#a8cfea]">the crew</p>
-              <h2 className="mt-3 text-[2rem] font-extrabold leading-tight tracking-tight text-white sm:text-[2.6rem]">
+              <p className="text-[0.66rem] font-extrabold uppercase tracking-[0.3em] text-[#3d7db8]">the crew</p>
+              <h2 className="mt-3 text-[2rem] font-extrabold leading-tight tracking-tight text-[#0a0a0a] sm:text-[2.6rem]">
                 One crew.
                 <br />
                 Every time zone.
               </h2>
-              <p className="mt-6 text-[0.98rem] font-semibold leading-relaxed text-white/70">
+              <p className="mt-6 text-[0.98rem] font-semibold leading-relaxed text-[#10161d]/70">
                 no reality. is not an office — it is a constellation. Our curators, editors
                 and engineers are scattered across different corners of the planet: Moscow,
                 New York, Tokyo, Berlin, São Paulo, Singapore, Dubai, Sydney.
               </p>
-              <p className="mt-4 text-[0.98rem] font-semibold leading-relaxed text-white/70">
+              <p className="mt-4 text-[0.98rem] font-semibold leading-relaxed text-[#10161d]/70">
                 The feed is handed off between time zones as the sun moves — when one of us
                 goes to sleep, someone else wakes up and keeps watching the machines dream.
                 That is why the feed never sleeps either. Drag the planet: our hubs are on it.
               </p>
-              <p className="mt-6 text-[0.78rem] font-extrabold uppercase tracking-[0.22em] text-[#a8cfea]/80">
+              <p className="mt-6 text-[0.78rem] font-extrabold uppercase tracking-[0.22em] text-[#3d7db8]/80">
                 decentralized by design — distributed across the planet
               </p>
             </Reveal>
@@ -591,7 +603,7 @@ export default function Landing() {
             <div>
               <p className="text-[0.66rem] font-extrabold uppercase tracking-[0.28em] text-[#10161d]/45">explore</p>
               <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2">
-                {NAV.map((n) => (
+                {FOOTER_LINKS.map((n) => (
                   <a key={n.href} href={n.href} className="text-[0.82rem] font-bold text-[#10161d]/70 transition-colors hover:text-[#0a0a0a]">
                     {n.label}
                   </a>

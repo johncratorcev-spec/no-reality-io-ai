@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import RefCapture from "@/components/wallet/RefCapture";
+import TrackVisit from "@/components/track/TrackVisit";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -43,6 +44,8 @@ export default function RootLayout({
       >
         {/* ловец ?ref= — реферальная атрибуция на любой странице */}
         <RefCapture />
+        {/* счётчик посещений страниц → /api/track (pageviews в БД) */}
+        <TrackVisit />
         {children}
         {/* Vercel Web Analytics: счётчик посетителей.
             Активируется в Vercel Dashboard → Analytics (нужен один клик,

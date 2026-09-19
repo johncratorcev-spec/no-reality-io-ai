@@ -23,6 +23,23 @@ model Click {
   @@unique([utmCode, visitorHash])
 }
 
+// Посещения страниц (pageviews): пишет /api/track (sendBeacon из layout).
+// visitorHash — анонимный отпечаток (ip + ua + секрет, как в Click);
+// path — путь страницы ("/", "/market", …); referrer — document.referrer.
+// Это НЕ дедуп: каждый pageview = строка, уникальные посетители считаются
+// как COUNT(DISTINCT visitorHash) в /api/admin/stats.
+model PageVisit {
+  id          String   @id @default(uuid())
+  path        String
+  visitorHash String
+  referrer    String?
+  createdAt   DateTime @default(now())
+
+  @@index([path])
+  @@index([createdAt])
+  @@index([visitorHash])
+}
+
 // Аггрегированный счётчик уникальных кликов = рейтинг видео.
 model PostStats {
   utmCode   String   @id

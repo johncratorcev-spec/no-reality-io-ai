@@ -17,6 +17,7 @@ import ShareButton from "@/components/collab/ShareButton";
 import CollabPlayer from "@/components/collab/CollabPlayer";
 import CatEgg from "@/components/collab/CatEgg";
 import PromptDropCard from "@/components/feed/PromptDropCard";
+import Menu from "@/components/menu/Menu";
 
 /**
  * /collab — страница коллаборации no reality. × paw crew daily.
@@ -80,6 +81,21 @@ export default async function CollabPage() {
 
   return (
     <div className="min-h-dvh bg-white text-[#10161d]">
+      {/* ================= ПЛАВАЮЩАЯ НАВИГАЦИЯ ================= */}
+      <div className="fixed inset-x-0 top-3 z-[70] px-4">
+        <div className="mx-auto flex max-w-3xl items-center gap-2">
+          <a
+            href="/"
+            className="nr-glass-deep inline-flex items-center rounded-full px-4 py-2 text-[0.95rem] font-extrabold leading-none tracking-tight"
+          >
+            <span className="nr-logo">no reality.</span>
+          </a>
+          <div className="ml-auto">
+            <Menu />
+          </div>
+        </div>
+      </div>
+
       {/* ================= HERO ================= */}
       <section className="nr-collab-hero relative overflow-hidden">
         {/* плавающие лапки — декор */}
@@ -168,7 +184,7 @@ export default async function CollabPage() {
                 href={THREADS_POST}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex aspect-[9/16] max-h-[70vh] w-full max-w-xs flex-col items-center justify-center gap-3 rounded-[2rem] bg-gradient-to-b from-[#10161d] to-[#232f3d] text-center text-white/90 transition-transform duration-300 hover:scale-[1.02] sm:max-w-sm"
+                className="flex aspect-[9/16] max-h-[70vh] w-full max-w-xs flex-col items-center justify-center gap-3 rounded-[2rem] border border-[#a8cfea]/50 bg-gradient-to-b from-[#f2f8fd] to-[#dcebf7] text-center text-[#10161d]/80 transition-transform duration-300 hover:scale-[1.02] sm:max-w-sm"
               >
                 <span className="text-5xl">🎬</span>
                 <span className="px-6 text-[0.8rem] font-extrabold leading-relaxed">
@@ -243,21 +259,21 @@ export default async function CollabPage() {
       {/* ================= БЛАГОТВОРИТЕЛЬНОСТЬ ================= */}
       <section className="mx-auto max-w-3xl px-5 py-20 sm:py-24">
         <Reveal>
-          <div className="nr-charity-hero relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#3d2314] to-[#6b3d1e] px-7 py-14 text-center text-[#ffe9d4] sm:px-12">
+          <div className="nr-charity-hero relative overflow-hidden rounded-[2.5rem] border border-[#f2d9c0] bg-gradient-to-br from-[#fff7ef] via-[#fff3e8] to-[#ffe9d9] px-7 py-14 text-center text-[#3d2314] sm:px-12">
             <span aria-hidden className="nr-collab-float pointer-events-none absolute left-[8%] top-[14%] text-4xl opacity-20" style={{ ["--fd" as string]: "7s" }}>🐾</span>
             <span aria-hidden className="nr-collab-float pointer-events-none absolute right-[10%] bottom-[16%] text-5xl opacity-15" style={{ ["--fd" as string]: "9s" }}>🐾</span>
 
-            <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.3em] text-[#ffc79b]/80">
+            <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.3em] text-[#c26d3f]/85">
               {drive.eyebrow}
             </p>
             <h2 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
               {drive.title}
             </h2>
-            <p className="mx-auto mt-5 max-w-lg text-[0.88rem] font-semibold leading-relaxed text-[#ffe9d4]/80">
+            <p className="mx-auto mt-5 max-w-lg text-[0.88rem] font-semibold leading-relaxed text-[#6b4a33]/80">
               {drive.body}
             </p>
 
-            <div className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#ffe9d4]/12 px-4 py-2 text-[0.68rem] font-extrabold text-[#ffc79b]">
+            <div className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#3d2314]/8 px-4 py-2 text-[0.68rem] font-extrabold text-[#c26d3f]">
               <ShieldCheck className="h-4 w-4" aria-hidden />
               {drive.badge}
             </div>
@@ -266,11 +282,11 @@ export default async function CollabPage() {
               {drive.steps.map((st) => (
                 <span
                   key={st.text}
-                  className="flex items-center gap-1.5 rounded-full bg-white/8 px-3.5 py-1.5 text-[0.6rem] font-extrabold text-[#ffe9d4]/85"
+                  className="flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-[0.6rem] font-extrabold text-[#6b4a33] ring-1 ring-[#3d2314]/10"
                 >
-                  {st.icon === "heart" && <Heart className="h-3 w-3 fill-current" aria-hidden />}
-                  {st.icon === "coins" && <Coins className="h-3 w-3" aria-hidden />}
-                  {st.icon === "home" && <Home className="h-3 w-3" aria-hidden />}
+                  {st.icon === "heart" && <Heart className="h-3 w-3 fill-current text-[#e4713b]" aria-hidden />}
+                  {st.icon === "coins" && <Coins className="h-3 w-3 text-[#e4713b]" aria-hidden />}
+                  {st.icon === "home" && <Home className="h-3 w-3 text-[#e4713b]" aria-hidden />}
                   {st.text}
                 </span>
               ))}
@@ -285,7 +301,7 @@ export default async function CollabPage() {
                 {drive.cta}
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
-              <p className="mt-4 text-[0.58rem] font-bold text-[#ffe9d4]/45">
+              <p className="mt-4 text-[0.58rem] font-bold text-[#6b4a33]/60">
                 settled on-chain via 2328.io · you pick the coin &amp; network
               </p>
             </div>

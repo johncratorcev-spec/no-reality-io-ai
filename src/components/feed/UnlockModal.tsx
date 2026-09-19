@@ -93,46 +93,46 @@ export default function UnlockModal({
       aria-label="Unlock prompt"
     >
       <div
-        className="nr-modal-card relative w-full max-w-sm rounded-3xl p-5 text-white sm:p-6"
+        className="nr-modal-card relative w-full max-w-sm rounded-3xl p-5 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* заголовок */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#5b9bd5]/15 ring-1 ring-[#5b9bd5]/40">
-              <Lock className="h-4 w-4 text-[#a8cfea]" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#5b9bd5]/12 ring-1 ring-[#5b9bd5]/40">
+              <Lock className="h-4 w-4 text-[#3d7db8]" />
             </span>
             <div>
               <p className="text-[0.95rem] font-extrabold tracking-tight">
                 Unlock this prompt
               </p>
               {author && (
-                <p className="text-[0.7rem] text-white/55">by {author}</p>
+                <p className="text-[0.7rem] text-[#10161d]/55">by {author}</p>
               )}
             </div>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="rounded-full px-2 py-1 text-[0.7rem] font-bold text-white/50 transition-colors hover:text-white"
+            className="rounded-full px-2 py-1 text-[0.7rem] font-bold text-[#10161d]/50 transition-colors hover:text-[#10161d]"
           >
             ✕
           </button>
         </div>
 
         {title && (
-          <p className="mt-3 line-clamp-2 text-[0.75rem] leading-snug text-white/60">
+          <p className="mt-3 line-clamp-2 text-[0.75rem] leading-snug text-[#10161d]/60">
             {title}
           </p>
         )}
 
         {/* тизер промпта */}
-        <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3.5">
-          <div className="mb-2 flex items-center gap-1.5 text-[0.62rem] font-bold uppercase tracking-[0.18em] text-[#a8cfea]/70">
+        <div className="mt-4 rounded-2xl border border-[#10161d]/10 bg-[#10161d]/[0.035] p-3.5">
+          <div className="mb-2 flex items-center gap-1.5 text-[0.62rem] font-bold uppercase tracking-[0.18em] text-[#3d7db8]/80">
             <Sparkles className="h-3 w-3" />
             prompt preview
           </div>
-          <p className="nr-prompt-mask max-h-24 overflow-hidden font-mono text-[0.72rem] leading-relaxed text-white/75">
+          <p className="nr-prompt-mask max-h-24 overflow-hidden font-mono text-[0.72rem] leading-relaxed text-[#10161d]/75">
             {preview?.trim() ||
               "A cinematic AI-generated scene, volumetric light, ultra-detailed textures, smooth camera motion…"}
           </p>
@@ -141,43 +141,43 @@ export default function UnlockModal({
         {/* цена */}
         <div className="mt-4 flex items-center justify-between">
           <div className="flex items-baseline gap-2">
-            <span className="nr-price-chip rounded-2xl bg-white/8 px-3.5 py-2 font-mono text-xl font-extrabold tracking-tight text-white ring-1 ring-[#5b9bd5]/40">
+            <span className="nr-price-chip rounded-2xl bg-white px-3.5 py-2 font-mono text-xl font-extrabold tracking-tight text-[#0a0a0a] ring-1 ring-[#5b9bd5]/40">
               {priceUsdt || "3.00"}
             </span>
-            <span className="text-[0.7rem] font-bold uppercase tracking-widest text-white/50">
+            <span className="text-[0.7rem] font-bold uppercase tracking-widest text-[#10161d]/50">
               USDT
             </span>
           </div>
-          <span className="flex items-center gap-1 text-[0.62rem] font-semibold text-white/45">
+          <span className="flex items-center gap-1 text-[0.62rem] font-semibold text-[#10161d]/45">
             <ShieldCheck className="h-3.5 w-3.5" />
             crypto checkout
           </span>
         </div>
 
         {/* прозрачное разделение денег */}
-        <div className="mt-3 space-y-1.5 rounded-2xl bg-white/5 p-3 text-[0.7rem]">
+        <div className="mt-3 space-y-1.5 rounded-2xl bg-[#10161d]/[0.04] p-3 text-[0.7rem]">
           <div className="flex items-center justify-between">
-            <span className="text-white/55">Goes to the author</span>
-            <span className="font-mono font-bold text-[#a8cfea]">
+            <span className="text-[#10161d]/55">Goes to the author</span>
+            <span className="font-mono font-bold text-[#3d7db8]">
               {fmt(sellerAmount)} USDT
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-white/55">
+            <span className="text-[#10161d]/55">
               Platform fee ({Math.round(feeRate * 100)}%)
             </span>
-            <span className="font-mono font-bold text-white/70">
+            <span className="font-mono font-bold text-[#10161d]/70">
               {fmt(fee)} USDT
             </span>
           </div>
-          <p className="pt-1 text-[0.62rem] leading-snug text-white/40">
+          <p className="pt-1 text-[0.62rem] leading-snug text-[#10161d]/40">
             The author keeps all rights to the prompt. no reality. is a
             distributor and takes the fee for hosting &amp; delivery.
           </p>
         </div>
 
         {error && (
-          <p className="mt-3 rounded-xl bg-[#ff5470]/10 px-3 py-2 text-[0.7rem] leading-snug text-[#ff8ba0]">
+          <p className="mt-3 rounded-xl bg-[#ff5470]/10 px-3 py-2 text-[0.7rem] leading-snug text-[#d63d5e]">
             {error}
           </p>
         )}
@@ -205,7 +205,7 @@ export default function UnlockModal({
             </>
           )}
         </button>
-        <p className="mt-2.5 text-center text-[0.62rem] leading-snug text-white/35">
+        <p className="mt-2.5 text-center text-[0.62rem] leading-snug text-[#10161d]/40">
           You&apos;ll be redirected to a secure 2328.io checkout page. Access
           unlocks instantly after payment confirmation.
         </p>

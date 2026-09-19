@@ -160,19 +160,19 @@ export default function Globe({ className = "" }: { className?: string }) {
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, w, h);
 
-      /* точки: ярче и крупнее на «передней» стороне */
+      /* точки: ярче и крупнее на «передней» стороне (светлая тема) */
       for (const p of pts) {
         const { sx, sy, z } = project(p, angleY);
         const depth = (z + 1) / 2; // 0 задняя … 1 передняя
-        const alpha = 0.10 + depth * 0.55;
+        const alpha = 0.12 + depth * 0.5;
         const size = 0.7 + depth * 1.5;
         ctx.beginPath();
         ctx.arc(sx, sy, size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(226,239,250,${alpha.toFixed(3)})`;
+        ctx.fillStyle = `rgba(61,125,184,${alpha.toFixed(3)})`;
         ctx.fill();
       }
 
-      /* очаги команды: белая точка + расходящееся кольцо */
+      /* очаги команды: тёплая точка + расходящееся кольцо */
       for (const hub of hubs) {
         const hp = project(hub.p, angleY);
         if (hp.z < -0.15) continue; // на невидимой стороне не рисуем
@@ -181,12 +181,12 @@ export default function Globe({ className = "" }: { className?: string }) {
 
         ctx.beginPath();
         ctx.arc(hp.sx, hp.sy, 2.2, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(255,255,255,0.95)";
+        ctx.fillStyle = "rgba(228,113,59,0.95)";
         ctx.fill();
 
         ctx.beginPath();
         ctx.arc(hp.sx, hp.sy, ringR, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(168,207,234,${(0.55 * (1 - pulse)).toFixed(3)})`;
+        ctx.strokeStyle = `rgba(228,113,59,${(0.5 * (1 - pulse)).toFixed(3)})`;
         ctx.lineWidth = 1.2;
         ctx.stroke();
       }
@@ -194,7 +194,7 @@ export default function Globe({ className = "" }: { className?: string }) {
       /* тонкий контур диска */
       ctx.beginPath();
       ctx.arc(w / 2, h / 2, R * 1.005, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(91,155,213,0.22)";
+      ctx.strokeStyle = "rgba(91,155,213,0.3)";
       ctx.lineWidth = 1;
       ctx.stroke();
     };

@@ -216,14 +216,14 @@ export default function PromptDropCard({
     <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
       <a
         href={`/v/${PROMPT_DROP.afterUtm}`}
-        className="inline-flex items-center gap-1.5 text-[0.66rem] font-extrabold text-white/55 underline decoration-white/25 underline-offset-4 transition-colors hover:text-[#ffb27d]"
+        className="inline-flex items-center gap-1.5 text-[0.66rem] font-extrabold text-[#10161d]/55 underline decoration-[#10161d]/25 underline-offset-4 transition-colors hover:text-[#e4713b]"
       >
         <ExternalLink className="h-3 w-3" aria-hidden />
         watch the collab video
       </a>
       <button
         onClick={copyCardLink}
-        className="inline-flex items-center gap-1.5 text-[0.66rem] font-extrabold text-white/55 underline decoration-white/25 underline-offset-4 transition-colors hover:text-[#ffb27d]"
+        className="inline-flex items-center gap-1.5 text-[0.66rem] font-extrabold text-[#10161d]/55 underline decoration-[#10161d]/25 underline-offset-4 transition-colors hover:text-[#e4713b]"
       >
         <Link2 className="h-3 w-3" aria-hidden />
         {cardCopied ? "card link copied ✓" : "copy card link"}
@@ -237,8 +237,8 @@ export default function PromptDropCard({
         className="nr-pd-ring absolute inset-0 rounded-full"
         style={{ ["--p" as string]: String(pct) }}
       />
-      <span className="absolute inset-[3px] rounded-full bg-[#0b0e13]" />
-      <span className="relative font-mono text-sm font-extrabold text-[#ffb27d]">
+      <span className="absolute inset-[3px] rounded-full bg-white" />
+      <span className="relative font-mono text-sm font-extrabold text-[#e4713b]">
         {secondsLeft}
       </span>
     </span>
@@ -246,10 +246,10 @@ export default function PromptDropCard({
 
   const priceRow = (
     <div className="flex items-baseline gap-2">
-      <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+      <span className="font-mono text-3xl font-extrabold tracking-tight text-[#0a0a0a]">
         $100
       </span>
-      <span className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-white/50">
+      <span className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-[#10161d]/50">
         one look · 60 seconds · then it&apos;s gone
       </span>
     </div>
@@ -259,16 +259,16 @@ export default function PromptDropCard({
   const revealBlock = (
     <div className={vanishing ? "nr-pd-vanish" : "nr-pd-pop"}>
       <div className="flex items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-[0.64rem] font-extrabold uppercase tracking-[0.22em] text-[#ffb27d]">
+        <p className="flex items-center gap-2 text-[0.64rem] font-extrabold uppercase tracking-[0.22em] text-[#c26d3f]">
           <Sparkles className="h-3.5 w-3.5" aria-hidden />
           the loki prompt — paid &amp; unlocked
         </p>
         {ring}
       </div>
-      <div className="nr-pd-scroll mt-3 max-h-[38vh] overflow-y-auto whitespace-pre-wrap rounded-2xl border border-white/12 bg-black/55 p-4 font-mono text-[0.72rem] leading-relaxed text-white/90 sm:max-h-[42vh]">
+      <div className="nr-pd-scroll mt-3 max-h-[38vh] overflow-y-auto whitespace-pre-wrap rounded-2xl border border-[#10161d]/10 bg-[#10161d]/[0.04] p-4 font-mono text-[0.72rem] leading-relaxed text-[#10161d]/90 sm:max-h-[42vh]">
         {prompt}
       </div>
-      <p className="mt-2.5 flex items-center gap-1.5 text-[0.62rem] font-semibold text-white/45">
+      <p className="mt-2.5 flex items-center gap-1.5 text-[0.62rem] font-semibold text-[#10161d]/45">
         screenshot now — when the timer hits zero, it disappears for good.
       </p>
     </div>
@@ -288,14 +288,14 @@ export default function PromptDropCard({
             <Lock className="h-4 w-4" aria-hidden />
             get the prompt — $100
           </button>
-          <p className="mt-2.5 text-[0.6rem] font-semibold text-white/40">
+          <p className="mt-2.5 text-[0.6rem] font-semibold text-[#10161d]/45">
             crypto checkout via 2328.io · one payment, one 60-second look
           </p>
         </>
       )}
 
       {phase === "invoicing" && (
-        <p className="mt-5 flex items-center gap-2 text-[0.78rem] font-bold text-white/70">
+        <p className="mt-5 flex items-center gap-2 text-[0.78rem] font-bold text-[#10161d]/70">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           opening checkout…
         </p>
@@ -303,15 +303,15 @@ export default function PromptDropCard({
 
       {phase === "awaiting" && (
         <>
-          <p className="mt-5 flex items-center gap-2 text-[0.78rem] font-bold text-white/80">
-            <Loader2 className="h-4 w-4 animate-spin text-[#ffb27d]" aria-hidden />
+          <p className="mt-5 flex items-center gap-2 text-[0.78rem] font-bold text-[#10161d]/80">
+            <Loader2 className="h-4 w-4 animate-spin text-[#e4713b]" aria-hidden />
             waiting for your payment — we check every 4s…
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {payUrl && (
               <a
                 href={payUrl}
-                className="inline-flex items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-[0.72rem] font-extrabold text-white ring-1 ring-white/25 transition-colors hover:bg-white/16"
+                className="inline-flex items-center gap-2 rounded-full bg-[#10161d]/5 px-5 py-2.5 text-[0.72rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10"
               >
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                 reopen checkout
@@ -319,7 +319,7 @@ export default function PromptDropCard({
             )}
             <button
               onClick={() => discard()}
-              className="text-[0.68rem] font-bold text-white/40 transition-colors hover:text-white/75"
+              className="text-[0.68rem] font-bold text-[#10161d]/40 transition-colors hover:text-[#10161d]/75"
             >
               cancel
             </button>
@@ -328,7 +328,7 @@ export default function PromptDropCard({
       )}
 
       {error && (
-        <p className="mt-3 rounded-xl bg-[#ff5470]/12 px-3 py-2 text-[0.7rem] font-semibold leading-snug text-[#ff9db0]">
+        <p className="mt-3 rounded-xl bg-[#ff5470]/10 px-3 py-2 text-[0.7rem] font-semibold leading-snug text-[#d63d5e]">
           {error}
         </p>
       )}
@@ -337,16 +337,16 @@ export default function PromptDropCard({
 
   const goneBlock = (
     <div className="nr-pd-pop">
-      <p className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-white">
-        gone. <PawPrint className="h-5 w-5 text-[#ffb27d]" aria-hidden />
+      <p className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-[#0a0a0a]">
+        gone. <PawPrint className="h-5 w-5 text-[#e4713b]" aria-hidden />
       </p>
-      <p className="mt-2 max-w-sm text-[0.78rem] font-semibold leading-relaxed text-white/55">
+      <p className="mt-2 max-w-sm text-[0.78rem] font-semibold leading-relaxed text-[#10161d]/55">
         60 seconds is 60 seconds — the cat keeps its secrets. but you know
         where to find another look.
       </p>
       <button
         onClick={buy}
-        className="nr-pd-cta mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-6 py-3 text-[0.78rem] font-extrabold text-white ring-1 ring-white/25 transition-transform duration-300 hover:scale-[1.04] active:scale-95"
+        className="nr-pd-cta mt-4 inline-flex items-center gap-2 rounded-full bg-[#e4713b] px-6 py-3 text-[0.78rem] font-extrabold text-white transition-transform duration-300 hover:scale-[1.04] active:scale-95"
       >
         <Lock className="h-4 w-4" aria-hidden />
         get another look — $100
@@ -363,7 +363,7 @@ export default function PromptDropCard({
         className="mx-auto max-w-4xl scroll-mt-16 px-5 py-20 sm:py-24"
         aria-label="Prompt drop — loki"
       >
-        <div className="nr-pd-shell grid items-center gap-8 overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#0b0e13] to-[#1c2530] p-6 text-white sm:grid-cols-[minmax(0,300px)_1fr] sm:p-10">
+        <div className="nr-pd-shell grid items-center gap-8 overflow-hidden rounded-[2.5rem] border border-[#a8cfea]/50 bg-gradient-to-br from-white via-[#f7f9fd] to-[#eef5fb] p-6 text-[#10161d] shadow-[0_24px_70px_rgba(61,125,184,0.16)] sm:grid-cols-[minmax(0,300px)_1fr] sm:p-10">
           <div className="relative mx-auto w-full max-w-[300px] overflow-hidden rounded-3xl">
             <img
               src={PROMPT_DROP.image}
@@ -375,7 +375,7 @@ export default function PromptDropCard({
           </div>
 
           <div>
-            <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#ffb27d]">
+            <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#c26d3f]">
               prompt drop · flash sale
             </p>
             <h2 className="nr-collab-shimmer mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
@@ -389,7 +389,7 @@ export default function PromptDropCard({
               <div className="mt-5">{goneBlock}</div>
             ) : (
               <>
-                <p className="mt-4 max-w-md text-[0.86rem] font-semibold leading-relaxed text-white/65">
+                <p className="mt-4 max-w-md text-[0.86rem] font-semibold leading-relaxed text-[#10161d]/65">
                   that&apos;s loki — the black cat in the hoodie from the collab
                   clip. the exact prompt that generates this character is up for
                   grabs, right now, for one honest price.
@@ -404,9 +404,9 @@ export default function PromptDropCard({
     );
   }
 
-  /* feed: полноэкранная snap-карточка */
+  /* feed: полноэкранная snap-карточка (светлая тема) */
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#0b0e13] text-white">
+    <div className="relative h-full w-full overflow-hidden bg-white text-[#10161d]">
       <div className="absolute inset-0" aria-hidden>
         <img
           src={PROMPT_DROP.image}
@@ -414,7 +414,7 @@ export default function PromptDropCard({
           loading="lazy"
           className="nr-pd-ken h-full w-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0e13] via-[#0b0e13]/60 to-[#0b0e13]/15" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/72 to-white/10" />
         <div className="nr-pd-sweep absolute inset-0" />
       </div>
 
@@ -425,13 +425,13 @@ export default function PromptDropCard({
           goneBlock
         ) : (
           <>
-            <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#ffb27d]">
+            <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#c26d3f]">
               prompt drop · flash sale
             </p>
             <h2 className="nr-collab-shimmer mt-3 max-w-md text-4xl font-extrabold leading-[1.02] tracking-tight sm:text-5xl">
               the cat from the collab
             </h2>
-            <p className="mt-3 max-w-md text-[0.86rem] font-semibold leading-relaxed text-white/65">
+            <p className="mt-3 max-w-md text-[0.86rem] font-semibold leading-relaxed text-[#10161d]/70">
               that&apos;s loki — the black cat in the hoodie. the exact prompt
               that generates this character is on sale, right here, right now.
             </p>

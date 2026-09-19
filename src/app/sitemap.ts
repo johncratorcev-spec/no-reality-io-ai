@@ -12,6 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: SITE.url + "/feed", lastModified: now, changeFrequency: "hourly", priority: 0.9 },
     { url: SITE.url + "/market", lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     { url: SITE.url + "/collab", lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: SITE.url + "/future", lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     { url: SITE.url + "/terms", lastModified: now, changeFrequency: "yearly", priority: 0.3 },
     { url: SITE.url + "/creators", lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ];

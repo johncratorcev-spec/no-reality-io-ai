@@ -875,12 +875,13 @@ section:hover .nr-mc-arrow,
 
 .nr-modal-card {
   background:
-    radial-gradient(130% 70% at 50% 0%, #101a2a 0%, #0a0e16 58%, #070a10 100%);
-  border: 1px solid rgba(168,207,234,.2);
+    radial-gradient(130% 70% at 50% 0%, #ffffff 0%, #f7fafd 58%, #eef5fb 100%);
+  border: 1px solid rgba(168, 207, 234, 0.55);
+  color: #10161d;
   box-shadow:
-    0 30px 90px rgba(3,6,10,.6),
-    0 0 60px rgba(61,125,184,.14),
-    inset 0 1px 0 rgba(255,255,255,.08);
+    0 30px 90px rgba(31, 55, 82, 0.18),
+    0 0 60px rgba(168, 207, 234, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   animation: nr-modal-in .55s cubic-bezier(.22,1,.36,1) both;
 }
 @keyframes nr-modal-in {
@@ -1161,6 +1162,24 @@ section:hover .nr-mc-arrow,
   55%      { background-position: -15% 0; }
 }
 
+/* --- ирисцентная подсветка ключевых слов (нужна и вне лендинга) --- */
+.nrld-irid {
+  background: linear-gradient(
+    92deg,
+    #3d7db8 0%,
+    #5b9bd5 22%,
+    #e39fd0 46%,
+    #7fd6c2 64%,
+    #3d7db8 88%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: nr-desc-shimmer 6s ease-in-out infinite alternate;
+}
+
 /* --- парящие лапки-декор (скорость через --fd) --- */
 .nr-collab-float {
   animation: nr-collab-float var(--fd, 7s) ease-in-out infinite alternate;
@@ -1302,7 +1321,7 @@ section:hover .nr-mc-arrow,
 .nr-pd-ring {
   background: conic-gradient(
     #e4713b calc(var(--p, 100) * 1%),
-    rgba(255, 255, 255, 0.16) 0
+    rgba(16, 22, 29, 0.14) 0
   );
 }
 
@@ -1337,10 +1356,10 @@ section:hover .nr-mc-arrow,
   50% { box-shadow: 0 0 0 7px rgba(228, 113, 59, 0), 0 12px 40px -10px rgba(228, 113, 59, 0.85); }
 }
 
-/* тонкий скроллбар в раскрытом промпте */
+/* тонкий скроллбар в раскрытом промпте (светлая тема) */
 .nr-pd-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  scrollbar-color: rgba(16, 22, 29, 0.25) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1356,5 +1375,43 @@ section:hover .nr-mc-arrow,
     animation: none;
     opacity: 0;
     transition: opacity 0.3s ease;
+  }
+}
+
+/* ============ МЕНЮ-БУРГЕР (светлое перламутровое стекло) ============ */
+.nr-burger-line {
+  display: block;
+  height: 2px;
+  width: 100%;
+  border-radius: 999px;
+  background: #10161d;
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+}
+
+.nr-menu-pop {
+  transform-origin: top right;
+  animation: nr-menu-pop 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes nr-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.92);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nr-menu-pop {
+    animation: none;
+  }
+  .nr-burger-line {
+    transition: none;
   }
 }
