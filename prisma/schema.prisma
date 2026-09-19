@@ -30,6 +30,35 @@ model PostStats {
   updatedAt DateTime @updatedAt
 }
 
+// Реферальный профиль: кошелёк MetaMask → его пригласительный код.
+// Код детерминирован (sha256(wallet+salt), src/lib/referral.ts), здесь
+// храним только соответствие code → wallet, чтобы админ мог выплатить
+// % на кошелёк пригласившего. Запись создаётся при первом коннекте.
+model ReferralProfile {
+  wallet    String   @id // 0x… в нижнем регистре
+  code      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Реферальные события для реестра выплат:
+//   checkout — инвойс создан с ?ref=<code> (код вшит в orderId);
+//   paid     — инвойс оплачен: рефереру начислена доля REFERRAL_RATE_PCT.
+// best-effort: на serverless БД может быть недоступна — атрибуция
+// всё равно не теряется (код живёт в orderId у 2328.io).
+model ReferralEvent {
+  id         String   @id @default(uuid())
+  orderId    String   @unique // pd-<id>-<ref>
+  refCode    String
+  kind       String // checkout | paid
+  amountUsdt String? // заполняется при kind=paid
+  payoutUsdt String? // доля рефереру при kind=paid
+  createdAt  DateTime @default(now())
+
+  @@index([refCode])
+  @@index([kind])
+}
+
 // Покупка промпта: оплата через 2328.io → разблокировка prompt_full.
 //
 // Жизненный цикл status:

@@ -84,7 +84,7 @@ export async function create2328Payout(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "no-reality/1.0 (+https://no-reality.io)",
+        "User-Agent": "no-reality/1.0 (+https://no-reality.fun)",
         project,
         sign: sign2328Body(body, key),
       },
@@ -131,7 +131,7 @@ export async function get2328PayoutStatus(
     method: "GET",
     headers: {
       "Content-Type": "application/json",
-      "User-Agent": "no-reality/1.0 (+https://no-reality.io)",
+      "User-Agent": "no-reality/1.0 (+https://no-reality.fun)",
       project,
       sign: sign2328Body(undefined, key),
     },

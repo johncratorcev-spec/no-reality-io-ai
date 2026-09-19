@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import { get2328PaymentInfo } from "@/lib/2328/payment";
 import { isPaidStatus } from "@/lib/2328/webhook";
+import { splitOrderId, recordReferralEvent } from "@/lib/referral";
+import { PROMPT_DROP } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +14,8 @@ export const dynamic = "force-dynamic";
    сервер; значение уходит только по оплаченному orderId.
    ================================================================ */
 
-/** срезаем XSS/инъекции в order_id при поллинге */
-const ORDER_RE = /^pd-[A-Za-z0-9_-]{6,32}$/;
+/** срезаем XSS/инъекции в order_id при поллинге; суффикс — реферальный код */
+const ORDER_RE = /^pd-[A-Za-z0-9]+(?:-[a-z0-9]{6,12})?$/;
 
 /** статусы, при которых инвойс уже не станет оплаченным */
 const DEAD_STATUSES = new Set(["expired", "fail", "failed", "canceled", "cancel"]);
@@ -40,6 +42,17 @@ export async function GET(req: NextRequest) {
     const status = String(info?.payment_status ?? "unknown");
 
     if (isPaidStatus(status) && promptEnv) {
+      /* рефералке событие «paid» — реестр догоняет даже если
+         checkout-событие не доехало до БД (serverless) */
+      const { refCode } = splitOrderId(orderId);
+      if (refCode) {
+        await recordReferralEvent({
+          orderId,
+          refCode,
+          kind: "paid",
+          amountUsdt: PROMPT_DROP.priceUsdt,
+        });
+      }
       return NextResponse.json({ ok: true, status, paid: true, prompt: promptEnv });
     }
 

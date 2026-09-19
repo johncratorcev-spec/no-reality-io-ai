@@ -1,3 +1,5 @@
+import WalletButton from "@/components/wallet/WalletButton";
+
 export default function Header() {
   return (
     <header className="relative z-50 h-[var(--nr-header-h)] shrink-0 bg-white">
@@ -9,7 +11,21 @@ export default function Header() {
           no reality.
         </a>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          {/* витрина промптов */}
+          <a
+            href="/market"
+            className="nr-anim-fade-down group inline-flex items-center gap-1.5 rounded-full bg-[#f3f0ff] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#6d4fc2] transition-all duration-300 hover:scale-105 hover:bg-[#eae4ff] active:scale-95"
+          >
+            <span
+              className="inline-block transition-transform duration-300 group-hover:rotate-12"
+              aria-hidden
+            >
+              ✦
+            </span>
+            prompt market
+          </a>
+
           {/* ссылка на страницу коллаборации — всегда под рукой */}
           <a
             href="/collab"
@@ -20,6 +36,11 @@ export default function Header() {
             </span>
             collab
           </a>
+
+          {/* MetaMask-сессия (MVP) */}
+          <div className="nr-anim-fade-down">
+            <WalletButton />
+          </div>
 
           {/* деликатный живой индикатор — чёрный */}
           <span

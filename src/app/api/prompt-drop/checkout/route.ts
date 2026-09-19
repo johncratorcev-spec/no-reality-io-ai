@@ -7,6 +7,11 @@ import {
   Pay2328ApiError,
   Pay2328ConfigError,
 } from "@/lib/2328/payment";
+import {
+  deriveRefCode,
+  normalizeRefCode,
+  recordReferralEvent,
+} from "@/lib/referral";
 
 export const dynamic = "force-dynamic";
 
@@ -37,11 +42,18 @@ function nanoid(n = 12): string {
 export async function POST(req: NextRequest) {
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-
   // эксклюзив за $100 — 4 старта оплаты / мин с одного IP за глаза
   const rl = rateLimit(`drop-checkout:${ip}`, 4, 60_000);
   if (!rl.ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  /* тело опционально: { ref?: "rXXXXXXXXX" } из localStorage */
+  let body: { ref?: unknown } | null = null;
+  try {
+    body = (await req.json()) as { ref?: unknown };
+  } catch {
+    body = null; // кнопка может прислать и пустой POST — это ок
   }
 
   // ключи провайдера + сам товар (env). Чек ДО создания инвойса:
@@ -62,10 +74,29 @@ export async function POST(req: NextRequest) {
 
   const orderId = `pd-${nanoid()}`;
 
+  /* --- реферальная атрибуция: код пригласившего вшиваем в orderId.
+     Приглашение из ?ref= (localStorage клиента) или cookie-сессия,
+     если покупатель сам подключил кошелёк. Само-приглашение не считается. */
+  let refCode = normalizeRefCode(body?.ref);
+  const walletCookie = req.cookies
+    .get("nr_wallet")
+    ?.value?.toLowerCase();
+  if (refCode && walletCookie && walletCookie.match(/^0x[0-9a-f]{40}$/)) {
+    if (deriveRefCode(walletCookie) === refCode) refCode = null; // сам-себе-пригласил
+  }
+  const finalOrderId = refCode ? `${orderId}-${refCode}` : orderId;
+  if (refCode) {
+    await recordReferralEvent({
+      orderId: finalOrderId,
+      refCode,
+      kind: "checkout",
+    });
+  }
+
   try {
     const payment = await create2328Payment({
       amountUsdt: PROMPT_DROP.priceUsdt,
-      orderId,
+      orderId: finalOrderId,
       urlCallback: `${publicBase(req)}/api/webhooks/2328`,
       urlReturn: `${publicBase(req)}/v/${PROMPT_DROP.afterUtm}?drop=1`,
       description: "no reality. prompt drop — loki, the black cat hoodie",
@@ -75,7 +106,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       payUrl: payment.payUrl,
-      orderId: payment.orderId || orderId,
+      orderId: payment.orderId || finalOrderId,
       amountUsdt: PROMPT_DROP.priceUsdt,
     });
   } catch (e) {

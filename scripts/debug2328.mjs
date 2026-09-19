@@ -30,7 +30,7 @@ async function call(path, body) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "User-Agent": "no-reality/1.0 (+https://no-reality.io)",
+      "User-Agent": "no-reality/1.0 (+https://no-reality.fun)",
       project: PROJECT,
       sign: sign(body, KEY),
     },
@@ -49,8 +49,8 @@ await call("/v1/payment", {
   amount: "3.00",
   currency: "USDT",
   order_id: `don-diag${Math.random().toString(36).slice(2, 8)}`,
-  url_callback: "https://no-reality.io/api/webhooks/2328",
-  url_return: "https://no-reality.io/v/71vsIPUu",
+  url_callback: "https://no-reality.fun/api/webhooks/2328",
+  url_return: "https://no-reality.fun/v/71vsIPUu",
   description: "no reality. donation — test",
   ttl_seconds: 1800,
 });

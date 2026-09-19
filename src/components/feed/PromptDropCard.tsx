@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ExternalLink, Loader2, Lock, Sparkles, PawPrint } from "lucide-react";
-import { PROMPT_DROP } from "@/lib/site";
+import { ExternalLink, Link2, Loader2, Lock, Sparkles, PawPrint } from "lucide-react";
+import { MARKET, PROMPT_DROP, REFERRAL } from "@/lib/site";
+import { useWalletSession } from "@/lib/use-wallet";
 
 /* ================================================================
    PROMPT DROP — реклама продажи промпта персонажа коллаба
@@ -38,7 +39,19 @@ export default function PromptDropCard({
   const [error, setError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(PROMPT_DROP.revealSeconds);
   const [vanishing, setVanishing] = useState(false);
+  const [cardCopied, setCardCopied] = useState(false);
   const pollStart = useRef(0);
+  const { shareRefCode } = useWalletSession();
+
+  /** код из localStorage — пригласивший, чьей ссылкой покупатель пришёл */
+  const storedRef = useCallback((): string | null => {
+    try {
+      const saved = localStorage.getItem(REFERRAL.storageKey);
+      return saved && /^r[a-z0-9]{5,11}$/.test(saved) ? saved : null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   /* --- возврат после чекаута: подхватываем инвойс из sessionStorage ---
      setState отложен в rAF: гидратация отрисовывает idle, resume — следом */
@@ -73,7 +86,11 @@ export default function PromptDropCard({
     setError(null);
     setPhase("invoicing");
     try {
-      const r = await fetch("/api/prompt-drop/checkout", { method: "POST" });
+      const r = await fetch("/api/prompt-drop/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ref: storedRef() }),
+      });
       const d = (await r.json()) as {
         payUrl?: string;
         orderId?: string;
@@ -179,6 +196,40 @@ export default function PromptDropCard({
   /* ================= визуал ================= */
 
   const pct = Math.round((secondsLeft / PROMPT_DROP.revealSeconds) * 100);
+
+  /* --- ссылки задачи №2: источник персонажа + сама карточка --- */
+  const copyCardLink = useCallback(async () => {
+    const ref = shareRefCode();
+    const url = `${window.location.origin}${MARKET.path}${
+      ref ? `?ref=${ref}` : ""
+    }#${MARKET.itemAnchor}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCardCopied(true);
+      setTimeout(() => setCardCopied(false), 1800);
+    } catch {
+      /* clipboard запрещён — молча */
+    }
+  }, [shareRefCode]);
+
+  const linksRow = (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <a
+        href={`/v/${PROMPT_DROP.afterUtm}`}
+        className="inline-flex items-center gap-1.5 text-[0.66rem] font-extrabold text-white/55 underline decoration-white/25 underline-offset-4 transition-colors hover:text-[#ffb27d]"
+      >
+        <ExternalLink className="h-3 w-3" aria-hidden />
+        watch the collab video
+      </a>
+      <button
+        onClick={copyCardLink}
+        className="inline-flex items-center gap-1.5 text-[0.66rem] font-extrabold text-white/55 underline decoration-white/25 underline-offset-4 transition-colors hover:text-[#ffb27d]"
+      >
+        <Link2 className="h-3 w-3" aria-hidden />
+        {cardCopied ? "card link copied ✓" : "copy card link"}
+      </button>
+    </div>
+  );
 
   const ring = (
     <span className="relative inline-flex h-12 w-12 items-center justify-center" aria-hidden>
@@ -308,7 +359,7 @@ export default function PromptDropCard({
   if (variant === "section") {
     return (
       <section
-        id="prompt-drop"
+        id={MARKET.itemAnchor}
         className="mx-auto max-w-4xl scroll-mt-16 px-5 py-20 sm:py-24"
         aria-label="Prompt drop — loki"
       >
@@ -344,6 +395,7 @@ export default function PromptDropCard({
                   grabs, right now, for one honest price.
                 </p>
                 <div className="mt-5">{buyBlock}</div>
+                {linksRow}
               </>
             )}
           </div>
@@ -384,6 +436,7 @@ export default function PromptDropCard({
               that generates this character is on sale, right here, right now.
             </p>
             <div className="mt-6">{buyBlock}</div>
+            {linksRow}
           </>
         )}
       </div>

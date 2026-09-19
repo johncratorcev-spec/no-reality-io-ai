@@ -73,7 +73,7 @@ async function rollbackClaim(id: string, payoutOrderId: string) {
 }
 
 function publicBaseUrl(): string {
-  return (process.env.PUBLIC_BASE_URL || "https://no-reality.io").replace(
+  return (process.env.PUBLIC_BASE_URL || "https://no-reality.fun").replace(
     /\/$/,
     ""
   );

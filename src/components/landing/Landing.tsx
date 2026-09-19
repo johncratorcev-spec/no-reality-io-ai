@@ -20,7 +20,7 @@ import "./landing.css";
 const NAV = [
   { href: "#about", label: "about" },
   { href: "#how", label: "how it works" },
-  { href: "#prompts", label: "prompts" },
+  { href: "/market", label: "✦ prompt market" },
   { href: "#creators", label: "creators" },
   { href: "#team", label: "team" },
   { href: "/collab", label: "🐾 cat collab" },
@@ -362,10 +362,13 @@ export default function Landing() {
                 ))}
               </ul>
 
-              <p className="mt-7 inline-flex items-center gap-2 rounded-full border border-[#a8cfea]/60 bg-white/70 px-4 py-2 text-[0.72rem] font-extrabold uppercase tracking-[0.18em] text-[#10161d]/70">
-                <span className="nrld-live-dot inline-block h-1.5 w-1.5 rounded-full bg-[#3d7db8]" aria-hidden />
-                rolling out now across the feed
-              </p>
+              <a
+                href="/market"
+                className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#0a0a0a] px-5 py-2.5 text-[0.72rem] font-extrabold uppercase tracking-[0.18em] text-white transition-transform duration-300 hover:scale-[1.04] active:scale-95"
+              >
+                <span className="nrld-live-dot inline-block h-1.5 w-1.5 rounded-full bg-[#e39fd0]" aria-hidden />
+                enter the prompt market — loki drop is live
+              </a>
             </Reveal>
 
             {/* интерактивный мок unlock-карточки */}

@@ -57,7 +57,7 @@ async function callApi(
       headers: {
         "Content-Type": "application/json",
         // User-Agent обязателен: запросы без него 2328 может блокировать
-        "User-Agent": "no-reality/1.0 (+https://no-reality.io)",
+        "User-Agent": "no-reality/1.0 (+https://no-reality.fun)",
         project,
         sign: sign2328Body(body, key),
       },

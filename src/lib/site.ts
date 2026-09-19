@@ -7,7 +7,7 @@
  */
 export const SITE = {
   name: "no reality.",
-  url: "https://no-reality.io",
+  url: "https://no-reality.fun",
   tagline: "your only limit is mind",
   title: "no reality. — AI Video Feed & Prompt Marketplace",
   description:
@@ -57,6 +57,44 @@ export const PROMPT_DROP = {
   image: "/images/loki-prompt.webp",
   /** сколько секунд показывать промпт после подтверждения оплаты */
   revealSeconds: 60,
+} as const;
+
+/**
+ * Prompt Market — витрина продажи промптов (/market).
+ * Пока в витрине один товар — PROMPT_DROP (loki-hoodie);
+ * новые дропы просто добавляются в MARKET.items.
+ */
+export const MARKET = {
+  /** путь витрины (для ссылок из хедера/лендинга/карточек) */
+  path: "/market",
+  /** якорь карточки loki внутри витрины — «ссылка на саму карточку» */
+  itemAnchor: "loki-hoodie",
+} as const;
+
+/**
+ * Реферальная модель: если кто-то оплатил по приглашению —
+ * пригласивший получает долю от суммы оплаченного инвойса.
+ *
+ * Как работает (MVP, без БД-зависимости для атрибуции):
+ *  1) подключивший MetaMask кошелёк получает детерминированный код
+ *     ref = f(wallet) (src/lib/referral.ts) — одинаковый на всех устройствах;
+ *  2) приглашение = ссылка с ?ref=<code> — код ловится на клиенте
+ *     и живёт в localStorage (90 дней, last-touch);
+ *  3) при чекауте код уходит на сервер и ВШИВАЕТСЯ в orderId
+ *     (pd-<id>-<ref>) — 2328.io хранит orderId у себя в платёжe,
+ *     поэтому атрибуция не теряется даже без нашей БД;
+ *  4) факт оплаты → ReferralEvent в БД (best-effort) + ручная
+ *     выплата по реестру /api/admin/referrals?key=…
+ */
+export const REFERRAL = {
+  /** доля рефереру от суммы оплаченного инвойса (env REFERRAL_RATE_PCT перекрывает) */
+  defaultRatePct: 0.2,
+  /** сколько живёт атрибуция в localStorage, дней */
+  attributionDays: 90,
+  /** ключ localStorage с кодом пригласившего */
+  storageKey: "nr-ref",
+  /** формат приглашальной ссылки */
+  invitePath: "/market",
 } as const;
 
 /**
