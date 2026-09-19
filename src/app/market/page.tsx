@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import PromptDropCard from "@/components/feed/PromptDropCard";
 import ReferralPanel from "@/components/wallet/ReferralPanel";
+import WalletButton from "@/components/wallet/WalletButton";
 import { PROMPT_DROP } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -41,6 +42,30 @@ export default function MarketPage() {
           }}
         />
         <div className="relative mx-auto max-w-4xl px-5">
+          {/* верхняя строка: лого + навигация + кошелёк */}
+          <div className="mb-12 flex items-center gap-3">
+            <a
+              href="/"
+              className="nr-logo select-none text-[1.2rem] font-extrabold leading-none tracking-tight text-white"
+            >
+              no reality.
+            </a>
+            <div className="ml-auto flex items-center gap-2">
+              <a
+                href="/feed"
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-white/80 ring-1 ring-white/15 transition-all duration-300 hover:scale-105 hover:bg-white/14 active:scale-95"
+              >
+                ▸ feed
+              </a>
+              <a
+                href="/collab"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#fff3e8] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#c26d3f] transition-all duration-300 hover:scale-105 hover:bg-[#ffe7d2] active:scale-95"
+              >
+                🐾 collab
+              </a>
+              <WalletButton />
+            </div>
+          </div>
           <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#b79dff]">
             prompt market
           </p>
