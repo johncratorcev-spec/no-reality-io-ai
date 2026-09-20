@@ -1,13 +1,17 @@
 /**
- * Cryo-Stop — рынок предсказаний на концовку ролика (task 41).
+ * Cryo-Stop — рынок предсказаний на концовку ролика (task 41, rev. 42).
  *
- * КОНФИГ-DRIVEN: рынки описаны здесь кодом, а не сидятся руками —
- * ensureCryoMarkets() (cryo/core.ts) идемпотентно создаёт строки CryoMarket
- * по postCode при первом обращении к API. Фича работает сразу на любом
- * окружении (в т.ч. serverless с чистой БД), ставки живут в БД.
+ * УПРОЩЁННАЯ АРХИТЕКТУРА (требование пользователя): бесплатно, быстро,
+ * легко, приём ТОЛЬКО USDC. Никаких агрегаторов и Outcome-токенов:
+ * ставка = прямой перевод $1 USDC на казначейский кошелёк через Phantom.
+ * Верификация — один JSON-RPC вызов публичного Solana RPC (бесплатно).
  *
- * ВАЖНО: на карточке с рынком не показывается НИ ОДНОЙ ссылки на видео
- * (требование спеки) — VideoCard прячет весь chrome при наличии market.
+ * КОНФИГ-DRIVEN: рынки описаны здесь кодом — ensureCryoMarkets()
+ * (cryo/core.ts) идемпотентно создаёт строки CryoMarket по postCode.
+ *
+ * ВАЖНО: пока рынок открыт и исход не выбран — на карточке не показывается
+ * НИ ОДНОЙ ссылки на видео. После выбора исхода карточка получает лейбл
+ * PREDICTED и показывается как обычное видео.
  */
 export interface CryoMarketConfigItem {
   /** utm_code поста из data/posts.csv */
@@ -23,19 +27,41 @@ export interface CryoMarketConfigItem {
   endsAtUtc: string;
 }
 
+const MAINNET_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
 export const CRYO = {
-  /** фикс ставка одного тапа (Block 5: $1 USDC → Outcome_Token) */
+  /** сколько ролик СМОТРИТСЯ до стоп-кадра (требование: 5 секунд) */
+  watchMs: 5000,
+  /** плавное замерзание: переход цвета/контраста, не резкий шок */
+  coolMs: 1100,
+  /** задержка второго SFX после стоп-кадра (Block 3) */
+  crackDelayMs: 400,
+  /** плавление льда после выбора исхода → ролик доигрывает целиком */
+  meltMs: 1400,
+  /** фикс ставка одного тапа (Block 5: $1 USDC) */
   betAmountUsdc: "1.00",
   /** доля платформы при пари-мьютюэль расчистке (Block 9) */
   feePct: 0.03,
-  /** сколько длится анимация заморозки (Block 2: ровно 0.8 секунды) */
-  freezeMs: 800,
-  /** задержка второго SFX (Block 3: 400 мс после первого) */
-  crackDelayMs: 400,
   /** за сколько секунд до финала жидкость закипает (Block 7) */
   boilLeadSec: 10,
   /** период опроса рынка лентой (мс) */
   pollMs: 8000,
+
+  /**
+   * USDC-канал (упрощение): прямой перевод на казначея через Phantom.
+   *  - NEXT_PUBLIC_PREDICT_TREASURY  — base58 владелец казначея (виден клиенту);
+   *  - NEXT_PUBLIC_PREDICT_USDC_MINT — минт USDC (по умолчанию mainnet);
+   *  - PREDICT_TREASURY_ATA          — ATA казначея (серверная верификация);
+   *  - PREDICT_RPC_URL               — публичный RPC для getTransaction.
+   * Пока treasury не задан — demo-режим: тот же UX, позиция фиксируется
+   * в реестре без on-chain платежа.
+   */
+  usdcMint:
+    process.env.NEXT_PUBLIC_PREDICT_USDC_MINT || MAINNET_USDC,
+  treasury: process.env.NEXT_PUBLIC_PREDICT_TREASURY || "",
+  treasuryAta: process.env.PREDICT_TREASURY_ATA || "",
+  rpcUrl: process.env.PREDICT_RPC_URL || "https://api.mainnet-beta.solana.com",
+
   /**
    * Тестовые рынки (Block «Протестировать формат на двух видео»):
    *  ZznHA9HM  — «Alien drip 👽»      (badge SWAG,   тёплая янтарная плазма)
@@ -48,7 +74,7 @@ export const CRYO = {
       labelYes: "ДА",
       labelNo: "НЕТ",
       accent: "#ffc94d",
-      endsAtUtc: "2026-09-22T12:00:00Z",
+      endsAtUtc: "2026-09-23T12:00:00Z",
     },
     {
       postCode: "-bBc5Nno",
@@ -56,19 +82,16 @@ export const CRYO = {
       labelYes: "ДА",
       labelNo: "НЕТ",
       accent: "#8dff6e",
-      endsAtUtc: "2026-09-22T12:00:00Z",
+      endsAtUtc: "2026-09-23T12:00:00Z",
     },
   ] as readonly CryoMarketConfigItem[],
-
-  /**
-   * Обмен USDC → Outcome_Token (Block 5) идёт через Jupiter Aggregator,
-   * когда заданы минты. Пока Outcome-токен не выпущен — demo-режим:
-   * тот же UX protected-popup, позиция фиксируется в реестре.
-   */
-  jupiterInputMint: process.env.CRYO_JUPITER_INPUT_MINT || "", // USDC (Solana)
-  jupiterOutputMint: process.env.CRYO_JUPITER_OUTPUT_MINT || "", // Outcome_Token
 } as const;
 
 export function cryoMarketByCode(code: string): CryoMarketConfigItem | undefined {
   return CRYO.markets.find((m) => m.postCode === code);
+}
+
+/** USDC-канал включён, когда задан казначей (иначе demo) */
+export function cryoUsdcEnabled(): boolean {
+  return Boolean(CRYO.treasury);
 }

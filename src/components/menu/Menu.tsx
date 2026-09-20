@@ -18,6 +18,7 @@ import WalletButton from "@/components/wallet/WalletButton";
 const ITEMS = [
   { href: "/feed", icon: "▸", label: "feed", desc: "the AI video feed" },
   { href: "/market", icon: "✦", label: "prompt market", desc: "buy the exact prompts" },
+  { href: "/predict", icon: "❄", label: "predictions", desc: "call the ending — $1 USDC" },
   { href: "/collab", icon: "🐾", label: "collab", desc: "cats & the charity drive" },
   { href: "/future", icon: "◑", label: "in future", desc: "roadmap — ending predictions" },
 ] as const;

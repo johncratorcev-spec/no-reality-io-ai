@@ -4,10 +4,9 @@ import { useState } from "react";
 import { useWalletSession } from "@/lib/use-wallet";
 
 /* ================================================================
-   Кнопка-кошелёк в шапке: connect MetaMask → сессия (cookie 30 дней)
-   → в выпадашке пригласительная ссылка (реферальная программа).
-
-   Без MetaMask — мягкая подсказка с ссылкой на metamask.io.
+   Кнопка-кошелёк в шапке (task 42): connect Phantom (Solana, основной)
+   или MetaMask (фолбэк) → сессия (cookie 30 дней) → в выпадашке
+   пригласительная ссылка (MetaMask) и pnl-кошелёк (предикты).
    ================================================================ */
 
 function short(wallet: string): string {
@@ -15,8 +14,16 @@ function short(wallet: string): string {
 }
 
 export default function WalletButton() {
-  const { wallet, ready, connecting, error, inviteUrl, connect, disconnect } =
-    useWalletSession();
+  const {
+    wallet,
+    provider,
+    ready,
+    connecting,
+    error,
+    inviteUrl,
+    connect,
+    disconnect,
+  } = useWalletSession();
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -43,9 +50,9 @@ export default function WalletButton() {
           onClick={() => setOpen((v) => !v)}
           className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f0ff] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#6d4fc2] transition-all duration-300 hover:scale-105 hover:bg-[#eae4ff] active:scale-95"
           aria-expanded={open}
-          title="wallet session"
+          title={`wallet session — ${provider ?? "wallet"}`}
         >
-          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#6d4fc2]" />
+          <span aria-hidden>{provider === "phantom" ? "🦇" : "🦊"}</span>
           {short(wallet)}
         </button>
       ) : (
@@ -53,25 +60,25 @@ export default function WalletButton() {
           onClick={connect}
           disabled={connecting}
           className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f0ff] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#6d4fc2] transition-all duration-300 hover:scale-105 hover:bg-[#eae4ff] active:scale-95 disabled:opacity-60"
-          title="sign in with MetaMask"
+          title="sign in with Phantom or MetaMask"
         >
-          <span aria-hidden>🦊</span>
+          <span aria-hidden>🦇</span>
           {connecting ? "connecting…" : "connect"}
         </button>
       )}
 
       {error && (
         <p className="nr-glass-deep absolute right-0 top-[calc(100%+6px)] z-50 w-56 rounded-xl px-3 py-2 text-[0.62rem] font-semibold leading-snug text-[#c26d3f]">
-          {error.includes("MetaMask not found") ? (
+          {error.includes("not found") || error.includes("No wallet") ? (
             <>
-              MetaMask not found —{" "}
+              {error}{" "}
               <a
-                href="https://metamask.io/download/"
+                href="https://phantom.app/download/"
                 target="_blank"
                 rel="noreferrer"
                 className="underline"
               >
-                install it here
+                install Phantom
               </a>
               .
             </>
@@ -84,29 +91,46 @@ export default function WalletButton() {
       {wallet && open && (
         <div className="nr-glass-deep absolute right-0 top-[calc(100%+6px)] z-50 w-64 rounded-2xl p-4 text-[#10161d]">
           <p className="text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
-            your invite link
+            {provider === "phantom" ? "phantom wallet" : "metamask wallet"}
           </p>
           <p className="mt-1.5 font-mono text-[0.66rem] leading-relaxed text-[#10161d]/70">
-            {inviteUrl ?? "…"}
+            {wallet}
           </p>
-          <p className="mt-2 text-[0.6rem] font-semibold leading-snug text-[#10161d]/50">
-            anyone who pays through it earns you{" "}
-            <span className="text-[#6d4fc2]">20%</span> of the invoice.
-          </p>
-          <div className="mt-3 flex items-center gap-2">
-            <button
-              onClick={copyInvite}
-              className="rounded-full bg-[#10161d]/5 px-3.5 py-1.5 text-[0.66rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10"
-            >
-              {copied ? "copied ✓" : "copy invite"}
-            </button>
-            <button
-              onClick={disconnect}
-              className="text-[0.62rem] font-bold text-[#10161d]/40 transition-colors hover:text-[#10161d]/75"
-            >
-              disconnect
-            </button>
-          </div>
+          <a
+            href="/pnl"
+            className="mt-3 flex items-center justify-between rounded-xl bg-[#e9f2fb] px-3.5 py-2 text-[0.7rem] font-extrabold text-[#2b6cb0] ring-1 ring-[#a8cfea] transition-colors hover:bg-[#dcecf9]"
+          >
+            <span>◇ pnl wallet</span>
+            <span aria-hidden className="text-[0.62rem] font-bold text-[#2b6cb0]/60">
+              positions · claims
+            </span>
+          </a>
+          {inviteUrl && (
+            <>
+              <p className="mt-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
+                your invite link
+              </p>
+              <p className="mt-1.5 font-mono text-[0.66rem] leading-relaxed text-[#10161d]/70">
+                {inviteUrl ?? "…"}
+              </p>
+              <p className="mt-2 text-[0.6rem] font-semibold leading-snug text-[#10161d]/50">
+                anyone who pays through it earns you{" "}
+                <span className="text-[#6d4fc2]">20%</span> of the invoice.
+              </p>
+              <button
+                onClick={copyInvite}
+                className="mt-3 rounded-full bg-[#10161d]/5 px-3.5 py-1.5 text-[0.66rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10"
+              >
+                {copied ? "copied ✓" : "copy invite"}
+              </button>
+            </>
+          )}
+          <button
+            onClick={disconnect}
+            className="mt-3 block text-[0.62rem] font-bold text-[#10161d]/40 transition-colors hover:text-[#10161d]/75"
+          >
+            disconnect
+          </button>
         </div>
       )}
     </div>

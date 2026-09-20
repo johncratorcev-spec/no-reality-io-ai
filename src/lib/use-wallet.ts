@@ -2,16 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { REFERRAL } from "@/lib/site";
+import { signInWithPhantom, phantomProvider } from "@/lib/cryo/wallet";
 
 /* ================================================================
-   Сессия MetaMask (MVP): подключение кошелька + пригласительный код.
+   Сессия кошелька на сайте (task 42): Phantom (Solana) — основной
+   провайдер, MetaMask (EVM) — фолбэк. Один хук — все потребители:
+   кнопка в шапке/бургере, карточки промптов, предикты.
 
-   Один хук — два потребителя: кнопка в Header и карточки промптов
-   (копирование ссылки на карточку со своим ?ref=).
+   Phantom: connect → personal sign (ed25519) → cookie nr_phantom.
+   MetaMask: address → cookie nr_wallet (+ реферальный код).
    ================================================================ */
 
 export interface WalletSession {
   wallet: string | null;
+  provider: "phantom" | "metamask" | null;
   refCode: string | null;
   inviteUrl: string | null;
   ready: boolean;
@@ -21,6 +25,7 @@ export interface WalletSession {
 
 interface SessionResponse {
   wallet: string | null;
+  provider?: string;
   refCode?: string | null;
   inviteUrl?: string | null;
   error?: string;
@@ -31,33 +36,58 @@ interface Eip1193Provider {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
 }
 
-function getProvider(): Eip1193Provider | null {
+function getEvmProvider(): Eip1193Provider | null {
   if (typeof window === "undefined") return null;
   const eth = (window as unknown as { ethereum?: Eip1193Provider }).ethereum;
   return eth && typeof eth.request === "function" ? eth : null;
 }
 
+const initialState: WalletSession = {
+  wallet: null,
+  provider: null,
+  refCode: null,
+  inviteUrl: null,
+  ready: false,
+  connecting: false,
+  error: null,
+};
+
 export function useWalletSession() {
-  const [state, setState] = useState<WalletSession>({
-    wallet: null,
-    refCode: null,
-    inviteUrl: null,
-    ready: false,
-    connecting: false,
-    error: null,
-  });
+  const [state, setState] = useState<WalletSession>(initialState);
 
   const refresh = useCallback(async () => {
     try {
-      const r = await fetch("/api/auth/metamask", { cache: "no-store" });
-      const d = (await r.json()) as SessionResponse;
-      setState((s) => ({
-        ...s,
-        wallet: d.wallet ?? null,
-        refCode: d.refCode ?? null,
-        inviteUrl: d.inviteUrl ?? null,
-        ready: true,
-      }));
+      const [ph, mm] = await Promise.all([
+        fetch("/api/auth/phantom", { cache: "no-store" })
+          .then((r) => r.json() as Promise<SessionResponse>)
+          .catch(() => ({ wallet: null })),
+        fetch("/api/auth/metamask", { cache: "no-store" })
+          .then((r) => r.json() as Promise<SessionResponse>)
+          .catch(() => ({ wallet: null })),
+      ]);
+      if (ph.wallet) {
+        setState((s) => ({
+          ...s,
+          wallet: ph.wallet,
+          provider: "phantom",
+          refCode: null,
+          inviteUrl: null,
+          ready: true,
+        }));
+        return;
+      }
+      if (mm.wallet) {
+        setState((s) => ({
+          ...s,
+          wallet: mm.wallet,
+          provider: "metamask",
+          refCode: mm.refCode ?? null,
+          inviteUrl: mm.inviteUrl ?? null,
+          ready: true,
+        }));
+        return;
+      }
+      setState((s) => ({ ...s, wallet: null, provider: null, ready: true }));
     } catch {
       setState((s) => ({ ...s, ready: true }));
     }
@@ -68,15 +98,41 @@ export function useWalletSession() {
   }, [refresh]);
 
   const connect = useCallback(async () => {
-    const provider = getProvider();
+    setState((s) => ({ ...s, connecting: true, error: null }));
+
+    /* 1) Phantom (Solana) — основной путь: подпись + cookie */
+    if (phantomProvider()) {
+      try {
+        const address = await signInWithPhantom();
+        setState((s) => ({
+          ...s,
+          wallet: address,
+          provider: "phantom",
+          refCode: null,
+          inviteUrl: null,
+          connecting: false,
+        }));
+        return;
+      } catch (e) {
+        setState((s) => ({
+          ...s,
+          connecting: false,
+          error: e instanceof Error ? e.message : "Phantom rejected",
+        }));
+        return;
+      }
+    }
+
+    /* 2) MetaMask (EVM) — фолбэк */
+    const provider = getEvmProvider();
     if (!provider) {
       setState((s) => ({
         ...s,
-        error: "MetaMask not found — install metamask.io to sign in",
+        connecting: false,
+        error: "No wallet found — install phantom.app or metamask.io",
       }));
       return;
     }
-    setState((s) => ({ ...s, connecting: true, error: null }));
     try {
       const accounts = (await provider.request({
         method: "eth_requestAccounts",
@@ -95,6 +151,7 @@ export function useWalletSession() {
       setState((s) => ({
         ...s,
         wallet: d.wallet,
+        provider: "metamask",
         refCode: d.refCode ?? null,
         inviteUrl: d.inviteUrl ?? null,
         connecting: false,
@@ -113,13 +170,17 @@ export function useWalletSession() {
 
   const disconnect = useCallback(async () => {
     try {
-      await fetch("/api/auth/metamask", { method: "DELETE" });
+      await Promise.all([
+        fetch("/api/auth/phantom", { method: "DELETE" }),
+        fetch("/api/auth/metamask", { method: "DELETE" }),
+      ]);
     } catch {
       /* сброс cookie на сервере best-effort */
     }
     setState((s) => ({
       ...s,
       wallet: null,
+      provider: null,
       refCode: null,
       inviteUrl: null,
       error: null,

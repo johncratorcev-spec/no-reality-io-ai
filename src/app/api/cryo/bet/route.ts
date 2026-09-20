@@ -5,10 +5,13 @@ import { placeCryoBet } from "@/lib/cryo/core";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/cryo/bet — фиксация позиции $1 USDC (Block 5 спеки).
- * Body: { postCode, side: "yes"|"no", wallet, mode: "demo"|"phantom", txSig? }
+ * POST /api/cryo/bet — фиксация позиции $1 USDC (Block 5, упрощённо:
+ * прямой перевод USDC на казначея через Phantom; demo — без on-chain).
+ * Body: { postCode, side: "yes"|"no", wallet, mode: "demo"|"phantom",
+ *         txSig?, betRef? }
  *
  * 200 → { market } (свежий view с позицией кошелька)
+ * 400 → phantom-транзакция не прошла USDC-верификацию
  * 409 → рынок заморожен/закрыт или позиция уже зафиксирована
  * 503 → БД недоступна (клиент деградирует в localStorage-позицию)
  */
@@ -26,6 +29,7 @@ export async function POST(req: NextRequest) {
     wallet?: string;
     mode?: string;
     txSig?: string;
+    betRef?: string;
   };
   try {
     body = await req.json();
@@ -46,6 +50,7 @@ export async function POST(req: NextRequest) {
     wallet: body.wallet,
     mode: body.mode === "phantom" ? "phantom" : "demo",
     txSig: body.txSig || null,
+    betRef: body.betRef || null,
   });
 
   if (!res.ok) {

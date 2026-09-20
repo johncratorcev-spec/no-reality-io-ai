@@ -1,47 +1,42 @@
 "use client";
 
 /**
- * Cryo-Stop кошелёк (Block 5 спеки): one-tap исполнение через Phantom.
+ * Cryo-Stop кошелёк (task 42, упрощённая архитектура: приём ТОЛЬКО USDC).
  *
- * Приоритет провайдеров:
- *   1) Phantom (window.phantom.solana) — Solana: USDC → Outcome_Token
- *      через Jupiter Aggregator (real-режим, когда задан CRYO_JUPITER_OUTPUT_MINT);
- *   2) EIP-1193 (MetaMask) — EVM USDC-позиция;
- *   3) demo — стабильный гостевой адрес (демо-реестр позиций, тот же UX).
+ * Приоритет identity:
+ *   1) сессия Phantom на сайте (cookie nr_phantom — авторизация task 42);
+ *   2) Phantom one-tap: connect + sign-in + перевод $1 USDC на казначея;
+ *   3) demo — стабильный гостевой адрес (тот же UX, без on-chain).
  *
- * В реальном режиме происходит signAndSendTransaction(swapTransaction) —
- * пользователь видит стандартный защищённый поп-ап Phantom. Пока Outcome-токен
- * не выпущен, exchange:"demo" — сервер сообщает режим, UX идентичен.
+ * Платёж: прямой SPL transferChecked $1 USDC → ATA казначея с memo(betRef).
+ * Никаких агрегаторов — строим транзакцию через @solana/web3.js, который
+ * подгружается ДИНАМИЧЕСКИ только в момент ставки (лента остаётся лёгкой).
+ * Верификация на сервере — один JSON-RPC getTransaction (cryo/verify.ts).
  */
 
 export interface CryoWallet {
-  /** адрес позиции (Solana base58 / EVM 0x… / demo:guest-…) */
+  /** адрес позиции (Solana base58 / demo:guest-…) */
   address: string;
-  provider: "phantom" | "metamask" | "demo";
+  provider: "phantom" | "demo";
 }
 
 const GUEST_KEY = "nr-cryo-wallet";
 
 interface SolanaPhantom {
   isPhantom?: boolean;
-  connect(opts?: { onlyIfTrusted?: boolean }): Promise<{ publicKey: { toString(): string } }>;
+  publicKey?: { toString(): string } | null;
+  connect(opts?: { onlyIfTrusted?: boolean }): Promise<{
+    publicKey: { toString(): string };
+  }>;
+  signMessage?(msg: Uint8Array, enc?: string): Promise<{ signature: Uint8Array }>;
   signAndSendTransaction?(tx: unknown): Promise<{ signature: string }>;
 }
 
-function phantomProvider(): SolanaPhantom | null {
+export function phantomProvider(): SolanaPhantom | null {
   if (typeof window === "undefined") return null;
-  const p = (window as unknown as { phantom?: { solana?: SolanaPhantom } }).phantom;
+  const p = (window as unknown as { phantom?: { solana?: SolanaPhantom } })
+    .phantom;
   return p?.solana?.isPhantom ? p.solana : null;
-}
-
-interface Eip1193 {
-  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
-}
-
-function evmProvider(): Eip1193 | null {
-  if (typeof window === "undefined") return null;
-  const eth = (window as unknown as { ethereum?: Eip1193 }).ethereum;
-  return eth && typeof eth.request === "function" ? eth : null;
 }
 
 function guestWallet(): CryoWallet {
@@ -61,26 +56,77 @@ function guestWallet(): CryoWallet {
   }
 }
 
-/** Стабильный кошелёк позиции: Phantom → MetaMask → demo-гость */
+/* ---------------- сессия Phantom на сайте ---------------- */
+
+/** Сессия сайта: cookie nr_phantom (авторизация task 42) */
+export async function fetchPhantomSession(): Promise<string | null> {
+  try {
+    const r = await fetch("/api/auth/phantom", { cache: "no-store" });
+    if (!r.ok) return null;
+    const d = (await r.json()) as { wallet?: string | null };
+    return d.wallet ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Полная авторизация через Phantom: connect → signMessage → POST /api/auth/phantom.
+ * Бросает Error с человекочитаемым текстом — показывает WalletButton.
+ */
+export async function signInWithPhantom(): Promise<string> {
+  const ph = phantomProvider();
+  if (!ph) {
+    throw new Error("Phantom not found — install phantom.app to sign in");
+  }
+  const res = await ph.connect();
+  const address = res?.publicKey?.toString();
+  if (!address) throw new Error("No Phantom account");
+
+  const message = `no reality. sign in\nwallet: ${address}\ntime: ${new Date().toISOString()}`;
+  if (!ph.signMessage) throw new Error("Phantom signMessage unavailable");
+  const signed = await ph.signMessage(new TextEncoder().encode(message), "utf8");
+
+  const { default: bs58 } = await import("bs58");
+  const r = await fetch("/api/auth/phantom", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      wallet: address,
+      message,
+      signature: bs58.encode(signed.signature),
+    }),
+  });
+  const d = (await r.json()) as { wallet?: string; error?: string };
+  if (!r.ok || !d.wallet) throw new Error(d.error || "Sign-in failed");
+  return d.wallet;
+}
+
+export async function signOutPhantom(): Promise<void> {
+  try {
+    await fetch("/api/auth/phantom", { method: "DELETE" });
+  } catch {
+    /* best-effort */
+  }
+}
+
+/* ---------------- identity для предиктов ---------------- */
+
+/**
+ * Кошелёк позиции: сессия сайта → Phantom one-tap → demo-гость.
+ * (MetaMask в предиктах не участвует: USDC — только Solana.)
+ */
 export async function ensureCryoWallet(): Promise<CryoWallet> {
+  const session = await fetchPhantomSession();
+  if (session) return { address: session, provider: "phantom" };
+
   const ph = phantomProvider();
   if (ph) {
     try {
-      const res = await ph.connect();
-      const addr = res?.publicKey?.toString();
-      if (addr) return { address: addr, provider: "phantom" };
+      const addr = await signInWithPhantom();
+      return { address: addr, provider: "phantom" };
     } catch {
-      /* пользователь отклонил — падаем ниже */
-    }
-  }
-  const evm = evmProvider();
-  if (evm) {
-    try {
-      const accs = (await evm.request({ method: "eth_requestAccounts" })) as string[];
-      const addr = accs?.[0];
-      if (addr) return { address: addr.toLowerCase(), provider: "metamask" };
-    } catch {
-      /* отклонено — demo */
+      /* отклонено — падаем в demo */
     }
   }
   return guestWallet();
@@ -88,21 +134,13 @@ export async function ensureCryoWallet(): Promise<CryoWallet> {
 
 /**
  * Read-only identity для поллинга рынков (НИКАКИХ поп-апов):
- * 1) сессия MetaMask-cookie (если была) — иначе 2) гостевой адрес из
- * localStorage (если уже создавался) — иначе null. Новых гостей не создаём:
- * identity фиксируется только в момент ставки.
+ * сессия Phantom-cookie, иначе гостевой адрес из localStorage (если уже
+ * создавался). Новых гостей не создаём — identity фиксируется при ставке.
  */
 export async function peekCryoWallet(): Promise<string | null> {
+  const session = await fetchPhantomSession();
+  if (session) return session;
   if (typeof window === "undefined") return null;
-  try {
-    const r = await fetch("/api/auth/metamask", { cache: "no-store" });
-    if (r.ok) {
-      const d = (await r.json()) as { wallet?: string | null };
-      if (d.wallet) return d.wallet.toLowerCase();
-    }
-  } catch {
-    /* сессии нет — ок */
-  }
   try {
     const saved = localStorage.getItem(GUEST_KEY);
     if (saved && /^demo:guest-[a-z0-9]{10}$/.test(saved)) return saved;
@@ -112,66 +150,130 @@ export async function peekCryoWallet(): Promise<string | null> {
   return null;
 }
 
-export interface SwapResult {
+/* ---------------- платёж: прямой перевод USDC ---------------- */
+
+export interface PayUsdcResult {
   mode: "phantom" | "demo";
   txSig: string | null;
   error?: string;
 }
 
 /**
- * Атомарный обмен $1 USDC → Outcome_Token (Block 5).
- *
- * jupiter-режим: quote-api Jupiter → signAndSendTransaction в Phantom.
- * demo-режим: защищённая симуляция поп-апа (тот же UX, позиция в реестре).
- * Любая ошибка реального свапа → деградация в demo (позиция не теряется).
+ * Оплата ставки $1 USDC (упрощение task 42):
+ *  - usdc-канал (казначей задан) → SPL transferChecked + memo(betRef)
+ *    через Phantom, динамический import @solana/web3.js;
+ *  - demo — protected-симуляция (тот же UX, позиция в реестре).
  */
-export async function executeCryoSwap(args: {
-  exchange: "demo" | "jupiter";
-  inputMint: string;
-  outputMint: string;
-  amountUsdc: string; // "1.00"
-}): Promise<SwapResult> {
+export async function payUsdc(args: {
+  exchange: "demo" | "usdc";
+  usdcMint: string;
+  treasury: string;
+  amountUsdc: string;
+  betRef: string;
+}): Promise<PayUsdcResult> {
   const ph = phantomProvider();
-  const amountMicro = Math.round(parseFloat(args.amountUsdc) * 1_000_000);
 
-  if (
-    args.exchange === "jupiter" &&
-    ph?.signAndSendTransaction &&
-    args.inputMint &&
-    args.outputMint
-  ) {
+  if (args.exchange === "usdc" && ph?.signAndSendTransaction && args.treasury) {
     try {
-      const qs = new URLSearchParams({
-        inputMint: args.inputMint,
-        outputMint: args.outputMint,
-        amount: String(amountMicro),
-        slippageBps: "50",
-      });
-      const r = await fetch(`https://quote-api.jup.ag/v6/quote?${qs}`);
-      if (!r.ok) throw new Error(`jupiter quote ${r.status}`);
-      const quote = await r.json();
-      const swapRes = await fetch("https://quote-api.jup.ag/v6/swap", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          quoteResponse: quote,
-          userPublicKey: (await ph.connect()).publicKey.toString(),
-          wrapAndUnwrapSol: true,
-        }),
-      });
-      if (!swapRes.ok) throw new Error(`jupiter swap ${swapRes.status}`);
-      const { swapTransaction } = await swapRes.json();
-      // защищённый поп-ап Phantom: пользователь подписывает и отправляет
-      const signed = await ph.signAndSendTransaction(
-        JSON.parse(atob(swapTransaction))
+      // Buffer-полифилл ДО import web3.js (Turbopack не шарит node-polyfill'ы)
+      if (typeof (globalThis as { Buffer?: unknown }).Buffer === "undefined") {
+        const { Buffer } = await import("buffer");
+        (globalThis as { Buffer?: unknown }).Buffer = Buffer;
+      }
+      const web3 = await import("@solana/web3.js");
+      type SolanaWeb3 = typeof web3;
+
+      const { publicKey } = await ph.connect();
+      const owner = new web3.PublicKey(publicKey.toString());
+      const mint = new web3.PublicKey(args.usdcMint);
+      const treasury = new web3.PublicKey(args.treasury);
+
+      const conn = new web3.Connection(
+        (process.env.NEXT_PUBLIC_PREDICT_RPC_URL as string) ||
+          "https://api.mainnet-beta.solana.com",
+        "confirmed"
       );
+
+      // ATA-деривация по seeds (без @solana/spl-token)
+      const TOKEN_PROGRAM = new web3.PublicKey(
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      );
+      const ATA_PROGRAM = new web3.PublicKey(
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+      );
+      const ataOf = (o: InstanceType<SolanaWeb3["PublicKey"]>) =>
+        web3.PublicKey.findProgramAddressSync(
+          [o.toBytes(), TOKEN_PROGRAM.toBytes(), mint.toBytes()],
+          ATA_PROGRAM
+        )[0];
+      const source = ataOf(owner);
+      const destination = ataOf(treasury);
+
+      const tx = new web3.Transaction({ feePayer: owner });
+
+      // memo(betRef) — анти-реплей метка, по ней сервер сверяет транзакцию
+      tx.add(
+        new web3.TransactionInstruction({
+          keys: [],
+          programId: new web3.PublicKey(
+            "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr" // SPL Memo
+          ),
+          data: Buffer.from(args.betRef, "utf8"),
+        })
+      );
+
+      // если у плательщика ещё нет USDC-ATA — добавим его создание (layout Create)
+      const srcInfo = await conn.getAccountInfo(source).catch(() => null);
+      if (!srcInfo) {
+        tx.add(
+          new web3.TransactionInstruction({
+            programId: ATA_PROGRAM,
+            keys: [
+              { pubkey: owner, isSigner: true, isWritable: true }, // payer
+              { pubkey: source, isSigner: false, isWritable: true }, // ata
+              { pubkey: owner, isSigner: false, isWritable: false }, // owner
+              { pubkey: mint, isSigner: false, isWritable: false },
+              { pubkey: web3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+              { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
+              { pubkey: TOKEN_PROGRAM, isSigner: false, isWritable: false },
+            ],
+            data: Buffer.from([0]), // Create
+          })
+        );
+      }
+
+      // SPL Token: TransferChecked (tag 12) — u64 amount + u8 decimals
+      const amount = BigInt(Math.round(parseFloat(args.amountUsdc) * 1_000_000));
+      const data = Buffer.alloc(1 + 8 + 1);
+      data.writeUInt8(12, 0);
+      data.writeBigUInt64LE(amount, 1);
+      data.writeUInt8(6, 9); // USDC decimals
+      tx.add(
+        new web3.TransactionInstruction({
+          programId: TOKEN_PROGRAM,
+          keys: [
+            { pubkey: source, isSigner: false, isWritable: true },
+            { pubkey: mint, isSigner: false, isWritable: false },
+            { pubkey: destination, isSigner: false, isWritable: true },
+            { pubkey: owner, isSigner: true, isWritable: false },
+          ],
+          data,
+        })
+      );
+
+      const { blockhash, lastValidBlockHeight } =
+        await conn.getLatestBlockhash("confirmed");
+      tx.recentBlockhash = blockhash;
+      tx.lastValidBlockHeight = lastValidBlockHeight;
+
+      const signed = await ph.signAndSendTransaction(tx);
       return { mode: "phantom", txSig: signed.signature };
     } catch (e) {
-      // отклонено/неуспех → фиксируем как demo-позицию (UX-фолбэк)
+      // пользователь отклонил / сеть упала — позиция НЕ фиксируется
       return {
-        mode: "demo",
+        mode: "phantom",
         txSig: null,
-        error: e instanceof Error ? e.message : "swap failed",
+        error: e instanceof Error ? e.message : "payment failed",
       };
     }
   }

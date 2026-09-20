@@ -35,7 +35,8 @@ import { extractPrompt } from "@/lib/prompts/extract";
 import VideoFallback from "./VideoFallback";
 import UnlockModal from "./UnlockModal";
 import CryoStopCard from "./CryoStopCard";
-import type { CryoMarketView } from "@/lib/cryo/core";
+import type { CryoMarketView, CryoSide } from "@/lib/cryo/core";
+import { readCryoLocalBet } from "@/lib/cryo/local";
 
 export type PostWithScore = FeedPost & { score: number };
 
@@ -288,8 +289,43 @@ export default function VideoCard({
 
   /* карусельный пост: слайды вместо одиночного видео */
   const isCarousel = Boolean(post.media && post.media.length > 0);
-  /* Cryo-Stop: на карточке с рынком НЕ показывается ни одной ссылки на видео */
-  const hasMarket = Boolean(market);
+  /* Cryo-Stop (task 42): пока исход не выбран и рынок жив — карточка
+     замораживается (после 5с просмотра) и НЕ показывает ни одной ссылки
+     на видео. После выбора исхода карточка получает лейбл PREDICTED и
+     показывается как обычное видео (chrome возвращается). */
+  const [predicted, setPredicted] = useState<CryoSide | null>(null);
+  const [marketReleased, setMarketReleased] = useState(false);
+  const frozenRef = useRef(false);
+  const overlayUp = Boolean(market) && !predicted && !marketReleased;
+
+  /* локальная ставка из прошлого визита → карточка сразу PREDICTED */
+  useEffect(() => {
+    const lb = readCryoLocalBet(post.utmCode);
+    if (lb) setPredicted(lb.side);
+  }, [post.utmCode]);
+
+  /* серверная позиция (поллинг Feed) подтверждает/уточняет исход */
+  useEffect(() => {
+    if (market?.myBet) setPredicted(market.myBet);
+  }, [market?.myBet]);
+
+  /* рынок истёк/решён без ставки → карточка просто живёт с плашкой */
+  useEffect(() => {
+    if (market && market.status !== "live") setMarketReleased(true);
+  }, [market?.status]);
+
+  /* заморозка/разморозка: в заморозке авто-плей запрещён (видео не играет),
+     после таяния — ролик доигрывает целиком (пункт 4 ТЗ) */
+  const handleFrozen = useCallback(
+    (f: boolean) => {
+      frozenRef.current = f;
+      if (!f && isActive) {
+        const v = videoRef.current;
+        if (v) v.play().catch(() => {});
+      }
+    },
+    [isActive, videoRef]
+  );
   /* --- платный промпт: статус разблокировки + полный текст --- */
   const [unlocked, setUnlocked] = useState(false);
   const [statusReady, setStatusReady] = useState(false);
@@ -348,6 +384,10 @@ export default function VideoCard({
     const raf = requestAnimationFrame(() => {
       if (cancelled) return;
       if (isActive) {
+        if (frozenRef.current) {
+          // заморозка рынка: авто-плей запрещён — видео не играет
+          return;
+        }
         setBlocked(false);
         video.play().catch(() => {
           // автозапуск заблокирован — пробуем снова со звуком off
@@ -471,10 +511,15 @@ export default function VideoCard({
   const onMainSeeked = () => snapBg(true);
 
   const handleEnded = () => {
-    /* рынок живёт на этой карточке — зрителя никуда не уводим */
-    if (market) {
+    /* рынок живёт на карточке: пока исход не выбран — тихо лупим ролик
+       (заморозка придёт после 5с просмотра); после ставки карточка
+       ведёт себя как обычное видео */
+    if (market && !predicted && !marketReleased) {
       const v = videoRef.current;
-      if (v) v.pause();
+      if (v) {
+        v.currentTime = 0;
+        v.play().catch(() => {});
+      }
       return;
     }
     if (index < total - 1) {
@@ -569,7 +614,7 @@ export default function VideoCard({
   /* ---------------- render ---------------- */
 
   const hasMeta = Boolean(post.author || post.title);
-  const statusShown = statusVisible && hasMeta && !error && !hasMarket;
+  const statusShown = statusVisible && hasMeta && !error && !overlayUp;
   const boosted = isBoosted(post);
   const viewsLabel = pseudoViews(post.utmCode).toLocaleString("en-US");
   const authorHandle =
@@ -732,13 +777,55 @@ export default function VideoCard({
         </div>
       )}
 
-      {/* ---------- Cryo-Stop: рынок предсказаний (task 41) ---------- */}
-      {market && (
-        <CryoStopCard market={market} videoRef={videoRef} active={isActive} />
+      {/* ---------- Cryo-Stop: рынок предсказаний (task 41/42) ---------- */}
+      {market && overlayUp && (
+        <CryoStopCard
+          market={market}
+          videoRef={videoRef}
+          active={isActive}
+          onFrozen={handleFrozen}
+          onPredicted={(side) => setPredicted(side)}
+          onRelease={() => setMarketReleased(true)}
+        />
+      )}
+
+      {/* ---------- PREDICTED / вердикт (task 42, пункты 4+8) ----------
+          после выбора исхода карточка — обычное видео с лейблом;
+          клик ведёт в pnl-кошелёк (позиции/клеймы) ---------- */}
+      {market && !overlayUp && (
+        <a
+          href="/pnl"
+          onClick={(e) => e.stopPropagation()}
+          className={`nr-predict-chip ${
+            predicted && market.status === "resolved" && market.result === predicted
+              ? "nr-predict-chip-win"
+              : ""
+          }`}
+          aria-label="Open pnl wallet"
+        >
+          {predicted ? (
+            market.status === "resolved" && market.result ? (
+              predicted === market.result ? (
+                <>
+                  ✓ PREDICTED · {predicted === "yes" ? market.labelYes : market.labelNo}
+                  <b>+${market.myPayout ?? "0.00"}</b>
+                </>
+              ) : (
+                <>✓ PREDICTED · dissolved</>
+              )
+            ) : (
+              <>✓ PREDICTED · {predicted === "yes" ? market.labelYes : market.labelNo}</>
+            )
+          ) : market.status === "resolved" && market.result ? (
+            <>verdict: {market.result === "yes" ? market.labelYes : market.labelNo}</>
+          ) : (
+            <>❄ market closed</>
+          )}
+        </a>
       )}
 
       {/* ---------- звук (только у видео-карточек) ---------- */}
-      {!isCarousel && !hasMarket && (
+      {!isCarousel && !overlayUp && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -760,7 +847,7 @@ export default function VideoCard({
           У бустнутых постов — жемчужный shimmer-ранг вместо обычного стекла.
           pointer-events-none на обёртке: клики в зазорах уходят в видео ---------- */}
       <div className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-2">
-        {!hasMarket && (
+        {!overlayUp && (
         <>
         <button
           onClick={copyInternal}
@@ -891,7 +978,7 @@ export default function VideoCard({
       {/* ---------- нижний левый ряд: Share Reality + Threads ----------
           одна линия с кнопкой промпта (гаечный ключ) справа:
           оба ряда стоят на bottom-[2rem] — параллельно друг другу ---------- */}
-      {!hasMarket && (
+      {!overlayUp && (
       <div className="absolute bottom-[2rem] left-3 z-20 flex items-center gap-2">
         {/* Share Reality — главный CTA */}
         <button
@@ -1018,7 +1105,7 @@ export default function VideoCard({
 
       {/* ---------- кнопка промпта: замок (платный) / ключ (разблокирован) / гаечный ключ ----------
           sonar-ping привлекает внимание; платный закрытый промпт открывает модалку оплаты ---------- */}
-      {!hasMarket && (
+      {!overlayUp && (
       <button
         onClick={togglePrompt}
         aria-expanded={promptOpen || modalOpen}
@@ -1044,7 +1131,7 @@ export default function VideoCard({
       {/* ---------- пилот 2328.io: крипто-донат на постах партнёра недели ---------- */}
       {PARTNER_OF_WEEK.donatePostUtms.includes(post.utmCode) &&
         PARTNER_OF_WEEK.donatePresetsUsdt.length > 0 &&
-        !hasMarket && (
+        !overlayUp && (
           <DonateBox utmCode={post.utmCode} autoOpen={autoDonate} />
         )}
 
@@ -1081,7 +1168,7 @@ export default function VideoCard({
       )}
 
       {/* ---------- выразительный прогресс-бар (только видео; у карусели — stories-сегменты) ---------- */}
-      {!isCarousel && !hasMarket && (
+      {!isCarousel && !overlayUp && (
         <ProgressBar
           videoRef={videoRef}
           active={isActive}

@@ -7,12 +7,12 @@ import { SITE } from "@/lib/site";
 export const metadata: Metadata = {
   title: "in future — no reality.",
   description:
-    "The roadmap of no reality.: what ships next — ending predictions with pari-mutuel USDT voting, creator uploads, mood channels and prediction seasons. Watch the clip. Call the ending. Split the pot.",
+    "The roadmap of no reality.: what ships next — ending predictions with pari-mutuel USDC voting, creator uploads, mood channels and prediction seasons. Watch the clip. Call the ending. Split the pot.",
   alternates: { canonical: "/future" },
   openGraph: {
     title: "in future — the no reality. roadmap",
     description:
-      "Soon: predictions on how a clip ends. Pick your outcome, stake USDT, pari-mutuel odds, instant payouts when the real ending plays.",
+      "Soon: predictions on how a clip ends. Pick your outcome, stake $1 USDC via Phantom, pari-mutuel odds, instant payouts when the real ending plays.",
     url: `${SITE.url}/future`,
     type: "website",
   },
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 
    Главная фича «next» — предикшены на концовку ролика:
    1) мы даём варианты исходов,
-   2) открывается голосование в USDT на исходы,
+   2) открывается рынок исходов — фикс $1 USDC через Phantom (Solana),
    3) коэффициенты считаются пари-мьютюэль (пул делится на пулы исходов),
    4) когда показывается концовка — победители делят банк пропорционально
       ставкам. Страница описывает механику честно и без обещаний дохода.
@@ -48,35 +48,35 @@ const LIVE = [
   {
     tag: "live",
     t: "wallet sign-in",
-    d: "MetaMask session: your wallet is your identity and your payout address.",
+    d: "Phantom (Solana) session for predictions and payouts — MetaMask still works for the prompt market.",
   },
 ] as const;
 
 const PREDICT_STEPS = [
   {
     n: "01",
-    t: "freeze-frame",
-    d: "we take a clip and cut it at the exact moment before the ending — nobody in the feed knows how it plays out.",
+    t: "watch 5 seconds",
+    d: "the clip plays normally — no buttons. after five seconds of your attention the frame cools down and cryo-freezes before the ending.",
   },
   {
     n: "02",
     t: "outcomes on the table",
-    d: "we publish the possible endings — three or four hand-picked variants, each with its own pool.",
+    d: "two quartz prisms — ДА and НЕТ — with pari-mutuel odds computed live from the pool.",
   },
   {
     n: "03",
-    t: "voting opens in USDT",
-    d: "you stake any amount on the outcome you believe in. every stake lands in that outcome's pool via 2328.io.",
+    t: "call it with $1 USDC",
+    d: "one tap sends a fixed $1 USDC through Phantom straight to the treasury. no swaps, no outcome tokens, no middlemen — Solana only.",
   },
   {
     n: "04",
     t: "pari-mutuel odds",
-    d: "odds are computed the simple honest way: total pool ÷ outcome pool, minus a small platform fee. odds shift live as the pool grows — the crowd prices the ending in real time.",
+    d: "odds are the simple honest way: total pool ÷ outcome pool, minus a small platform fee. odds shift live as the pool grows — the crowd prices the ending in real time.",
   },
   {
     n: "05",
     t: "the reveal & payouts",
-    d: "the real ending plays for everyone. winners split the pot proportionally to their stakes — payouts land on their wallets automatically.",
+    d: "the ice melts and the full clip plays out on a PREDICTED card. when the oracle signs the verdict, winners extract their share from the pnl wallet.",
   },
 ] as const;
 
