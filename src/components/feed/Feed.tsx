@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VideoCard, { type PostWithScore } from "./VideoCard";
 import PromptDropCard from "./PromptDropCard";
 import { PROMPT_DROP } from "@/lib/site";
+import { CRYO } from "@/lib/cryo/config";
+import type { CryoMarketView } from "@/lib/cryo/core";
+import { peekCryoWallet } from "@/lib/cryo/wallet";
 
 type Slot =
   | { kind: "post"; post: PostWithScore }
@@ -34,6 +37,38 @@ interface FeedProps {
  */
 export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  /* ---- Cryo-Stop: рынки предсказаний (task 41) ----
+     Один поллинг на всю ленту: markets + пулы + пари-мьютюэль коэффициенты
+     + позиция этого кошелька (read-only identity — без поп-апов).
+     БД недоступна → 200 с db:false — лента рендерится, ставки локальные. */
+  const [cryoViews, setCryoViews] = useState<Map<string, CryoMarketView>>(
+    () => new Map()
+  );
+
+  useEffect(() => {
+    let stopped = false;
+    const load = async () => {
+      try {
+        const wallet = await peekCryoWallet();
+        const qs = wallet ? `?wallet=${encodeURIComponent(wallet)}` : "";
+        const r = await fetch(`/api/cryo/markets${qs}`, { cache: "no-store" });
+        if (!r.ok) return;
+        const d = (await r.json()) as { markets?: CryoMarketView[] };
+        if (!stopped && d.markets) {
+          setCryoViews(new Map(d.markets.map((m) => [m.postCode, m])));
+        }
+      } catch {
+        /* рынок не критичен для ленты */
+      }
+    };
+    void load();
+    const iv = setInterval(load, CRYO.pollMs);
+    return () => {
+      stopped = true;
+      clearInterval(iv);
+    };
+  }, []);
 
   const slots = useMemo<Slot[]>(() => {
     const s: Slot[] = [];
@@ -191,6 +226,7 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
             /* следующее видео грузим полностью — переход мгновенный */
             eagerPreload={i === activeIndex + 1}
             autoDonate={donateOpen === true && slot.post.utmCode === focusCode}
+            market={cryoViews.get(slot.post.utmCode) ?? null}
             onEnded={() => handleEnded(i)}
           />
         ) : (

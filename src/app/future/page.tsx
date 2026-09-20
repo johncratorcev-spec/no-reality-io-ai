@@ -173,16 +173,17 @@ export default function FuturePage() {
         <div className="overflow-hidden rounded-[2.5rem] border border-[#a8cfea]/50 bg-gradient-to-br from-white via-[#f7fafd] to-[#eef5fb] shadow-[0_24px_70px_rgba(61,125,184,0.14)]">
           <div className="px-7 py-12 sm:px-12">
             <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#e4713b]">
-              next · ending predictions
+              live test · cryo-stop in the feed
             </p>
             <h2 className="mt-3 max-w-xl text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">
               watch the clip. call the ending.{" "}
               <span className="nrld-irid">split the pot.</span>
             </h2>
             <p className="mt-4 max-w-xl text-[0.9rem] font-semibold leading-relaxed text-[#10161d]/65">
-              very soon the feed gets a game layer: predictions on how a video
-              ends. pari-mutuel, transparent, one tap — here is the full
-              mechanics, no fine print hidden in the footer.
+              the first prediction markets are frozen into the feed right now —
+              two test clips with $1 USDC positions, pari-mutuel odds and oracle
+              resolution. scroll to a market card, the clip freezes itself.
+              full mechanics, no fine print hidden in the footer.
             </p>
 
             {/* шаги механики */}
@@ -211,7 +212,7 @@ export default function FuturePage() {
             <div className="mt-8 rounded-3xl border border-dashed border-[#3d7db8]/30 bg-white/70 p-5" aria-hidden>
               <p className="flex items-center gap-2 text-[0.62rem] font-extrabold uppercase tracking-[0.22em] text-[#3d7db8]/80">
                 <Dice5 className="h-3.5 w-3.5" aria-hidden />
-                how it will look — live odds, mock data
+                how it looks in the feed — live odds on the cryo cards
               </p>
               <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
                 {MOCK_OUTCOMES.map((o) => (

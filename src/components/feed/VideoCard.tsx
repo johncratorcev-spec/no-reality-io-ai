@@ -34,6 +34,8 @@ import DonateBox from "./DonateBox";
 import { extractPrompt } from "@/lib/prompts/extract";
 import VideoFallback from "./VideoFallback";
 import UnlockModal from "./UnlockModal";
+import CryoStopCard from "./CryoStopCard";
+import type { CryoMarketView } from "@/lib/cryo/core";
 
 export type PostWithScore = FeedPost & { score: number };
 
@@ -48,6 +50,8 @@ interface VideoCardProps {
   eagerPreload?: boolean;
   /** deep-link ?donate=1 — авто-открыть донат на этой карточке */
   autoDonate?: boolean;
+  /** рынок предсказаний Cryo-Stop (task 41): скрыть chrome, заморозить, дать ставить */
+  market?: CryoMarketView | null;
   onEnded: () => void;
 }
 
@@ -264,6 +268,7 @@ export default function VideoCard({
   shouldLoad,
   eagerPreload = false,
   autoDonate = false,
+  market = null,
   onEnded,
 }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -283,6 +288,8 @@ export default function VideoCard({
 
   /* карусельный пост: слайды вместо одиночного видео */
   const isCarousel = Boolean(post.media && post.media.length > 0);
+  /* Cryo-Stop: на карточке с рынком НЕ показывается ни одной ссылки на видео */
+  const hasMarket = Boolean(market);
   /* --- платный промпт: статус разблокировки + полный текст --- */
   const [unlocked, setUnlocked] = useState(false);
   const [statusReady, setStatusReady] = useState(false);
@@ -464,6 +471,12 @@ export default function VideoCard({
   const onMainSeeked = () => snapBg(true);
 
   const handleEnded = () => {
+    /* рынок живёт на этой карточке — зрителя никуда не уводим */
+    if (market) {
+      const v = videoRef.current;
+      if (v) v.pause();
+      return;
+    }
     if (index < total - 1) {
       onEnded();
     } else {
@@ -556,7 +569,7 @@ export default function VideoCard({
   /* ---------------- render ---------------- */
 
   const hasMeta = Boolean(post.author || post.title);
-  const statusShown = statusVisible && hasMeta && !error;
+  const statusShown = statusVisible && hasMeta && !error && !hasMarket;
   const boosted = isBoosted(post);
   const viewsLabel = pseudoViews(post.utmCode).toLocaleString("en-US");
   const authorHandle =
@@ -575,6 +588,7 @@ export default function VideoCard({
 
   /* fallback: битая CDN-ссылка или отсутствующий video_url */
   const showFallback = error || !post.videoUrl;
+
 
   const retryVideo = useCallback(() => {
     setError(false);
@@ -718,8 +732,13 @@ export default function VideoCard({
         </div>
       )}
 
+      {/* ---------- Cryo-Stop: рынок предсказаний (task 41) ---------- */}
+      {market && (
+        <CryoStopCard market={market} videoRef={videoRef} active={isActive} />
+      )}
+
       {/* ---------- звук (только у видео-карточек) ---------- */}
-      {!isCarousel && (
+      {!isCarousel && !hasMarket && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -741,6 +760,8 @@ export default function VideoCard({
           У бустнутых постов — жемчужный shimmer-ранг вместо обычного стекла.
           pointer-events-none на обёртке: клики в зазорах уходят в видео ---------- */}
       <div className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-2">
+        {!hasMarket && (
+        <>
         <button
           onClick={copyInternal}
           aria-label={linkCopied ? "Link copied" : "Copy the link to this video"}
@@ -780,6 +801,8 @@ export default function VideoCard({
               <AtSign className="h-4 w-4 text-[#0a0a0a]" />
             </span>
           </a>
+        )}
+        </>
         )}
       </div>
 
@@ -868,6 +891,7 @@ export default function VideoCard({
       {/* ---------- нижний левый ряд: Share Reality + Threads ----------
           одна линия с кнопкой промпта (гаечный ключ) справа:
           оба ряда стоят на bottom-[2rem] — параллельно друг другу ---------- */}
+      {!hasMarket && (
       <div className="absolute bottom-[2rem] left-3 z-20 flex items-center gap-2">
         {/* Share Reality — главный CTA */}
         <button
@@ -920,6 +944,7 @@ export default function VideoCard({
           threads
         </a>
       </div>
+      )}
 
       {/* ---------- панель промпта: разблокированный / бесплатный / заглушка ---------- */}
       {promptOpen && (
@@ -993,6 +1018,7 @@ export default function VideoCard({
 
       {/* ---------- кнопка промпта: замок (платный) / ключ (разблокирован) / гаечный ключ ----------
           sonar-ping привлекает внимание; платный закрытый промпт открывает модалку оплаты ---------- */}
+      {!hasMarket && (
       <button
         onClick={togglePrompt}
         aria-expanded={promptOpen || modalOpen}
@@ -1013,10 +1039,12 @@ export default function VideoCard({
           <Wrench className="h-4 w-4 text-[#0a0a0a]" />
         )}
       </button>
+      )}
 
       {/* ---------- пилот 2328.io: крипто-донат на постах партнёра недели ---------- */}
       {PARTNER_OF_WEEK.donatePostUtms.includes(post.utmCode) &&
-        PARTNER_OF_WEEK.donatePresetsUsdt.length > 0 && (
+        PARTNER_OF_WEEK.donatePresetsUsdt.length > 0 &&
+        !hasMarket && (
           <DonateBox utmCode={post.utmCode} autoOpen={autoDonate} />
         )}
 
@@ -1053,7 +1081,7 @@ export default function VideoCard({
       )}
 
       {/* ---------- выразительный прогресс-бар (только видео; у карусели — stories-сегменты) ---------- */}
-      {!isCarousel && (
+      {!isCarousel && !hasMarket && (
         <ProgressBar
           videoRef={videoRef}
           active={isActive}

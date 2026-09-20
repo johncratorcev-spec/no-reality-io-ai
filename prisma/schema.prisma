@@ -76,6 +76,55 @@ model ReferralEvent {
   @@index([kind])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Cryo-Stop — рынок предсказаний на концовку ролика (пари-мьютюэль в USDC).
+//
+// Рынок конфиг-driven (src/lib/cryo/config.ts): ensureCryoMarkets() идемпотентно
+// создаёт строки по postCode при первом обращении к /api/cryo/markets, поэтому
+// фича работает и до ручного сида. Ставки — только в БД; если БД недоступна,
+// клиент деградирует в localStorage-ставку (UX живёт, полоса толпы пустая).
+//
+// status: live → expired (по endsAt) → resolved (оракул: result yes|no).
+model CryoMarket {
+  id         String    @id @default(uuid())
+  postCode   String    @unique // utm_code поста из posts.csv
+  question   String
+  labelYes   String    @default("YES")
+  labelNo    String    @default("NO")
+  status     String    @default("live") // live | expired | resolved
+  endsAt     DateTime
+  result     String? // "yes" | "no" — вердикт оракула
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  bets CryoBet[]
+
+  @@index([status])
+}
+
+// Одна позиция на кошелёк на рынок (фикс $1 USDC): Block 5 спеки —
+// атомарный обмен через Phantom; в MVP сумма фикс, поэтому unique-констрейнт.
+// payout заполняется при resolve (пари-мьютюэль: доля победившего пула).
+model CryoBet {
+  id        String    @id @default(uuid())
+  marketId  String
+  wallet    String // Solana base58 или EVM 0x… (lowercase), demo-кошельки: demo:*
+  side      String // "yes" | "no"
+  amount    String    @default("1.00") // USDC, decimal-строка
+  mode      String    @default("demo") // demo | phantom
+  txSig     String? // подпись транзакции (когда phantom-режим)
+  claimed   Boolean   @default(false)
+  claimedAt DateTime?
+  payout    String? // выплата при resolve (decimal-строка), null = проигрыш
+  createdAt DateTime  @default(now())
+
+  market CryoMarket @relation(fields: [marketId], references: [id])
+
+  @@unique([marketId, wallet])
+  @@index([marketId, side])
+}
+
 // Покупка промпта: оплата через 2328.io → разблокировка prompt_full.
 //
 // Жизненный цикл status:
