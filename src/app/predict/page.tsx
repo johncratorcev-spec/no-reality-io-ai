@@ -4,14 +4,14 @@ import Menu from "@/components/menu/Menu";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "prediction layer — no reality.",
+  title: "prediction layer",
   description:
-    "How the prediction layer works: watch 5 seconds, the clip cryo-freezes, call the ending with $1 USDC through Phantom, watch the full clip play out and split the pool pari-mutuel.",
+    "How the prediction layer works: watch 5 seconds, the clip cryo-freezes, call the ending with any USDC stake through Phantom, watch the full clip play out and split the pool pari-mutuel.",
   alternates: { canonical: "/predict" },
   openGraph: {
     title: "prediction layer — the feed freezes, you call the ending",
     description:
-      "Watch 5 seconds. The clip freezes solid. Call the ending — ДА or НЕТ — with $1 USDC. The clip melts and plays out. Winners split the pool.",
+      "Watch 5 seconds. The clip freezes solid. Call the ending — YES or NO — with any USDC stake. The clip melts and plays out. Winners split the pool.",
     url: `${SITE.url}/predict`,
     type: "website",
   },
@@ -41,7 +41,7 @@ const STEPS = [
   {
     n: "03",
     t: "call the outcome",
-    d: "two quartz prisms — ДА and НЕТ. one tap sends $1 USDC through Phantom straight to the treasury. no swaps, no tokens, no middlemen.",
+    d: "two big outcomes — YES and NO. one tap sends your stake in USDC through Phantom straight to the treasury. no swaps, no tokens, no middlemen.",
   },
   {
     n: "04",
@@ -55,9 +55,31 @@ const STEPS = [
   },
 ] as const;
 
+/* HowTo structured data: AI-движки (AI Overviews, Perplexity) вытаскивают
+   механику прямо из разметки — task 43 (SEO/GEO). */
+const HOW_TO_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  "@id": `${SITE.url}/predict#howto`,
+  name: "How the no reality. prediction layer works",
+  description:
+    "Watch 5 seconds. The clip cryo-freezes. Call the ending — YES or NO — with any USDC stake through Phantom. The clip melts and plays out; winners split the pool pari-mutuel.",
+  inLanguage: "en",
+  step: STEPS.map((s, i) => ({
+    "@type": "HowToStep",
+    position: i + 1,
+    name: s.t,
+    text: s.d,
+  })),
+};
+
 export default function PredictPage() {
   return (
     <main className="min-h-dvh bg-white text-[#10161d]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(HOW_TO_JSON_LD) }}
+      />
       {/* ---------- hero ---------- */}
       <section className="relative overflow-hidden bg-white pb-12 pt-14 sm:pt-20">
         <div
@@ -89,8 +111,8 @@ export default function PredictPage() {
           </h1>
           <p className="mt-4 max-w-xl text-[0.95rem] font-semibold leading-relaxed text-[#10161d]/60">
             every clip in the feed can carry a prediction market. watch five
-            seconds, the frame cryo-freezes before the ending — and for $1 USDC
-            you call how it plays out. free to run, instant to play, honest
+            seconds, the frame cryo-freezes before the ending — and for any USDC
+            stake you call how it plays out. free to run, instant to play, honest
             math on payouts.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -149,12 +171,12 @@ export default function PredictPage() {
             </div>
             {/* фаза 3: кварцы */}
             <div className="nr-prd-crystals" aria-hidden>
-              <span className="nr-prd-crystal nr-prd-crystal-yes">ДА</span>
-              <span className="nr-prd-crystal nr-prd-crystal-no">НЕТ</span>
+              <span className="nr-prd-crystal nr-prd-crystal-yes">YES</span>
+              <span className="nr-prd-crystal nr-prd-crystal-no">NO</span>
             </div>
             {/* фаза 4: PREDICTED + плавление */}
             <div className="nr-prd-predicted" aria-hidden>
-              ✓ PREDICTED · ДА
+              ✓ PREDICTED · YES
             </div>
           </div>
           {/* легенда фаз */}
@@ -162,7 +184,7 @@ export default function PredictPage() {
             {[
               ["0–5s", "watch"],
               ["5s", "cryo-freeze"],
-              ["6s", "call · $1 USDC"],
+              ["6s", "call · any stake"],
               ["7s+", "plays out"],
             ].map(([t, l]) => (
               <div key={t} className="bg-white px-4 py-3 text-center">
@@ -208,23 +230,23 @@ export default function PredictPage() {
             the pool pays the winners, not the house
           </h2>
           <p className="mt-2 max-w-xl text-[0.82rem] font-semibold leading-relaxed text-[#10161d]/60">
-            every $1 lands in the ДА or НЕТ pool. when the verdict is signed,
+            every stake lands in the YES or NO pool. when the verdict is signed,
             the whole pool (minus 3%) is split between winning positions,
             proportionally to their stake. odds move live as people bet.
           </p>
           <div className="mt-5 space-y-3" aria-hidden>
             <div className="nr-prd-pool">
-              <span>ДА · 61%</span>
+              <span>YES · 61%</span>
               <i className="nr-prd-pool-yes" />
             </div>
             <div className="nr-prd-pool">
-              <span>НЕТ · 39%</span>
+              <span>NO · 39%</span>
               <i className="nr-prd-pool-no" />
             </div>
           </div>
           <p className="mt-5 text-[0.66rem] font-semibold leading-relaxed text-[#10161d]/40">
             predictions are entertainment, not financial advice. one position
-            per wallet per market, fixed $1.00 USDC on Solana through Phantom.
+            per wallet per market, any USDC stake (0.10–500) on Solana through Phantom.
           </p>
         </div>
       </section>

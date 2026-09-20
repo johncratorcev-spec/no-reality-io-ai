@@ -5,7 +5,7 @@ import Menu from "@/components/menu/Menu";
 import { PROMPT_DROP } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "prompt market — no reality.",
+  title: "prompt market",
   description:
     "The official prompt market of no reality.: buy the exact prompts behind the characters. The loki drop — the black cat in the hoodie from the collab — is live: one payment, one 60-second look.",
   alternates: { canonical: "/market" },

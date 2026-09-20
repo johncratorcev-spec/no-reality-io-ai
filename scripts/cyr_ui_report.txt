@@ -1,0 +1,15 @@
+src/instrumentation.ts:33: [refresh:${trigger}] ${r.ok ? "ok" : "fail"} — ${r.output.split("\n").slice(-1)[0] || "нет вывода"}
+src/instrumentation.ts:36: [refresh:${trigger}] упала:
+src/instrumentation.ts:40: [refresh] автоджоба обновления ссылок включена (интервал 6ч)
+src/lib/db.ts:32: [db] serverless: sqlite скопирована в ${tmpDb}
+src/lib/db.ts:36: [db] не удалось скопировать БД в /tmp — использую бандл напрямую
+src/lib/panel_github.ts:35: github: не прочитал posts.csv (${r.status})
+src/lib/panel_github.ts:38: github: CSV пришёл не в base64
+src/lib/panel_github.ts:51: github: не прочитал ref (${refR.status})
+src/lib/panel_github.ts:55: github: не прочитал коммит (${cR.status})
+src/lib/panel_github.ts:65: github: не собрал дерево (${newTreeR.status})
+src/lib/panel_github.ts:72: github: не собрал коммит (${commitR.status})
+src/lib/panel_github.ts:82: github: не двигнул ref (${patchR.status})
+src/lib/panel_github.ts:84: github: ref не обновился после ретрая
+src/lib/posts.ts:50: [posts] рейтинги недоступны:
+src/lib/refresh.ts:18: [refresh] джоба уже выполняется — жду её результат

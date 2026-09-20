@@ -5,12 +5,12 @@ import { SITE } from "@/lib/site";
 import PnlWallet from "./PnlWallet";
 
 export const metadata: Metadata = {
-  title: "pnl wallet — no reality.",
+  title: "pnl wallet",
   description:
     "Your prediction positions, pari-mutuel payouts and USDC claims — the pnl wallet of no reality.",
   alternates: { canonical: "/pnl" },
   openGraph: {
-    title: "pnl wallet — no reality.",
+    title: "pnl wallet",
     description:
       "Every position you fixed in the cryo feed: staked, won, lost, claimable — one honest wallet view.",
     url: `${SITE.url}/pnl`,
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 /* ================================================================
    PNL WALLET (/pnl) — task 42, пункт 8.
 
-   Кошелёк предикшенов: все позиции (ДА/НЕТ по $1 USDC), статусы
+   Кошелёк предикшенов: все позиции (YES/NO, любая сумма USDC), статусы
    рынков, пари-мьютюэль выплаты и клейм. Сессия — Phantom-cookie;
    гостевые demo-позиции читаются по localStorage-адресу.
    ================================================================ */

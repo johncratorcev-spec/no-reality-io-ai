@@ -285,8 +285,8 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
                     }`}
                   >
                     {m.result === "yes"
-                      ? "[ РЕАЛЬНОСТЬ ПОДТВЕРЖДЕНА ]"
-                      : "[ ИЛЛЮЗИЯ РАССЕЯЛАСЬ ]"}
+                      ? "[ REALITY CONFIRMED ]"
+                      : "[ ILLUSION DISSOLVED ]"}
                   </p>
                 ) : (
                   <>
@@ -309,7 +309,7 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
                             : undefined
                         }
                       >
-                        РЕАЛЬНОСТЬ ПОДТВЕРЖДЕНА
+                        REALITY CONFIRMED
                       </button>
                       <button
                         type="button"
@@ -326,7 +326,7 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
                             : undefined
                         }
                       >
-                        ИЛЛЮЗИЯ РАССЕЯЛАСЬ
+                        ILLUSION DISSOLVED
                       </button>
                     </div>
                     <p className="nr-oracle-hold-note">
@@ -368,7 +368,7 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
           <div className="nr-oracle-sign-card">
             <p className="nr-oracle-eyebrow">hardware signature required</p>
             <p className="nr-oracle-sign-q">
-              FINALIZE {signing.result === "yes" ? "«РЕАЛЬНОСТЬ ПОДТВЕРЖДЕНА»" : "«ИЛЛЮЗИЯ РАССЕЯЛАСЬ»"}{" "}
+              FINALIZE {signing.result === "yes" ? "REALITY CONFIRMED" : "ILLUSION DISSOLVED"}{" "}
               on chamber {signing.postCode}?
             </p>
             <p className="nr-oracle-note">

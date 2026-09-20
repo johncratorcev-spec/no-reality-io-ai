@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
     // профили могли не доехать до БД (serverless) — тогда код→кошелёк
     // берём у приглашённого: код детерминирован, проверяем хинт для админа
     for (const row of payoutList) {
-      if (!row.wallet) row.hint = "код без профиля — запросите кошелёк у владельца";
+      if (!row.wallet) row.hint = "code without a profile — request the wallet from the owner";
     }
 
     return NextResponse.json({

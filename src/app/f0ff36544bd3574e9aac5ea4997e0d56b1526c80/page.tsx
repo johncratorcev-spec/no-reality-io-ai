@@ -71,13 +71,13 @@ export default function ControlPanelPage() {
           setJob(d);
           if (d.state !== "running") refreshList();
         } else if (d.error) {
-          setJob((j) => j && { ...j, state: "error", error: d.error ?? "джоба потерялась" });
+          setJob((j) => j && { ...j, state: "error", error: d.error ?? "job record lost" });
         }
       } catch {
         /* сеть моргнула — следующая итерация доведёт */
       }
       if (Date.now() - startedAt.current > 10 * 60 * 1000) {
-        setJob((j) => j && { ...j, state: "error", error: "таймаут ожидания (10 мин)" });
+        setJob((j) => j && { ...j, state: "error", error: "timeout (10 min)" });
       }
     }, 1500);
     return () => clearInterval(t);
@@ -86,7 +86,7 @@ export default function ControlPanelPage() {
   const submit = async () => {
     setFormError("");
     if (!url.trim()) {
-      setFormError("вставь ссылку на пост");
+      setFormError("paste the post link");
       return;
     }
     setStarting(true);
@@ -98,25 +98,25 @@ export default function ControlPanelPage() {
       });
       const d = await r.json();
       if (!r.ok) {
-        setFormError(d.error || "не удалось запустить добавление");
+        setFormError(d.error || "failed to start the add");
         return;
       }
       if (d.jobId) {
         startedAt.current = Date.now();
-        setJob({ id: d.jobId, state: "running", log: ["джоба запущена…"] });
+        setJob({ id: d.jobId, state: "running", log: ["job started…"] });
       } else if (d.result) {
         /* serverless: ответ синхронный, деплой приедет через 1–2 минуты */
         setJob({
           state: "done",
           log: d.dryRun
-            ? ["пробный прогон — коммит не делался"]
-            : [`коммит ${d.result.commit} ушёл в репозиторий`, "деплой приедет через 1–2 минуты"],
+            ? ["dry run — no commit was made"]
+            : [`commit ${d.result.commit} landed in the repo`, "the deploy arrives in 1–2 minutes"],
           result: { ...d.result, pending: !d.dryRun },
         });
         refreshList();
       }
     } catch {
-      setFormError("сеть недоступна — попробуй ещё раз");
+      setFormError("network unavailable — try again");
     } finally {
       setStarting(false);
     }
@@ -138,14 +138,14 @@ export default function ControlPanelPage() {
           </span>
         </header>
         <p className="mt-1 text-[11px] leading-relaxed text-neutral-400">
-          вставь ссылку на пост Threads — он сам загрузится в ленту
+          paste a Threads post link — it will load itself into the feed
         </p>
 
         {/* form */}
         <section className="mt-8 space-y-7">
           <div>
             <label htmlFor="nr-url" className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-              ссылка на пост
+              post link
             </label>
             <input
               id="nr-url"
@@ -161,13 +161,13 @@ export default function ControlPanelPage() {
 
           <div>
             <label htmlFor="nr-title" className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-              свой заголовок <span className="font-medium normal-case tracking-normal">(не обязательно)</span>
+              custom title <span className="font-medium normal-case tracking-normal">(optional)</span>
             </label>
             <input
               id="nr-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="если у поста нет описания или он на русском"
+              placeholder="if the post has no description or it is not in English"
               autoComplete="off"
               disabled={running}
               className="mt-1 w-full border-b-2 border-neutral-200 bg-transparent py-2 text-sm outline-none transition-colors placeholder:text-neutral-300 focus:border-neutral-900 disabled:opacity-40"
@@ -176,7 +176,7 @@ export default function ControlPanelPage() {
 
           <div>
             <label htmlFor="nr-author" className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-              автор <span className="font-medium normal-case tracking-normal">(если определился неверно)</span>
+              author <span className="font-medium normal-case tracking-normal">(if detected wrong)</span>
             </label>
             <input
               id="nr-author"
@@ -192,13 +192,13 @@ export default function ControlPanelPage() {
 
           <div>
             <label htmlFor="nr-video" className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-              адрес видео <span className="font-medium normal-case tracking-normal">(обязательно на верчеле)</span>
+              video address <span className="font-medium normal-case tracking-normal">(required on Vercel)</span>
             </label>
             <input
               id="nr-video"
               value={video}
               onChange={(e) => setVideo(e.target.value)}
-              placeholder="правый клик по видео в посте → копировать адрес видео (….mp4)"
+              placeholder="right-click the video in the post → copy video address (….mp4)"
               autoComplete="off"
               spellCheck={false}
               disabled={running}
@@ -208,11 +208,11 @@ export default function ControlPanelPage() {
 
           <div>
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-              бейдж
+              badge
             </span>
             <div className="mt-2 flex flex-wrap gap-2">
               <Chip selected={badge === ""} disabled={running} onClick={() => setBadge("")}>
-                без бейджа
+                no badge
               </Chip>
               {BADGES.map((b) => (
                 <Chip key={b} selected={badge === b} disabled={running} onClick={() => setBadge(b)}>
@@ -233,7 +233,7 @@ export default function ControlPanelPage() {
             disabled={starting || running}
             className="w-full rounded-full bg-neutral-900 py-3.5 text-xs font-extrabold uppercase tracking-[0.25em] text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            {running ? "работаю…" : starting ? "стартую…" : "добавить в ленту"}
+            {running ? "working…" : starting ? "starting…" : "add to the feed"}
           </button>
         </section>
 
@@ -241,7 +241,7 @@ export default function ControlPanelPage() {
         {job && (
           <section className="mt-8" aria-live="polite">
             <div className="rounded-xl border border-neutral-200 p-4 font-mono text-[11px] leading-relaxed">
-              {logLines.length === 0 && <p className="text-neutral-400">ждём статус…</p>}
+              {logLines.length === 0 && <p className="text-neutral-400">waiting for status…</p>}
               {logLines.map((line, i) => (
                 <p
                   key={i}
@@ -283,7 +283,7 @@ export default function ControlPanelPage() {
                 <div className="mt-3 flex items-center justify-between">
                   {job.result.pending ? (
                     <span className="font-mono text-xs text-neutral-400">
-                      /v/{job.result.utm} — после деплоя
+                      /v/{job.result.utm} — after the deploy
                     </span>
                   ) : (
                     <a
@@ -305,7 +305,7 @@ export default function ControlPanelPage() {
                     }}
                     className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400 hover:text-neutral-900"
                   >
-                    следующий →
+                    next →
                   </button>
                 </div>
               </div>
@@ -322,7 +322,7 @@ export default function ControlPanelPage() {
                   }}
                   className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 hover:text-red-700"
                 >
-                  сбросить →
+                  reset →
                 </button>
               </div>
             )}
@@ -332,11 +332,11 @@ export default function ControlPanelPage() {
         {/* recent */}
         <section className="mt-12">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-            последние добавления
+            recent additions
           </h2>
           <ul className="mt-2">
             {recent.length === 0 && (
-              <li className="py-2 font-mono text-[11px] text-neutral-300">пусто</li>
+              <li className="py-2 font-mono text-[11px] text-neutral-300">empty</li>
             )}
             {recent.map((p) => (
               <li
@@ -360,7 +360,7 @@ export default function ControlPanelPage() {
         </section>
 
         <footer className="mt-12 text-center font-mono text-[9px] text-neutral-300">
-          панель добавления · доступ только по ссылке
+          add panel · access by secret link only
         </footer>
       </div>
     </main>

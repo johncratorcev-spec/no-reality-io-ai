@@ -1,24 +1,24 @@
 /**
- * Cryo-Stop — рынок предсказаний на концовку ролика (task 41, rev. 42).
+ * Cryo-Stop — market on the ending of a clip (task 41, rev. 43).
  *
- * УПРОЩЁННАЯ АРХИТЕКТУРА (требование пользователя): бесплатно, быстро,
- * легко, приём ТОЛЬКО USDC. Никаких агрегаторов и Outcome-токенов:
- * ставка = прямой перевод $1 USDC на казначейский кошелёк через Phantom.
- * Верификация — один JSON-RPC вызов публичного Solana RPC (бесплатно).
+ * SIMPLIFIED ARCHITECTURE (user requirement): free to run, fast, light,
+ * USDC-ONLY. No aggregators, no outcome tokens: a bet is a direct USDC
+ * transfer of ANY amount (config below) to the treasury via Phantom.
+ * Verification = one JSON-RPC call to a public Solana RPC (free).
  *
- * КОНФИГ-DRIVEN: рынки описаны здесь кодом — ensureCryoMarkets()
- * (cryo/core.ts) идемпотентно создаёт строки CryoMarket по postCode.
+ * CONFIG-DRIVEN: markets are described here in code — ensureCryoMarkets()
+ * (cryo/core.ts) idempotently upserts CryoMarket rows by postCode.
  *
- * ВАЖНО: пока рынок открыт и исход не выбран — на карточке не показывается
- * НИ ОДНОЙ ссылки на видео. После выбора исхода карточка получает лейбл
- * PREDICTED и показывается как обычное видео.
+ * IMPORTANT: while a market is live and the outcome is not chosen, the
+ * card shows NO links to the video at all. After the outcome is picked,
+ * the card gets a PREDICTED label and plays like a regular video.
  */
 export interface CryoMarketConfigItem {
   /** utm_code поста из data/posts.csv */
   postCode: string;
   /** вопрос рынка (Block 4: материализуется посимвольно изо льда) */
   question: string;
-  /** подписи кристаллов: слева ДА, справа НЕТ (Block 4 спеки) */
+  /** outcome button labels: YES on the left, NO on the right (EN, task 43) */
   labelYes: string;
   labelNo: string;
   /** цвет плазмы настроения ролика (Mood Badge → акцент кристаллов) */
@@ -38,8 +38,12 @@ export const CRYO = {
   crackDelayMs: 400,
   /** плавление льда после выбора исхода → ролик доигрывает целиком */
   meltMs: 1400,
-  /** фикс ставка одного тапа (Block 5: $1 USDC) */
+  /** ставка по умолчанию (одна позиция на кошелёк на рынок) */
   betAmountUsdc: "1.00",
+  /** task 43: ставка ЛЮБЫМ количеством USDC — границы и пресеты */
+  minBetUsdc: "0.10",
+  maxBetUsdc: "500.00",
+  betPresetsUsdc: ["1", "5", "10", "25"] as readonly string[],
   /** доля платформы при пари-мьютюэль расчистке (Block 9) */
   feePct: 0.03,
   /** за сколько секунд до финала жидкость закипает (Block 7) */
@@ -71,16 +75,16 @@ export const CRYO = {
     {
       postCode: "ZznHA9HM",
       question: "will the alien hit the drip before the clip ends?",
-      labelYes: "ДА",
-      labelNo: "НЕТ",
+      labelYes: "YES",
+      labelNo: "NO",
       accent: "#ffc94d",
       endsAtUtc: "2026-09-23T12:00:00Z",
     },
     {
       postCode: "-bBc5Nno",
       question: "will mimik step out of the dark?",
-      labelYes: "ДА",
-      labelNo: "НЕТ",
+      labelYes: "YES",
+      labelNo: "NO",
       accent: "#8dff6e",
       endsAtUtc: "2026-09-23T12:00:00Z",
     },

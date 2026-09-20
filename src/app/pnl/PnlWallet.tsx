@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Heart } from "lucide-react";
 import { useWalletSession } from "@/lib/use-wallet";
 import { peekCryoWallet } from "@/lib/cryo/wallet";
 import type { CryoPnlSummary } from "@/lib/cryo/core";
 import { hookCryoAudioUnlock, playCryoSfx } from "@/lib/cryo/audio";
+import { hydrateFavorites, useFavoritesStore } from "@/lib/favorites";
 
 /* ================================================================
    PNL WALLET (task 42, пункт 8) — позиции, выплаты, клейм USDC.
@@ -23,6 +25,7 @@ type Flash = { id: number; text: string } | null;
 export default function PnlWallet() {
   const { wallet: sessionWallet, provider, ready, connecting, connect } =
     useWalletSession();
+  const favs = useFavoritesStore();
   const [guestWallet, setGuestWallet] = useState<string | null>(null);
   const [pnl, setPnl] = useState<CryoPnlSummary | null>(null);
   const [dbDown, setDbDown] = useState(false);
@@ -34,6 +37,7 @@ export default function PnlWallet() {
   /* гостевой адрес (demo-позиции) — read-only, без поп-апов */
   useEffect(() => {
     void peekCryoWallet().then((w) => setGuestWallet(w));
+    void hydrateFavorites();
     hookCryoAudioUnlock();
   }, []);
 
@@ -300,6 +304,47 @@ export default function PnlWallet() {
         pari-mutuel: winners split the pool minus 3% · demo positions are
         marked guest · real claims land in your USDC wallet.
       </p>
+
+      {/* ---------- избранное (task 43) ---------- */}
+      {favs.ready && favs.items.length > 0 && (
+        <section className="mt-8" aria-label="Favorites">
+          <p className="flex items-center justify-between text-[0.6rem] font-extrabold uppercase tracking-[0.22em] text-[#10161d]/45">
+            <span>♥ favorites</span>
+            <span>{favs.items.length}</span>
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {favs.items.map((f) => (
+              <a
+                key={f.postCode}
+                href={`/v/${f.postCode}`}
+                className="nr-glass-deep group flex items-center gap-3 rounded-xl px-4 py-3 transition-transform hover:scale-[1.01]"
+              >
+                <Heart
+                  className="h-3.5 w-3.5 shrink-0 text-[#ff4d6d]"
+                  fill="currentColor"
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[0.74rem] font-extrabold tracking-tight text-[#10161d]/85 group-hover:text-[#10161d]">
+                    {f.title || f.author || `/v/${f.postCode}`}
+                  </span>
+                  {f.author && f.title && (
+                    <span className="block truncate text-[0.6rem] font-bold text-[#10161d]/45">
+                      {f.author}
+                    </span>
+                  )}
+                </span>
+                <span
+                  aria-hidden
+                  className="text-[0.62rem] font-extrabold text-[#3d7db8]/70 transition-transform group-hover:translate-x-0.5"
+                >
+                  ▸
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

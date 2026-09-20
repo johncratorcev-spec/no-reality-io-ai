@@ -7,6 +7,7 @@ import { PROMPT_DROP } from "@/lib/site";
 import { CRYO } from "@/lib/cryo/config";
 import type { CryoMarketView } from "@/lib/cryo/core";
 import { peekCryoWallet } from "@/lib/cryo/wallet";
+import { hydrateFavorites } from "@/lib/favorites";
 
 type Slot =
   | { kind: "post"; post: PostWithScore }
@@ -39,35 +40,66 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
   const containerRef = useRef<HTMLDivElement>(null);
 
   /* ---- Cryo-Stop: рынки предсказаний (task 41) ----
-     Один поллинг на всю ленту: markets + пулы + пари-мьютюэль коэффициенты
-     + позиция этого кошелька (read-only identity — без поп-апов).
-     БД недоступна → 200 с db:false — лента рендерится, ставки локальные. */
+     Один поллер на всю ленту (task 43: setTimeout-цепочка вместо
+     setInterval — запросы не накладываются; на скрытой вкладке не тикаем;
+     setState только при реальном изменении данных — memo-карточки не
+     перерисовываются впустую). БД недоступна → 200 с db:false. */
   const [cryoViews, setCryoViews] = useState<Map<string, CryoMarketView>>(
     () => new Map()
   );
 
   useEffect(() => {
     let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastJson = "";
+
+    const schedule = () => {
+      if (!stopped) timer = setTimeout(() => void load(), CRYO.pollMs);
+    };
+
     const load = async () => {
+      if (document.visibilityState === "hidden") {
+        schedule(); // вкладка в фоне — спим дальше без запроса
+        return;
+      }
       try {
         const wallet = await peekCryoWallet();
         const qs = wallet ? `?wallet=${encodeURIComponent(wallet)}` : "";
         const r = await fetch(`/api/cryo/markets${qs}`, { cache: "no-store" });
-        if (!r.ok) return;
-        const d = (await r.json()) as { markets?: CryoMarketView[] };
-        if (!stopped && d.markets) {
-          setCryoViews(new Map(d.markets.map((m) => [m.postCode, m])));
+        if (r.ok) {
+          const d = (await r.json()) as { markets?: CryoMarketView[] };
+          const json = JSON.stringify(d.markets ?? []);
+          if (!stopped && d.markets && json !== lastJson) {
+            lastJson = json;
+            setCryoViews(new Map(d.markets.map((m) => [m.postCode, m])));
+          }
         }
       } catch {
         /* рынок не критичен для ленты */
       }
+      schedule();
     };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        if (timer) clearTimeout(timer);
+        void load();
+      }
+    };
+
     void load();
-    const iv = setInterval(load, CRYO.pollMs);
+    schedule();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       stopped = true;
-      clearInterval(iv);
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
+  }, []);
+
+  /* избранное (task 43): одна гидратация на всю ленту */
+  useEffect(() => {
+    void hydrateFavorites();
   }, []);
 
   const slots = useMemo<Slot[]>(() => {
@@ -180,7 +212,6 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
     },
     [slots.length, goTo]
   );
-
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -227,7 +258,7 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
             eagerPreload={i === activeIndex + 1}
             autoDonate={donateOpen === true && slot.post.utmCode === focusCode}
             market={cryoViews.get(slot.post.utmCode) ?? null}
-            onEnded={() => handleEnded(i)}
+            onEnded={handleEnded}
           />
         ) : (
           /* рекламная карточка prompt drop — полноэкранный snap-слот */

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalShell from "@/components/legal/LegalShell";
 
 export const metadata: Metadata = {
-  title: "Creator Agreement — no reality.",
+  title: "Creator Agreement",
   description:
     "For authors whose work appears on no reality.: you keep every right. We are a distributor, not a rights-holder. A marketplace of prompts and instructions is coming.",
 };

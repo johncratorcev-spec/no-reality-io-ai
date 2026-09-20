@@ -5,14 +5,14 @@ import Menu from "@/components/menu/Menu";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "in future — no reality.",
+  title: "in future",
   description:
     "The roadmap of no reality.: what ships next — ending predictions with pari-mutuel USDC voting, creator uploads, mood channels and prediction seasons. Watch the clip. Call the ending. Split the pot.",
   alternates: { canonical: "/future" },
   openGraph: {
     title: "in future — the no reality. roadmap",
     description:
-      "Soon: predictions on how a clip ends. Pick your outcome, stake $1 USDC via Phantom, pari-mutuel odds, instant payouts when the real ending plays.",
+      "Soon: predictions on how a clip ends. Pick your outcome, stake any USDC amount via Phantom, pari-mutuel odds, instant payouts when the real ending plays.",
     url: `${SITE.url}/future`,
     type: "website",
   },
@@ -61,12 +61,12 @@ const PREDICT_STEPS = [
   {
     n: "02",
     t: "outcomes on the table",
-    d: "two quartz prisms — ДА and НЕТ — with pari-mutuel odds computed live from the pool.",
+    d: "two big outcomes — YES and NO — with pari-mutuel odds computed live from the pool.",
   },
   {
     n: "03",
-    t: "call it with $1 USDC",
-    d: "one tap sends a fixed $1 USDC through Phantom straight to the treasury. no swaps, no outcome tokens, no middlemen — Solana only.",
+    t: "call it with any USDC stake",
+    d: "one tap sends your stake — any amount in USDC — through Phantom straight to the treasury. no swaps, no outcome tokens, no middlemen — Solana only.",
   },
   {
     n: "04",
@@ -181,7 +181,7 @@ export default function FuturePage() {
             </h2>
             <p className="mt-4 max-w-xl text-[0.9rem] font-semibold leading-relaxed text-[#10161d]/65">
               the first prediction markets are frozen into the feed right now —
-              two test clips with $1 USDC positions, pari-mutuel odds and oracle
+              two test clips with live USDC positions, pari-mutuel odds and oracle
               resolution. scroll to a market card, the clip freezes itself.
               full mechanics, no fine print hidden in the footer.
             </p>

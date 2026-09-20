@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import { placeCryoBet } from "@/lib/cryo/core";
+import { CRYO } from "@/lib/cryo/config";
 
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/cryo/bet — фиксация позиции $1 USDC (Block 5, упрощённо:
- * прямой перевод USDC на казначея через Phantom; demo — без on-chain).
- * Body: { postCode, side: "yes"|"no", wallet, mode: "demo"|"phantom",
- *         txSig?, betRef? }
+ * POST /api/cryo/bet — fix a position of ANY USDC amount (task 43; direct
+ * transfer to the treasury via Phantom, demo mode without on-chain).
+ * Body: { postCode, side: "yes"|"no", wallet, amount: "0.10".."500.00",
+ *         mode: "demo"|"phantom", txSig?, betRef? }
  *
- * 200 → { market } (свежий view с позицией кошелька)
- * 400 → phantom-транзакция не прошла USDC-верификацию
- * 409 → рынок заморожен/закрыт или позиция уже зафиксирована
- * 503 → БД недоступна (клиент деградирует в localStorage-позицию)
+ * 200 → { market } (fresh view with the wallet position)
+ * 400 → bad amount / phantom transaction failed USDC verification
+ * 409 → market frozen/closed or position already fixed
+ * 503 → DB unavailable (client degrades to a localStorage position)
  */
 export async function POST(req: NextRequest) {
   const ip =
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
     postCode?: string;
     side?: string;
     wallet?: string;
+    amount?: string;
     mode?: string;
     txSig?: string;
     betRef?: string;
@@ -48,6 +50,7 @@ export async function POST(req: NextRequest) {
     postCode: body.postCode,
     side: body.side === "yes" ? "yes" : "no",
     wallet: body.wallet,
+    amount: body.amount ?? CRYO.betAmountUsdc,
     mode: body.mode === "phantom" ? "phantom" : "demo",
     txSig: body.txSig || null,
     betRef: body.betRef || null,

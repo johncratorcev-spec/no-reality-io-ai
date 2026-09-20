@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import LegalShell from "@/components/legal/LegalShell";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — no reality.",
+  title: "Terms of Service",
   description:
     "The rules for using no reality.: a curated feed of AI video and an upcoming marketplace of prompts and instructions. We distribute — creators own.",
+  alternates: { canonical: "/terms" },
 };
 
 const UPDATED = "September 11, 2026";

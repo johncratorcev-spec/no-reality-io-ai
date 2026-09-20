@@ -26,11 +26,11 @@ import Menu from "@/components/menu/Menu";
  */
 
 export const metadata: Metadata = {
-  title: "no reality. × paw crew daily — the cat collab",
+  title: { absolute: "no reality. × paw crew daily — the cat collab" },
   description:
     "One very bad trading night, two cat crews and a charity drive: 100% of every crypto donation goes to cat shelters. Watch the collab, share the love, make the world better.",
   openGraph: {
-    title: "no reality. × paw crew daily — the cat collab",
+    title: { absolute: "no reality. × paw crew daily — the cat collab" },
     description:
       "A crypto trader cat has a bad night 📉 — and every cent of the charity drive goes to cat shelters.",
     url: `${SITE.url}/collab`,

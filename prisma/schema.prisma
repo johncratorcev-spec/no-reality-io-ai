@@ -125,6 +125,20 @@ model CryoBet {
   @@index([marketId, side])
 }
 
+// Избранное (task 43, п.4): после авторизации по кошельку зритель
+// добавляет видео из ленты в избранное. Одна запись на (wallet, postCode).
+// Гостям (без кошелька) кнопка недоступна — API требует сессию.
+model Favorite {
+  id        String   @id @default(uuid())
+  wallet    String // lowercase base58 / 0x… — из сессии (cookie)
+  postCode  String // utm_code поста из posts.csv
+  createdAt DateTime @default(now())
+
+  @@unique([wallet, postCode])
+  @@index([wallet])
+  @@index([postCode])
+}
+
 // Покупка промпта: оплата через 2328.io → разблокировка prompt_full.
 //
 // Жизненный цикл status:

@@ -5,10 +5,10 @@
  *
  * Приоритет identity:
  *   1) сессия Phantom на сайте (cookie nr_phantom — авторизация task 42);
- *   2) Phantom one-tap: connect + sign-in + перевод $1 USDC на казначея;
+ *   2) Phantom one-tap: connect + sign-in + перевод USDC (любая сумма) на казначея;
  *   3) demo — стабильный гостевой адрес (тот же UX, без on-chain).
  *
- * Платёж: прямой SPL transferChecked $1 USDC → ATA казначея с memo(betRef).
+ * Платёж: прямой SPL transferChecked USDC (любая сумма) → ATA казначея с memo(betRef).
  * Никаких агрегаторов — строим транзакцию через @solana/web3.js, который
  * подгружается ДИНАМИЧЕСКИ только в момент ставки (лента остаётся лёгкой).
  * Верификация на сервере — один JSON-RPC getTransaction (cryo/verify.ts).
@@ -159,7 +159,7 @@ export interface PayUsdcResult {
 }
 
 /**
- * Оплата ставки $1 USDC (упрощение task 42):
+ * Оплата ставки USDC (упрощение task 42/43, любая сумма):
  *  - usdc-канал (казначей задан) → SPL transferChecked + memo(betRef)
  *    через Phantom, динамический import @solana/web3.js;
  *  - demo — protected-симуляция (тот же UX, позиция в реестре).

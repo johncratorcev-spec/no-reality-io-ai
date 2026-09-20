@@ -79,7 +79,7 @@ async function serverlessAdd(
     return NextResponse.json(
       {
         error:
-          "GITHUB_PANEL_PAT не задан: добавь токен в Environment Variables хостинга и передеплойся",
+          "GITHUB_PANEL_PAT is not set: add the token to the hosting Environment Variables and redeploy",
       },
       { status: 500 },
     );
@@ -88,14 +88,14 @@ async function serverlessAdd(
   const parsed = parsePostInput(body.url ?? "");
   if (!parsed) {
     return NextResponse.json(
-      { error: "не понял ссылку — вставь ссылку на пост Threads или голый код" },
+      { error: "cannot parse the link — paste a Threads post link or a bare post code" },
       { status: 400 },
     );
   }
 
   const csvRaw = await getCsvFromGitHub();
   if (isDupeInCsv(csvRaw, parsed.code)) {
-    return NextResponse.json({ error: "этот пост уже в ленте" }, { status: 409 });
+    return NextResponse.json({ error: "this post is already in the feed" }, { status: 409 });
   }
 
   const video = (body.video ?? "").trim();
@@ -103,7 +103,7 @@ async function serverlessAdd(
     return NextResponse.json(
       {
         error:
-          "нужен адрес видео: открой пост, правый клик по видео → «копировать адрес видео» (ссылка ….mp4)",
+          "video URL required: open the post, right-click the video → copy video address (a ….mp4 link)",
       },
       { status: 400 },
     );
@@ -114,7 +114,7 @@ async function serverlessAdd(
     return NextResponse.json(
       {
         error:
-          "Threads не отдал метаданные (стена или недоступен). Заполни заголовок и автора руками и попробуй ещё раз",
+          "Threads returned no metadata (walled or unavailable). Fill in the title and author manually and try again",
       },
       { status: 502 },
     );
@@ -124,7 +124,7 @@ async function serverlessAdd(
   if (!body.title?.trim() && /[а-яё]/i.test(title)) {
     return NextResponse.json(
       {
-        error: `в посте русский заголовок — впиши перевод в поле «свой заголовок». Оригинал: ${title.slice(0, 120)}`,
+        error: `the post title is not English — put your translation into the custom title field. Original: ${title.slice(0, 120)}`,
       },
       { status: 400 },
     );
@@ -136,7 +136,7 @@ async function serverlessAdd(
     return NextResponse.json(
       {
         error:
-          "CDN не отдал видео (206 video/mp4) — ссылка протухла или скопировалась не та. Скопируй адрес видео заново",
+          "the CDN did not serve the video (206 video/mp4) — the link expired or was copied wrong. Copy the video address again",
       },
       { status: 400 },
     );
@@ -177,7 +177,7 @@ async function startJob(body: PanelBody): Promise<NextResponse> {
   const url = (body.url ?? "").trim();
   const code = codeFromUrl(url);
   if (!code) {
-    return NextResponse.json({ error: "не вижу кода поста в ссылке" }, { status: 400 });
+    return NextResponse.json({ error: "no post code found in the link" }, { status: 400 });
   }
   const jobId =
     code.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) +
@@ -208,7 +208,7 @@ async function startJob(body: PanelBody): Promise<NextResponse> {
   child.unref();
   await fh.close();
   if (typeof child.pid !== "number") {
-    return NextResponse.json({ error: "не удалось запустить джобу" }, { status: 500 });
+    return NextResponse.json({ error: "failed to start the job" }, { status: 500 });
   }
   return NextResponse.json({ ok: true, jobId });
 }
@@ -223,13 +223,13 @@ export async function POST(req: Request) {
   const title = (body?.title ?? "").trim();
 
   if (!url || url.length > 2000) {
-    return NextResponse.json({ error: "пустая или слишком длинная ссылка" }, { status: 400 });
+    return NextResponse.json({ error: "empty or too long link" }, { status: 400 });
   }
   if (!BADGES.has(badge)) {
-    return NextResponse.json({ error: "неизвестный бейдж" }, { status: 400 });
+    return NextResponse.json({ error: "unknown badge" }, { status: 400 });
   }
   if (title.length > 500) {
-    return NextResponse.json({ error: "заголовок длиннее 500 символов" }, { status: 400 });
+    return NextResponse.json({ error: "title is longer than 500 characters" }, { status: 400 });
   }
   const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";
 
@@ -251,7 +251,7 @@ export async function POST(req: Request) {
     return await startJob({ ...(body ?? {}), url, badge, title });
   } catch (e) {
     return NextResponse.json(
-      { error: "не удалось запустить джобу: " + (e instanceof Error ? e.message : "?") },
+      { error: "failed to start the job: " + (e instanceof Error ? e.message : "?") },
       { status: 500 },
     );
   }
@@ -263,13 +263,13 @@ export async function GET(req: Request) {
 
   if (job) {
     if (!/^[a-z0-9_-]{1,120}$/.test(job)) {
-      return NextResponse.json({ error: "кривой job id" }, { status: 400 });
+      return NextResponse.json({ error: "malformed job id" }, { status: 400 });
     }
     try {
       const raw = await readFile(path.join(JOBS_DIR(), `${job}.json`), "utf-8");
       return NextResponse.json(JSON.parse(raw));
     } catch {
-      return NextResponse.json({ error: "джоба не найдена" }, { status: 404 });
+      return NextResponse.json({ error: "job not found" }, { status: 404 });
     }
   }
 

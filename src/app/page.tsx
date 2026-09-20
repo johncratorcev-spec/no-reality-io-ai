@@ -14,7 +14,7 @@ import { SITE, SOCIALS } from "@/lib/site";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
-  title: SITE.title,
+  title: { absolute: SITE.title },
   description: SITE.description,
   keywords: [
     "AI video feed",
@@ -33,13 +33,13 @@ export const metadata: Metadata = {
     type: "website",
     url: SITE.url,
     siteName: SITE.name,
-    title: SITE.title,
+    title: { absolute: SITE.title },
     description: SITE.description,
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: SITE.title,
+    title: { absolute: SITE.title },
     description: SITE.description,
   },
   robots: {

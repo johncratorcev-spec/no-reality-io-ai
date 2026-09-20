@@ -1,12 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWalletSession } from "@/lib/use-wallet";
+import {
+  hydrateFavorites,
+  resetFavoritesAfterAuth,
+  useFavoritesStore,
+} from "@/lib/favorites";
 
 /* ================================================================
-   Кнопка-кошелёк в шапке (task 42): connect Phantom (Solana, основной)
-   или MetaMask (фолбэк) → сессия (cookie 30 дней) → в выпадашке
-   пригласительная ссылка (MetaMask) и pnl-кошелёк (предикты).
+   Кнопка-кошелёк в шапке (task 42/43): connect Phantom (Solana,
+   основной) или MetaMask (фолбэк) → сессия (cookie 30 дней) →
+   в выпадашке pnl-кошелёк, избранное и пригласительная ссылка.
+
+   Сердце на карточке (task 43) диспатчит "nr-wallet-connect", когда
+   зритель без сессии тапает «в избранное» — здесь ловим событие и
+   открываем connect-флоу; после успеха перегидратуем избранное.
    ================================================================ */
 
 function short(wallet: string): string {
@@ -24,8 +33,29 @@ export default function WalletButton() {
     connect,
     disconnect,
   } = useWalletSession();
+  const favs = useFavoritesStore();
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
+
+  /* сердце на карточке просит кошелёк → открываем connect-флоу */
+  useEffect(() => {
+    const onRequest = () => {
+      if (wallet) return;
+      void (async () => {
+        await connect();
+        // успешный коннект ставит cookie — перегидратуем избранное;
+        // при неудаче hydrate просто снова выставит authNeeded
+        resetFavoritesAfterAuth();
+      })();
+    };
+    window.addEventListener("nr-wallet-connect", onRequest);
+    return () => window.removeEventListener("nr-wallet-connect", onRequest);
+  }, [wallet, connect]);
+
+  /* панель открыта — догружаем свежий список избранного */
+  useEffect(() => {
+    if (open && wallet) void hydrateFavorites();
+  }, [open, wallet]);
 
   const copyInvite = async () => {
     if (!inviteUrl) return;
@@ -105,6 +135,36 @@ export default function WalletButton() {
               positions · claims
             </span>
           </a>
+
+          {/* ---------- избранное (task 43) ---------- */}
+          {favs.ready && favs.items.length > 0 && (
+            <>
+              <p className="mt-3 flex items-center justify-between text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
+                <span>♥ favorites</span>
+                <span className="text-[#6d4fc2]/60">{favs.items.length}</span>
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {favs.items.slice(0, 5).map((f) => (
+                  <li key={f.postCode}>
+                    <a
+                      href={`/v/${f.postCode}`}
+                      className="block truncate rounded-lg px-2 py-1 text-[0.66rem] font-bold text-[#10161d]/75 transition-colors hover:bg-[#10161d]/5 hover:text-[#10161d]"
+                    >
+                      {f.title || f.author || `/v/${f.postCode}`}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              {favs.items.length > 5 && (
+                <a
+                  href="/pnl"
+                  className="mt-1 block text-right text-[0.6rem] font-extrabold text-[#6d4fc2]/70 transition-colors hover:text-[#6d4fc2]"
+                >
+                  all favorites →
+                </a>
+              )}
+            </>
+          )}
           {inviteUrl && (
             <>
               <p className="mt-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">

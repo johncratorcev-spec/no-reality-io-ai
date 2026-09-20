@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  memo,
   useCallback,
   useEffect,
   useRef,
@@ -13,6 +14,7 @@ import {
   Check,
   Copy,
   Eye,
+  Heart,
   Lock,
   Paperclip,
   Pause,
@@ -29,6 +31,7 @@ import { isBoosted } from "@/lib/boost";
 import { pseudoViews } from "@/lib/utils";
 import { playMeow } from "@/lib/meow";
 import { PARTNER_OF_WEEK } from "@/lib/site";
+import { toggleFavorite, useFavoritesStore } from "@/lib/favorites";
 import MediaCarousel from "./MediaCarousel";
 import DonateBox from "./DonateBox";
 import { extractPrompt } from "@/lib/prompts/extract";
@@ -53,7 +56,8 @@ interface VideoCardProps {
   autoDonate?: boolean;
   /** рынок предсказаний Cryo-Stop (task 41): скрыть chrome, заморозить, дать ставить */
   market?: CryoMarketView | null;
-  onEnded: () => void;
+  /** stable callback — receives the slot index (memo-friendly, task 43) */
+  onEnded: (index: number) => void;
 }
 
 const STATUS_VISIBLE_MS = 3400;
@@ -261,7 +265,7 @@ function ProgressBar({ videoRef, active, onSeek, onScrubStart, onScrubEnd }: Pro
   );
 }
 
-export default function VideoCard({
+function VideoCardInner({
   post,
   index,
   total,
@@ -523,7 +527,7 @@ export default function VideoCard({
       return;
     }
     if (index < total - 1) {
-      onEnded();
+      onEnded(index);
     } else {
       // последнее видео — мягкий реплей
       const v = videoRef.current;
@@ -611,6 +615,27 @@ export default function VideoCard({
     }
   };
 
+  /* ---------------- favorites (task 43): heart after wallet auth ---------------- */
+
+  const favs = useFavoritesStore();
+  const favOn = favs.codes.has(post.utmCode);
+  const [favBurst, setFavBurst] = useState(0);
+
+  const onHeart = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const res = await toggleFavorite(post.utmCode, {
+      title: post.title ?? "",
+      author: post.author ?? "",
+      hasVideo: Boolean(post.videoUrl) || (post.media?.length ?? 0) > 0,
+    });
+    if (res === "auth") {
+      // не авторизован — просим кошелёк (WalletButton слушает событие)
+      window.dispatchEvent(new CustomEvent("nr-wallet-connect"));
+      return;
+    }
+    if (res === "on") setFavBurst((b) => b + 1); // виральный взрыв сердец
+  };
+
   /* ---------------- render ---------------- */
 
   const hasMeta = Boolean(post.author || post.title);
@@ -687,7 +712,7 @@ export default function VideoCard({
           slides={post.media!}
           active={isActive}
           loop={index === total - 1}
-          onEnded={onEnded}
+          onEnded={() => onEnded(index)}
         />
       )}
       {/* ---------- основное видео: монтируется только в зоне active±1 ----------
@@ -889,6 +914,37 @@ export default function VideoCard({
             </span>
           </a>
         )}
+
+        {/* ---------- избранное (task 43): сердце после авторизации кошелька ----------
+            без сессии тап открывает connect-флоу кошелька; с сессией —
+            мгновенный оптимистичный тоггл + взрыв сердец (nr-fav-burst) ---------- */}
+        <button
+          onClick={(e) => void onHeart(e)}
+          aria-pressed={favOn}
+          aria-label={
+            favOn ? "Remove from favorites" : "Add to favorites"
+          }
+          title={
+            favs.authNeeded && !favOn
+              ? "connect a wallet to save favorites"
+              : undefined
+          }
+          className={`nr-fav-btn nr-glass pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full transition-[transform,box-shadow] duration-300 hover:scale-[1.08] active:scale-90 ${
+            favOn ? "nr-fav-on" : ""
+          }`}
+        >
+          <Heart
+            className={`h-4 w-4 ${favOn ? "nr-fav-heart" : "text-[#10161d]"}`}
+          />
+          {favBurst > 0 && (
+            <span key={favBurst} className="nr-fav-burst" aria-hidden>
+              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                <i key={i} style={{ ["--fi" as string]: i }} />
+              ))}
+              <b />
+            </span>
+          )}
+        </button>
         </>
         )}
       </div>
@@ -1180,3 +1236,12 @@ export default function VideoCard({
     </section>
   );
 }
+
+/*
+ * memo (task 43): лента поллит рынки каждые 8с — без memo каждый ответ
+ * перерисовывал бы все 45 карточек. Props стабильны: post — те же объекты
+ * из SSR-props, onEnded — один useCallback c индексом, market — null у
+ * обычных карточек. Перерисовываются только карточки с реально
+ * изменившимся рынком.
+ */
+export default memo(VideoCardInner);

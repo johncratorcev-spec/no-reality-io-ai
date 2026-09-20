@@ -14,6 +14,7 @@
  */
 import { db } from "@/lib/db";
 import { CRYO, cryoMarketByCode, cryoUsdcEnabled, type CryoMarketConfigItem } from "./config";
+import { normalizeUsdc } from "./odds";
 import { verifyUsdcBet } from "./verify";
 
 export type CryoSide = "yes" | "no";
@@ -48,7 +49,8 @@ export interface CryoMarketView {
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
 function oddsFor(total: number, sidePool: number): number | null {
-  // ставка фикс $1: payout = (total+1)×(1−fee)×1/(pool+1)
+  // коэффициент ДЛЯ СТАВКИ $1 (базовая витрина; клиент пересчитывает под
+  // выбранную сумму через cryoOdds из cryo/odds.ts)
   const payout = (total + 1) * (1 - CRYO.feePct) / (sidePool + 1);
   return round2(payout);
 }
@@ -95,7 +97,9 @@ export async function ensureCryoMarkets(): Promise<boolean> {
           labelNo: c.labelNo,
           endsAt,
         },
-        update: {}, // существующий рынок не перезаписываем
+        // presentation fields follow the config (labels are EN since task 43);
+        // status/endsAt/result stay admin-owned — upsert never touches them
+        update: { question: c.question, labelYes: c.labelYes, labelNo: c.labelNo },
       });
     }
     // авто-expire: просроченные live-рынки закрываем на чтении
@@ -179,18 +183,18 @@ export interface PlaceBetResult {
 }
 
 /**
- * Фикс позиции $1 USDC (Block 5, упрощённо: прямой перевод на казначея).
- * Одна позиция на кошелёк на рынок (unique(marketId, wallet)) — повторный
- * тап по кристаллу невозможен на уровне БД.
+ * Fix a position of ANY USDC amount (task 43): direct transfer to the
+ * treasury, one position per wallet per market (unique(marketId, wallet)).
  *
- * phantom-режим: txSig верифицируется одним RPC-вызовом (verify.ts).
- *  - жёсткий провал проверки (нет денег/неуспешна) → 400, позиция НЕ пишется;
- *  - RPC недоступен → позиция пишется с txSig (ручной reconcile, UX не рвём).
+ * phantom-mode: txSig is verified with a single RPC call (verify.ts) against
+ * the STAKED amount; a hard fail (no money / failed tx) → 400, no position;
+ * RPC unreachable → position stored with txSig (manual reconcile, UX intact).
  */
 export async function placeCryoBet(args: {
   postCode: string;
   wallet: string;
   side: CryoSide;
+  amount: string; // USDC decimal string, validated below
   mode: "demo" | "phantom";
   txSig?: string | null;
   betRef?: string | null;
@@ -202,6 +206,21 @@ export async function placeCryoBet(args: {
   }
   if (!args.wallet || args.wallet.length < 8 || args.wallet.length > 64) {
     return { ok: false, status: 400, error: "Bad wallet" };
+  }
+  // сумма: чистая decimal-строка в границах конфига (2 знака после точки)
+  const amount = normalizeUsdc(args.amount ?? "");
+  const min = parseFloat(CRYO.minBetUsdc);
+  const max = parseFloat(CRYO.maxBetUsdc);
+  if (!amount) {
+    return { ok: false, status: 400, error: "Bad amount" };
+  }
+  const value = parseFloat(amount);
+  if (!(value >= min - 1e-9 && value <= max + 1e-9)) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Amount out of range — allowed $${CRYO.minBetUsdc}–$${CRYO.maxBetUsdc} USDC`,
+    };
   }
 
   const dbOk = await ensureCryoMarkets();
@@ -226,12 +245,12 @@ export async function placeCryoBet(args: {
       return { ok: false, status: 400, error: "Phantom payment unavailable" };
     }
 
-    // USDC-верификация phantom-ставки (упрощённый канал: прямой перевод)
+    // USDC-верификация phantom-ставки (прямой перевод на сумму позиции)
     if (args.mode === "phantom" && args.txSig) {
       const v = await verifyUsdcBet({
         txSig: args.txSig,
         betRef: args.betRef ?? "",
-        expectedUsdc: parseFloat(CRYO.betAmountUsdc),
+        expectedUsdc: value,
       });
       if (!v.ok && v.reason === "tx") {
         return { ok: false, status: 400, error: "USDC transaction not verified" };
@@ -244,7 +263,7 @@ export async function placeCryoBet(args: {
         marketId: market.id,
         wallet: args.wallet.toLowerCase(),
         side: args.side,
-        amount: CRYO.betAmountUsdc,
+        amount,
         mode: args.mode,
         txSig: args.txSig ?? null,
       },
@@ -467,8 +486,8 @@ export async function getCryoPnl(
     items.push({
       postCode: m?.postCode ?? b.marketId,
       question: m?.question ?? cfg?.question ?? "—",
-      labelYes: m?.labelYes ?? cfg?.labelYes ?? "ДА",
-      labelNo: m?.labelNo ?? cfg?.labelNo ?? "НЕТ",
+      labelYes: m?.labelYes ?? cfg?.labelYes ?? "YES",
+      labelNo: m?.labelNo ?? cfg?.labelNo ?? "NO",
       accent: cfg?.accent ?? "#5b9bd5",
       side: b.side as CryoSide,
       amount: b.amount,

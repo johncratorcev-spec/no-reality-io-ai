@@ -1518,335 +1518,251 @@ section:hover .nr-mc-arrow,
   left: 10px;
   right: 10px;
   bottom: 10px;
-  border-radius: 26px;
-  padding: 16px 18px 14px;
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.78), rgba(235, 246, 255, 0.62));
-  backdrop-filter: blur(18px) saturate(1.25);
-  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 22px;
+  padding: 15px 16px 13px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.82), rgba(235, 246, 255, 0.66));
+  backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.88);
   box-shadow: 0 18px 44px rgba(10, 40, 80, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   pointer-events: auto;
+  overflow: hidden;
 }
 .nr-cryo-panel-up {
-  animation: nr-cryo-panel-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: nr-cryo-panel-up 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes nr-cryo-panel-up {
-  from { transform: translateY(70%); opacity: 0; }
+  from { transform: translateY(46%); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
 
-.nr-cryo-panel-top {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-/* Кольцо-таймер (Event Horizon): густая синяя жидкость, пульс = BPM */
-.nr-cryo-ring {
-  position: relative;
-  width: 92px;
-  height: 92px;
-  flex: 0 0 auto;
-}
-.nr-cryo-ring-svg { width: 100%; height: 100%; }
-.nr-cryo-ring-track {
-  fill: rgba(235, 245, 255, 0.65);
-  stroke: rgba(16, 40, 70, 0.14);
-  stroke-width: 7;
-}
-.nr-cryo-ring-liq {
-  fill: none;
-  stroke-width: 7;
-  stroke-linecap: round;
-  transform: rotate(-90deg);
-  transform-origin: 64px 64px;
-  transition: stroke-dashoffset 0.9s linear;
-  filter: drop-shadow(0 0 6px rgba(30, 140, 255, 0.65));
-  animation: nr-cryo-pulse var(--pulse, 0.63s) ease-in-out infinite;
-}
-@keyframes nr-cryo-pulse {
-  0%, 100% { opacity: 1; filter: drop-shadow(0 0 5px rgba(30, 140, 255, 0.55)); }
-  50% { opacity: 0.72; filter: drop-shadow(0 0 12px rgba(60, 190, 255, 0.95)); }
-}
-.nr-cryo-ring-frost {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.9);
-  stroke-width: 7;
-  stroke-linecap: round;
-  stroke-dasharray: 170 340;
-  transform: rotate(-90deg);
-  transform-origin: 64px 64px;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}
-.nr-cryo-ring-dead .nr-cryo-ring-frost { opacity: 1; }
-.nr-cryo-ring-dead .nr-cryo-ring-liq {
-  animation: none;
-  filter: none;
-  opacity: 0.55;
-}
-.nr-cryo-ring-core {
+/* ── task 43: minimal market panel ──────────────────────────────
+   event horizon = тонкая жидкая линия, стекающая с обратным отсчётом;
+   кипение за 10с до финала — линия и таймер переходят в янтарь. */
+.nr-cryo-horizon {
   position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-}
-.nr-cryo-ring-time {
-  font-weight: 800;
-  font-size: 15px;
-  letter-spacing: -0.02em;
-  color: #0b1a2a;
-  font-variant-numeric: tabular-nums;
-}
-.nr-cryo-ring-dead-label {
-  font-weight: 800;
-  font-size: 15px;
-  color: #7b8794;
-}
-.nr-cryo-ring-cap {
-  font-size: 6.5px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(11, 26, 42, 0.45);
-  font-weight: 700;
-}
-
-/* Block 7: кипение жидкости у краёв за 10с до финала */
-.nr-cryo-boil .nr-cryo-ring-liq {
-  animation-duration: calc(var(--pulse, 0.63s) / 2);
-}
-.nr-cryo-bubbles {
-  position: absolute;
-  inset: 6px;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #2ea8ff, #0f6bff 60%, #7ce7ff);
+  box-shadow: 0 0 10px rgba(30, 140, 255, 0.75);
+  transition: width 1s linear;
+  animation: nr-cryo-pulse var(--bpm, 0.63s) ease-in-out infinite;
   pointer-events: none;
 }
-.nr-cryo-bubbles i {
-  position: absolute;
-  bottom: 8%;
-  left: calc(30% + var(--i) * 8%);
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(190, 240, 255, 0.9);
-  box-shadow: 0 0 4px rgba(140, 220, 255, 0.9);
-  animation: nr-cryo-bubble 0.85s ease-in infinite;
-  animation-delay: calc(var(--i) * 0.14s);
+.nr-cryo-horizon-boil {
+  background: linear-gradient(90deg, #ffb347, #ff7a1a 60%, #ffd98a);
+  box-shadow: 0 0 12px rgba(255, 150, 40, 0.85);
+  animation-duration: calc(var(--bpm, 0.63s) / 2);
 }
-@keyframes nr-cryo-bubble {
-  0% { transform: translateY(0) scale(0.6); opacity: 0; }
-  25% { opacity: 1; }
-  100% { transform: translateY(-58px) scale(1.15); opacity: 0; }
+@keyframes nr-cryo-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.62; }
 }
 
-/* Block 4: посимвольная материализация вопроса изо льда */
-.nr-cryo-qwrap {
-  min-width: 0;
-  flex: 1;
+.nr-cryo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
-.nr-cryo-q {
+.nr-cryo-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
   font-weight: 800;
-  font-size: clamp(15px, 2.6vw, 19px);
-  line-height: 1.22;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(11, 26, 42, 0.52);
+}
+.nr-cryo-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #2ea8ff);
+  box-shadow: 0 0 8px var(--accent, #2ea8ff);
+  animation: nr-cryo-pulse 1.6s ease-in-out infinite;
+}
+.nr-cryo-timer {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #0b1a2a;
+}
+.nr-cryo-timer-boil {
+  color: #c2410c;
+  animation: nr-cryo-pulse 0.5s ease-in-out infinite;
+}
+
+.nr-cryo-q {
+  margin-top: 7px;
+  font-weight: 800;
+  font-size: clamp(15px, 2.5vw, 18px);
+  line-height: 1.24;
   letter-spacing: -0.015em;
   color: #0b1622;
   text-wrap: balance;
-}
-.nr-cryo-ch {
-  display: inline-block;
-  animation: nr-cryo-char-in 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
-  animation-delay: var(--ci, 0.9s);
-}
-@keyframes nr-cryo-char-in {
-  0% {
-    opacity: 0;
-    transform: translateY(10px) scale(1.25) rotate(4deg);
-    filter: blur(7px) brightness(1.8);
-  }
-  60% {
-    opacity: 1;
-    filter: blur(0) brightness(1.25);
-    text-shadow: 0 0 14px rgba(140, 225, 255, 0.95);
-  }
-  100% { opacity: 1; transform: none; filter: none; text-shadow: none; }
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* Block 6: статус — выжженный лазером металл */
-.nr-cryo-locked {
-  margin-top: 7px;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  background: linear-gradient(180deg, #46b6ff 0%, #0c4a86 55%, #7fd8ff 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: nr-cryo-lock-in 0.5s steps(6) both;
-}
-.nr-cryo-locked-gold {
-  background: linear-gradient(180deg, #ffd76e 0%, #b07800 55%, #ffe9a8 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-.nr-cryo-locked-dust {
-  background: linear-gradient(180deg, #9aa7b5 0%, #4c5866 55%, #b9c4cf 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-.nr-cryo-locked-dead {
-  background: linear-gradient(180deg, #8fa2b5 0%, #45535f 55%, #aebccb 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-@keyframes nr-cryo-lock-in {
-  from { opacity: 0; letter-spacing: 0.34em; filter: blur(3px); }
-  to { opacity: 1; letter-spacing: 0.18em; filter: none; }
-}
-.nr-cryo-verdict {
-  margin-top: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(11, 22, 34, 0.6);
-}
-.nr-cryo-verdict b { font-weight: 800; }
-
-/* Block 4: кристаллы выбора — массивные призмы чистого кварца */
-.nr-cryo-crystals {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  gap: 26px;
-  margin: 14px 0 10px;
-}
-.nr-cryo-crystal {
-  position: relative;
-  width: 128px;
-  height: 146px;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  background: linear-gradient(165deg, rgba(240, 250, 255, 0.5), rgba(210, 235, 255, 0.28));
-  clip-path: polygon(50% 0%, 97% 26%, 97% 74%, 50% 100%, 3% 74%, 3% 26%);
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), filter 0.35s ease, opacity 0.35s ease;
-  filter: drop-shadow(0 16px 26px rgba(15, 60, 120, 0.28));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  padding-bottom: 14px;
-  gap: 1px;
-}
-.nr-cryo-crystal:hover:not(:disabled) {
-  transform: translateY(-6px) scale(1.04);
-  filter: drop-shadow(0 22px 34px rgba(15, 60, 120, 0.4));
-}
-.nr-cryo-crystal:active:not(:disabled) { transform: scale(0.96); }
-.nr-cryo-crystal:disabled { cursor: default; }
-
-/* циркулирующая плазма настроения внутри призмы */
-.nr-cryo-crystal-plasma {
-  position: absolute;
-  inset: 18% 14% 26%;
-  border-radius: 50%;
-  background:
-    radial-gradient(closest-side at 40% 40%, var(--accent), transparent 72%),
-    radial-gradient(closest-side at 68% 62%, color-mix(in srgb, var(--accent) 70%, #3b82f6), transparent 70%);
-  filter: blur(9px) saturate(1.4);
-  opacity: 0.85;
-  animation: nr-cryo-plasma 5.5s linear infinite;
-}
-@keyframes nr-cryo-plasma {
-  0% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(180deg) scale(1.12); }
-  100% { transform: rotate(360deg) scale(1); }
-}
-
-/* грани кварца */
-.nr-cryo-crystal-facets {
-  position: absolute;
-  inset: 0;
-  clip-path: inherit;
-  background:
-    linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.85) 38%, transparent 46%),
-    linear-gradient(245deg, transparent 42%, rgba(255, 255, 255, 0.55) 48%, transparent 55%),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.35), transparent 40%);
-  pointer-events: none;
-}
-
-.nr-cryo-crystal-label {
-  position: relative;
-  z-index: 1;
-  font-weight: 900;
-  font-size: 19px;
-  letter-spacing: 0.04em;
-  color: #08131f;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
-}
-.nr-cryo-crystal-odds {
-  position: relative;
-  z-index: 1;
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  color: #0c4a86;
-}
-.nr-cryo-crystal-price {
-  position: relative;
-  z-index: 1;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(8, 19, 31, 0.5);
-}
-
-/* проигравший/чужой кристалл гаснет */
-.nr-cryo-crystal-dim {
-  opacity: 0.34;
-  filter: grayscale(0.7) drop-shadow(0 10px 18px rgba(15, 60, 120, 0.2));
-}
-
-/* Block 6/9: своя ставка — пульсирующий золотой контур */
-.nr-cryo-crystal-gold::after {
-  content: "";
-  position: absolute;
-  inset: 5px 3px;
-  clip-path: polygon(50% 0%, 97% 26%, 97% 74%, 50% 100%, 3% 74%, 3% 26%);
-  border: 2px solid rgba(255, 200, 60, 0.95);
-  animation: nr-cryo-gold-pulse 1.6s ease-in-out infinite;
-  pointer-events: none;
-}
+/* своя позиция в толпе — золотой маркер (keyframes общие) */
 @keyframes nr-cryo-gold-pulse {
   0%, 100% { opacity: 0.55; filter: drop-shadow(0 0 4px rgba(255, 200, 60, 0.5)); }
   50% { opacity: 1; filter: drop-shadow(0 0 12px rgba(255, 200, 60, 0.95)); }
 }
 
-/* Block 9: кристалл победителя плавится изнутри в жидкое золото */
-.nr-cryo-crystal-melt .nr-cryo-crystal-plasma {
-  background:
-    radial-gradient(closest-side at 45% 55%, #ffd977, transparent 74%),
-    radial-gradient(closest-side at 62% 40%, #f5a300, transparent 70%);
-  animation: nr-cryo-melt 2.6s ease-in-out infinite;
-  opacity: 1;
+/* ── task 43: stake selector — пресеты + своя сумма ── */
+.nr-cryo-stake {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
 }
-@keyframes nr-cryo-melt {
-  0%, 100% { transform: rotate(0deg) scaleY(1); border-radius: 50%; }
-  30% { transform: rotate(8deg) scaleY(1.16) scaleX(0.94); border-radius: 46% 54% 58% 42%; }
-  65% { transform: rotate(-6deg) scaleY(1.28) scaleX(0.88); border-radius: 54% 46% 42% 58%; }
+.nr-cryo-stake-cap {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(11, 26, 42, 0.52);
+  flex: 0 0 auto;
+}
+.nr-cryo-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.nr-cryo-chip {
+  border: 1px solid rgba(12, 40, 70, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  color: #0b1a2a;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+.nr-cryo-chip:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(12, 40, 70, 0.14);
+}
+.nr-cryo-chip-on {
+  background: #0b1a2a;
+  border-color: #0b1a2a;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(11, 26, 42, 0.35);
+}
+.nr-cryo-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(12, 40, 70, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  padding: 3px 10px 3px 12px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.nr-cryo-custom:focus-within {
+  border-color: rgba(15, 107, 255, 0.65);
+  box-shadow: 0 0 0 3px rgba(46, 168, 255, 0.18);
+}
+.nr-cryo-custom-on { border-color: rgba(15, 107, 255, 0.55); }
+.nr-cryo-custom input {
+  width: 64px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0b1a2a;
+  padding: 2px 0;
+}
+.nr-cryo-custom input::placeholder {
+  color: rgba(11, 26, 42, 0.35);
+  font-weight: 700;
+}
+.nr-cryo-custom em {
+  font-style: normal;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(11, 26, 42, 0.4);
 }
 
-/* Block 5: зафиксированный кристалл отрывается и улетает за экран */
-.nr-cryo-flyout {
-  animation: nr-cryo-flyout 0.72s cubic-bezier(0.45, -0.15, 0.75, 0.4) both;
+/* ── task 43: two big outcomes — один тап фиксирует позицию ── */
+.nr-cryo-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
 }
-@keyframes nr-cryo-flyout {
-  20% { transform: translateX(9%) translateY(-7%) rotate(7deg) scale(1.05); }
-  100% {
-    transform: translateX(190%) translateY(-4%) rotate(24deg) scale(0.86);
-    opacity: 0;
-  }
+.nr-cryo-action {
+  position: relative;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  padding: 11px 14px 10px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, filter 0.22s ease;
+}
+.nr-cryo-action b {
+  font-weight: 900;
+  font-size: 19px;
+  letter-spacing: 0.03em;
+  line-height: 1.1;
+}
+.nr-cryo-action-odds {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.nr-cryo-action-note {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.66;
+}
+.nr-cryo-action-yes {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.08)) , var(--accent, #2ea8ff);
+  background-blend-mode: normal;
+  color: #101317;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent, #2ea8ff) 42%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.nr-cryo-action-yes b { text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35); }
+.nr-cryo-action-no {
+  background: linear-gradient(165deg, #2b3646, #10161d);
+  color: #f2f6fa;
+  box-shadow: 0 10px 24px rgba(16, 22, 29, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.nr-cryo-action-no .nr-cryo-action-odds { color: #9fd8ff; }
+.nr-cryo-action:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+}
+.nr-cryo-action:active:not(:disabled) { transform: scale(0.97); }
+.nr-cryo-action:disabled { cursor: default; }
+.nr-cryo-action-busy {
+  animation: nr-cryo-pulse 0.5s ease-in-out infinite;
+}
+.nr-cryo-payerr {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #c2410c;
 }
 
 /* Block 6: индикатор толпы — распределение денег между ДА и НЕТ */
@@ -1908,67 +1824,6 @@ section:hover .nr-mc-arrow,
   background: #ffc83c;
   border: 1.5px solid #fff;
   box-shadow: 0 0 8px rgba(255, 200, 60, 0.95);
-}
-
-/* Block 9: экстракция награды */
-.nr-cryo-extract {
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-  padding: 13px 16px;
-  border: 0;
-  border-radius: 16px;
-  cursor: pointer;
-  font-weight: 900;
-  font-size: 14px;
-  letter-spacing: 0.06em;
-  color: #241500;
-  background: linear-gradient(165deg, #ffe9a8, #ffc23e 55%, #f5a300);
-  box-shadow: 0 12px 28px rgba(245, 163, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-  font-family: ui-monospace, Menlo, monospace;
-}
-.nr-cryo-extract:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 34px rgba(245, 163, 0, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-.nr-cryo-extract:disabled { cursor: default; opacity: 0.9; }
-.nr-cryo-local-note {
-  margin-top: 6px;
-  text-align: center;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(11, 26, 42, 0.45);
-  font-weight: 700;
-}
-
-/* Block 7: белая корка льда скрывает управление навсегда */
-.nr-cryo-crust {
-  position: absolute;
-  inset: 0;
-  border-radius: 26px;
-  pointer-events: auto;
-  background:
-    linear-gradient(178deg, rgba(255, 255, 255, 0.28) 8%, rgba(244, 250, 255, 0.86) 42%, #ffffff 78%);
-  animation: nr-cryo-crust 1.1s ease-out both;
-}
-@keyframes nr-cryo-crust {
-  from { transform: translateY(96%); }
-  to { transform: none; }
-}
-.nr-cryo-expired .nr-cryo-panel {
-  filter: brightness(0.86) saturate(0.55);
-}
-
-/* Block 9: пыль проигравших */
-.nr-cryo-particles {
-  position: absolute;
-  inset: -40px;
-  width: calc(100% + 80px);
-  height: calc(100% + 80px);
-  pointer-events: none;
-  z-index: 2;
 }
 
 /* Block 5: изоляция внимания — мир за поп-апом перестаёт существовать */
@@ -2116,10 +1971,10 @@ section:hover .nr-mc-arrow,
 
 @media (prefers-reduced-motion: reduce) {
   .nr-cryo-noise,
-  .nr-cryo-crystal-plasma,
-  .nr-cryo-bubbles i,
-  .nr-cryo-ring-liq { animation: none !important; }
-  .nr-cryo-ch { animation-duration: 0.01s; animation-delay: 0.9s; }
+  .nr-cryo-horizon,
+  .nr-cryo-live i,
+  .nr-cryo-action { animation: none !important; }
+  .nr-cryo-timer-boil { animation: none !important; }
 }
 
 /* ==================== ORACLE CONSOLE (Block 8) ==================== */
@@ -2494,23 +2349,82 @@ section:hover .nr-mc-arrow,
   letter-spacing: 0.1em;
   cursor: pointer;
 }
-.nr-cryo-extracted {
-  margin-top: 10px;
-  padding: 12px 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 200, 60, 0.55);
-  background: rgba(255, 236, 190, 0.4);
-  text-align: center;
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #7a5200;
+/* ── task 43: favorites — виральное сердце на карточке ─────────────
+   тап по сердцу = мгновенный оптимистичный тоггл + pop + взрыв из
+   8 мини-сердец и кольцо-вспышка. Coral читается на перламутре. */
+.nr-fav-btn { position: relative; }
+.nr-fav-btn .lucide-heart { transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s ease, fill 0.25s ease; }
+.nr-fav-btn:hover .lucide-heart { transform: scale(1.12); }
+.nr-fav-on .lucide-heart {
+  color: #ff4d6d;
+  fill: #ff4d6d;
+  filter: drop-shadow(0 0 7px rgba(255, 77, 109, 0.6));
+}
+.nr-fav-on {
+  box-shadow: 0 0 0 1.5px rgba(255, 77, 109, 0.35), 0 4px 16px rgba(255, 77, 109, 0.28);
+}
+.nr-fav-heart {
+  animation: nr-fav-pop 0.42s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+@keyframes nr-fav-pop {
+  0% { transform: scale(0.6); }
+  55% { transform: scale(1.35) rotate(-7deg); }
+  100% { transform: scale(1); }
+}
+.nr-fav-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.nr-fav-burst b {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 77, 109, 0.8);
+  animation: nr-fav-ring 0.6s ease-out both;
+}
+.nr-fav-burst i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  background: #ff4d6d;
+  opacity: 0;
+  clip-path: path("M3.5 6.4 C1.6 4.9 0 3.6 0 2.2 A2.1 2.1 0 0 1 3.5 0.7 A2.1 2.1 0 0 1 7 2.2 C7 3.6 5.4 4.9 3.5 6.4 Z");
+  animation: nr-fav-fly 0.72s cubic-bezier(0.16, 0.8, 0.3, 1) both;
+  animation-delay: calc(var(--fi, 0) * 0.02s);
+}
+@keyframes nr-fav-ring {
+  0% { transform: scale(0.5); opacity: 0.9; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+@keyframes nr-fav-fly {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+  18% { opacity: 1; }
+  100% {
+    transform: translate(calc(-50% + var(--fx, 0px)), calc(-50% + var(--fy, -34px))) scale(1.05) rotate(var(--fr, 0deg));
+    opacity: 0;
+  }
+}
+/* векторы разлёта 8 сердец (детерминированные, --fi 0..7) */
+.nr-fav-burst i:nth-child(1) { --fx: 0px;    --fy: -46px; --fr: 0deg; }
+.nr-fav-burst i:nth-child(2) { --fx: 33px;   --fy: -33px; --fr: 20deg; }
+.nr-fav-burst i:nth-child(3) { --fx: 46px;   --fy: 0px;   --fr: -14deg; }
+.nr-fav-burst i:nth-child(4) { --fx: 33px;   --fy: 33px;  --fr: 24deg; }
+.nr-fav-burst i:nth-child(5) { --fx: 0px;    --fy: 46px;  --fr: 0deg; }
+.nr-fav-burst i:nth-child(6) { --fx: -33px;  --fy: 33px;  --fr: -22deg; }
+.nr-fav-burst i:nth-child(7) { --fx: -46px;  --fy: 0px;   --fr: 16deg; }
+.nr-fav-burst i:nth-child(8) { --fx: -33px;  --fy: -33px; --fr: -18deg; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nr-fav-heart, .nr-fav-burst { animation: none !important; display: none; }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Cryo-Stop rev.42: 5с просмотра → плавная заморозка → PREDICTED
-   ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   Cryo-Stop rev.43: 5s watch → smooth freeze → minimal market →
+   PREDICTED · stake of ANY USDC amount (task 43)
+   ═══════════════════════════════════════════════════════════════ */
 
 /* watching/cooling: ролик играется — оверлей не перехватывает клики
    (пауза по клику на видео работает, как у обычной карточки) */

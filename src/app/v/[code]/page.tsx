@@ -25,13 +25,25 @@ export async function generateMetadata({
   const { code } = await params;
   const post = await findPost(code.trim());
 
-  if (!post) return { title: "видео не найдено — no reality." };
+  if (!post) return { title: "video not found", robots: { index: false } };
 
+  const t = post.title ? post.title.slice(0, 160) : undefined;
   return {
-    title: `${post.author || "video"} — no reality.`,
-    description: post.title
-      ? post.title.slice(0, 160)
-      : "AI-видео из живой ленты no reality.",
+    title: `${post.author || "video"}: ${t ?? "AI video"}`.slice(0, 120),
+    description: t ?? "AI video from the live no reality. feed.",
+    alternates: { canonical: `/v/${post.utmCode}` },
+    openGraph: {
+      title: `${post.author || "video"} on no reality.`,
+      description: t ?? "AI video from the live no reality. feed.",
+      url: `/v/${post.utmCode}`,
+      type: "article",
+      images: ["/images/og-cover.png"],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${post.author || "video"} on no reality.`,
+      description: t ?? "AI video from the live no reality. feed.",
+    },
   };
 }
 

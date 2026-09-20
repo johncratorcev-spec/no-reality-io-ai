@@ -9,6 +9,7 @@ import {
   type RefObject,
 } from "react";
 import { CRYO } from "@/lib/cryo/config";
+import { cryoOdds, normalizeUsdc } from "@/lib/cryo/odds";
 import type { CryoMarketView, CryoSide } from "@/lib/cryo/core";
 import { hookCryoAudioUnlock, playCryoSfx } from "@/lib/cryo/audio";
 import {
@@ -19,31 +20,33 @@ import {
 import { makeBetRef, writeCryoLocalBet } from "@/lib/cryo/local";
 
 /* ================================================================
-   Cryo-Stop (task 41, rev. 42) — оверлей рынка предсказаний.
+   Cryo-Stop (task 41, rev. 43) — the prediction overlay.
 
-   Пункт 1: ролик СМОТРИТСЯ CRYO.watchMs (5 секунд), только потом
-            стоп-кадр + заморозка — ПЛАВНО (cooling-перецвет 1.1s,
-            без резкого шока), после заморозки видео не играет.
-   Пункт 4: после выбора исхода лёд ПЛАВИТСЯ, ролик доигрывается
-            целиком, карточка уходит в PREDICTED (лейбл рисует
-            VideoCard) и показывается как обычное видео.
-   Пункт 2: ставка = прямой перевод $1 USDC на казначея через
-            Phantom (demo — без on-chain, тот же UX).
+   Point 1: the clip plays for CRYO.watchMs (5s) BEFORE the freeze;
+            the stop-frame arrives SMOOTHLY (1.1s cooling tint) and
+            the video stays fully paused inside the market.
+   Point 4: once the outcome is picked the ice MELTS, the clip plays
+            out in full and the card returns to regular video with a
+            PREDICTED label (rendered by VideoCard).
+   Point 2: a bet is a direct USDC transfer to the treasury via
+            Phantom (demo mode: same UX, no on-chain payment).
+   Task 43: minimalist market panel + stake of ANY USDC amount —
+            preset chips, custom input, odds and "win ≈" recalc live.
    ================================================================ */
 
 type Phase = "dormant" | "watching" | "cooling" | "market" | "melting";
 
-/** окно рынка для расчёта заполнения кольца (конфиг-константа, 48ч) */
+/** display window of the horizon bar (config-era constant, 48h) */
 const WINDOW_MS = 48 * 3600 * 1000;
 
-/** детерминированный «скрытый BPM» ролика: 84–123 из кода поста */
+/** deterministic "hidden BPM" of a clip: 84–123 derived from the post code */
 function hiddenBpm(code: string): number {
   let h = 0;
   for (let i = 0; i < code.length; i++) h = (h * 31 + code.charCodeAt(i)) >>> 0;
   return 84 + (h % 40);
 }
 
-/** генерация морозных трещин: ветвящиеся ломаные из центра к краям */
+/** frost cracks: branching polylines growing from the center outwards */
 interface Crack {
   d: string;
   delay: number;
@@ -74,7 +77,7 @@ function makeCracks(w: number, h: number, seed: number): Crack[] {
       x += Math.cos(a) * len;
       y += Math.sin(a) * len;
       d += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
-      // дочерняя ветка (морозный узор)
+      // child branch (frost pattern)
       if (rnd() > 0.35 && k < segs - 1) {
         const ba = a + (rnd() > 0.5 ? 1 : -1) * (0.5 + rnd() * 0.6);
         const bl = len * (0.35 + rnd() * 0.5);
@@ -88,7 +91,7 @@ function makeCracks(w: number, h: number, seed: number): Crack[] {
   return cracks;
 }
 
-/** тайл скан-шума (матрица сканирования) → data-URL */
+/** scan-noise tile (matrix scan) → data-URL */
 function makeNoiseTile(): string {
   const size = 140;
   const c = document.createElement("canvas");
@@ -108,63 +111,7 @@ function makeNoiseTile(): string {
   return c.toDataURL();
 }
 
-/* ---------------- подкомпоненты ---------------- */
-
-function RingTimer({
-  remainingMs,
-  boiling,
-  accent,
-  bpm,
-}: {
-  remainingMs: number;
-  boiling: boolean;
-  accent: string;
-  bpm: number;
-}) {
-  const R = 54;
-  const C = 2 * Math.PI * R;
-  const progress = Math.max(0, Math.min(1, remainingMs / WINDOW_MS));
-  const pulseDur = (60 / bpm).toFixed(3);
-  return (
-    <div
-      className={`nr-cryo-ring ${boiling ? "nr-cryo-boil" : ""}`}
-      style={{ ["--pulse" as string]: `${pulseDur}s` }}
-      aria-hidden
-    >
-      <svg viewBox="0 0 128 128" className="nr-cryo-ring-svg">
-        <defs>
-          <linearGradient id={`cryo-liq-${accent.slice(1)}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#2ea8ff" />
-            <stop offset="55%" stopColor="#0f6bff" />
-            <stop offset="100%" stopColor="#7ce7ff" />
-          </linearGradient>
-        </defs>
-        <circle cx="64" cy="64" r={R} className="nr-cryo-ring-track" />
-        <circle
-          cx="64"
-          cy="64"
-          r={R}
-          className="nr-cryo-ring-liq"
-          stroke={`url(#cryo-liq-${accent.slice(1)})`}
-          strokeDasharray={C}
-          strokeDashoffset={C * (1 - progress)}
-        />
-        <circle cx="64" cy="64" r={R} className="nr-cryo-ring-frost" />
-      </svg>
-      {boiling && (
-        <span className="nr-cryo-bubbles">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <i key={i} style={{ ["--i" as string]: i }} />
-          ))}
-        </span>
-      )}
-      <span className="nr-cryo-ring-core">
-        <span className="nr-cryo-ring-time">{formatRemaining(remainingMs)}</span>
-        <span className="nr-cryo-ring-cap">event horizon</span>
-      </span>
-    </div>
-  );
-}
+/* ---------------- subcomponents ---------------- */
 
 function formatRemaining(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -173,53 +120,6 @@ function formatRemaining(ms: number): string {
   const sec = s % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}h`;
   return `${m}:${String(sec).padStart(2, "0")}`;
-}
-
-function Crystal({
-  side,
-  label,
-  odds,
-  accent,
-  dim,
-  gold,
-  flying,
-  disabled,
-  onPick,
-}: {
-  side: CryoSide;
-  label: string;
-  odds: number | null;
-  accent: string;
-  dim?: boolean;
-  gold?: boolean;
-  flying?: boolean;
-  disabled?: boolean;
-  onPick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onPick}
-      aria-label={`Outcome ${label} — fixed $1.00 USDC at ×${odds ?? "—"}`}
-      className={[
-        "nr-cryo-crystal",
-        side === "yes" ? "nr-cryo-crystal-yes" : "nr-cryo-crystal-no",
-        dim ? "nr-cryo-crystal-dim" : "",
-        gold ? "nr-cryo-crystal-gold" : "",
-        flying ? "nr-cryo-flyout" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      style={{ ["--accent" as string]: accent }}
-    >
-      <span className="nr-cryo-crystal-plasma" aria-hidden />
-      <span className="nr-cryo-crystal-facets" aria-hidden />
-      <span className="nr-cryo-crystal-label">{label}</span>
-      <span className="nr-cryo-crystal-odds">×{odds ?? "—"}</span>
-      <span className="nr-cryo-crystal-price">$1.00</span>
-    </button>
-  );
 }
 
 function CrowdBar({
@@ -263,17 +163,17 @@ function CrowdBar({
   );
 }
 
-/** Изоляция внимания: страница позади поп-апа перестаёт существовать */
+/** attention isolation: the page behind the wallet pop-up stops existing */
 function ProtectedOverlay({
-  side,
   label,
   accent,
   mode,
+  amount,
 }: {
-  side: CryoSide;
   label: string;
   accent: string;
   mode: "demo" | "usdc";
+  amount: string;
 }) {
   return (
     <div className="nr-cryo-iso" role="dialog" aria-modal aria-label="Phantom protected popup">
@@ -286,14 +186,12 @@ function ProtectedOverlay({
         <span className="nr-cryo-iso-swap">
           <span className="nr-cryo-iso-amt">
             <small>you pay</small>
-            <b>1.00 USDC</b>
+            <b>{amount} USDC</b>
           </span>
           <span className="nr-cryo-iso-arrow" aria-hidden>→</span>
           <span className="nr-cryo-iso-amt">
             <small>you get</small>
-            <b style={{ color: accent }}>
-              {side === "yes" ? "ДА" : label.toUpperCase()}
-            </b>
+            <b style={{ color: accent }}>{label.toUpperCase()}</b>
           </span>
         </span>
         <span className="nr-cryo-iso-status">
@@ -305,17 +203,17 @@ function ProtectedOverlay({
   );
 }
 
-/* ---------------- главный компонент ---------------- */
+/* ---------------- the main component ---------------- */
 
 export interface CryoStopCardProps {
   market: CryoMarketView;
   videoRef: RefObject<HTMLVideoElement | null>;
   active: boolean;
-  /** карточка заморожена (панель рынка) — VideoCard запрещает автоплей */
+  /** the card is frozen (market panel) — VideoCard forbids autoplay */
   onFrozen?: (frozen: boolean) => void;
-  /** исход выбран и лёд растаял → PREDICTED, ролик доигрывает целиком */
+  /** outcome picked and ice melted → PREDICTED, the clip plays out */
   onPredicted: (side: CryoSide) => void;
-  /** рынок истёк/решён без ставки → отпустить карточку как обычное видео */
+  /** market expired/resolved without a bet → release as a regular video */
   onRelease: () => void;
 }
 
@@ -334,10 +232,14 @@ export default function CryoStopCard({
   const [wallet, setWallet] = useState<CryoWallet | null>(null);
   const [bet, setBet] = useState<{ side: CryoSide; local: boolean } | null>(null);
   const [betting, setBetting] = useState<CryoSide | null>(null);
-  const [popup, setPopup] = useState<CryoSide | null>(null);
+  const [popup, setPopup] = useState<{ side: CryoSide; amount: string } | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
-  const [flyout, setFlyout] = useState<CryoSide | null>(null);
   const [now, setNow] = useState(() => Date.now());
+
+  /* task 43: stake of any size — preset chips + custom input */
+  const [amount, setAmount] = useState<string>(CRYO.betAmountUsdc);
+  const [amountText, setAmountText] = useState<string>("");
+
   const frameRef = useRef<HTMLCanvasElement>(null);
   const watchedRef = useRef(0);
   const coolingRef = useRef(false);
@@ -351,7 +253,26 @@ export default function CryoStopCard({
   const remainingMs = endsAtMs - now;
   const boiling = remainingMs <= CRYO.boilLeadSec * 1000 && remainingMs > 0;
 
-  /* тикающие часы (countdown / кипение / истечение) */
+  /* live odds for the SELECTED stake (pari-mutuel, fee-aware) */
+  const totalPool = market.yesPool + market.noPool;
+  const stakeNum = parseFloat(amount) || 0;
+  const oddsYes = cryoOdds(totalPool, market.yesPool, stakeNum, CRYO.feePct);
+  const oddsNo = cryoOdds(totalPool, market.noPool, stakeNum, CRYO.feePct);
+
+  /* selected preset (for chip highlight); null when custom amount active */
+  const activePreset = CRYO.betPresetsUsdc.includes(amount)
+    ? amount
+    : null;
+
+  const applyCustom = (raw: string) => {
+    setAmountText(raw);
+    const norm = normalizeUsdc(raw);
+    if (norm && parseFloat(norm) >= parseFloat(CRYO.minBetUsdc)) {
+      setAmount(norm);
+    }
+  };
+
+  /* ticking clock (countdown / boiling / expiry) */
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(iv);
@@ -364,13 +285,13 @@ export default function CryoStopCard({
     v.style.filter = "";
   }, [videoRef]);
 
-  /** плавное высвобождение: лёд тает → колбэк в VideoCard */
+  /** smooth release: ice melts → callback into VideoCard */
   const release = useCallback(
     (side: CryoSide | null) => {
       if (releasedRef.current) return;
       releasedRef.current = true;
       setPhase("melting");
-      // thaw-рокот: мягкий, приглушённый
+      // thaw rumble: soft, muted
       void playCryoSfx("crack", { volume: 0.3, rate: 0.55 });
       setTimeout(() => {
         clearVideoFilter();
@@ -382,16 +303,18 @@ export default function CryoStopCard({
     [clearVideoFilter, onFrozen, onPredicted, onRelease]
   );
 
-  /* активация вниманием: dormant → watching (ролик играет, VideoCard его
-     запускает) — заморозка наступит ТОЛЬКО после CRYO.watchMs просмотра */
+  /* attention activation: dormant → watching (the clip plays, VideoCard
+     starts it) — the freeze lands ONLY after CRYO.watchMs of watching.
+     rAF: фазовые переходы не синхронны с телом эффекта (требование React) */
   useEffect(() => {
     if (!active || phase !== "dormant") return;
     hookCryoAudioUnlock();
-    setPhase("watching");
+    const raf = requestAnimationFrame(() => setPhase("watching"));
+    return () => cancelAnimationFrame(raf);
   }, [active, phase]);
 
-  /* просмотр: копим реальное время проигрывания (пролистал — пауза,
-     прогресс заморожен). Каждые 200мс, пока видео реально играет. */
+  /* watching: accumulate REAL playback time (scrolled away → paused,
+     progress frozen). Ticked every 200ms while the video actually plays. */
   useEffect(() => {
     if (phase !== "watching") return;
     const iv = setInterval(() => {
@@ -406,24 +329,24 @@ export default function CryoStopCard({
     return () => clearInterval(iv);
   }, [phase, active, videoRef]);
 
-  /* плавная заморозка (пункт 1): охлаждение цвета → стоп-кадр → трещины */
+  /* smooth freeze (point 1): color cooling → stop-frame → cracks */
   useEffect(() => {
     if (phase !== "cooling") return;
     const v = videoRef.current;
     if (v) {
-      // мягкий переход цвета: transition вместо резкого шока
+      // soft color transition: CSS transition instead of a hard shock
       v.style.transition = `filter ${CRYO.coolMs}ms ease`;
       v.style.filter =
         "saturate(0.35) brightness(0.88) contrast(1.1) hue-rotate(-14deg)";
     }
     const freezeT = setTimeout(() => {
-      // стоп-кадр: видео больше НЕ играет до выбора исхода
+      // stop-frame: the video does NOT play until the outcome is picked
       try {
         v?.pause();
       } catch {
-        /* игнорируем */
+        /* ignored */
       }
-      // захват кадра (canvas-копия пиксельного буфера)
+      // frame capture (canvas copy of the pixel buffer)
       const c = frameRef.current;
       if (v && c && v.videoWidth && v.readyState >= 2) {
         try {
@@ -433,7 +356,7 @@ export default function CryoStopCard({
           ctx?.drawImage(v, 0, 0);
           setCaptured(true);
         } catch {
-          /* fallback: frost-слой без захвата */
+          /* fallback: frost layer without capture */
         }
       }
       const seed =
@@ -454,7 +377,9 @@ export default function CryoStopCard({
     return () => clearTimeout(freezeT);
   }, [phase, videoRef, market.postCode, onFrozen]);
 
-  /* истечение рынка прямо в оверлее: таем и отпускаем карточку */
+  /* market expiring inside the overlay: melt and release the card.
+     Реакция на приход пропсов (время/статус из поллинга) — setState здесь
+     намеренный, синхронизация с внешним источником данных. */
   useEffect(() => {
     if (
       remainingMs <= 0 &&
@@ -463,28 +388,38 @@ export default function CryoStopCard({
       !bet
     ) {
       void playCryoSfx("click", { volume: 0.8 });
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       release(null);
     }
   }, [remainingMs, market.status, phase, bet, release]);
 
-  /* вердикт оракула пришёл по поллингу, исход ещё не выбран → отпускаем */
+  /* oracle verdict arrived via polling, outcome not picked yet → release.
+     Аналогично: реакция на внешние данные (поллинг рынков). */
   useEffect(() => {
     if (
       market.status === "resolved" &&
       !bet &&
       (phase === "watching" || phase === "cooling" || phase === "market")
     ) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       release(null);
     }
   }, [market.status, bet, phase, release]);
 
-  /* Block 5: one-tap — выбор исхода → USDC → фиксация → плавление */
+  /* one-tap: outcome → USDC (staked amount) → fix → melt */
   const pick = useCallback(
     async (side: CryoSide) => {
       if (phase !== "market" || betting || bet) return;
+      const stake = normalizeUsdc(amount);
+      if (!stake || parseFloat(stake) < parseFloat(CRYO.minBetUsdc)) {
+        setPayError(
+          `min stake is $${CRYO.minBetUsdc} USDC · max $${CRYO.maxBetUsdc}`
+        );
+        return;
+      }
       setBetting(side);
       setPayError(null);
-      setPopup(side);
+      setPopup({ side, amount: stake });
 
       const w = await ensureCryoWallet();
       setWallet(w);
@@ -494,12 +429,12 @@ export default function CryoStopCard({
         exchange: market.exchange,
         usdcMint: CRYO.usdcMint,
         treasury: CRYO.treasury,
-        amountUsdc: CRYO.betAmountUsdc,
+        amountUsdc: stake,
         betRef,
       });
 
       if (pay.error) {
-        // платёж не состоялся — позицию НЕ фиксируем, рынок остаётся открыт
+        // payment did not happen — do NOT fix the position, market stays open
         setPopup(null);
         setBetting(null);
         setPayError(
@@ -520,6 +455,7 @@ export default function CryoStopCard({
           body: JSON.stringify({
             postCode: market.postCode,
             side,
+            amount: stake,
             wallet: w.address,
             mode: pay.mode,
             txSig: pay.txSig,
@@ -528,13 +464,13 @@ export default function CryoStopCard({
         });
         if (r.ok) fixed = true;
         else if (r.status === 503) localOnly = true;
-        else if (r.status === 409) fixed = true; // позиция уже есть — показываем её
+        else if (r.status === 409) fixed = true; // position exists — show it
         else {
           const d = (await r.json().catch(() => ({}))) as { error?: string };
           failMsg = d.error ?? "bet rejected";
         }
       } catch {
-        localOnly = true; // сеть недоступна — локальная фиксация
+        localOnly = true; // network down — local fix
       }
 
       setPopup(null);
@@ -553,11 +489,10 @@ export default function CryoStopCard({
           ts: Date.now(),
         });
         setBet({ side, local: localOnly });
-        setFlyout(side); // кристалл отрывается и улетает за экран
-        setTimeout(() => release(side), 720);
+        setTimeout(() => release(side), 620);
       }
     },
-    [phase, betting, bet, market, release]
+    [phase, betting, bet, market, release, amount]
   );
 
   if (!active && phase === "dormant") return null;
@@ -565,6 +500,7 @@ export default function CryoStopCard({
   const mySide = bet?.side ?? null;
   const showPanel = phase === "market";
   const melting = phase === "melting";
+  const horizonPct = Math.max(0, Math.min(1, remainingMs / WINDOW_MS)) * 100;
 
   return (
     <div
@@ -576,20 +512,20 @@ export default function CryoStopCard({
       ]
         .filter(Boolean)
         .join(" ")}
-      style={{ ["--accent" as string]: market.accent }}
+      style={{ ["--accent" as string]: market.accent, ["--bpm" as string]: `${(60 / bpm).toFixed(3)}s` }}
       aria-label="Cryo-stop prediction market"
     >
-      {/* ── watching/cooling: ролик играется, только тихий маячок рынка ── */}
+      {/* ── watching/cooling: the clip plays, only a quiet market beacon ── */}
       {(phase === "watching" || phase === "cooling") && (
         <span className="nr-cryo-live-chip" aria-hidden>
           ❄ prediction live
         </span>
       )}
 
-      {/* ── циан-вуаль плавного охлаждения (с cooling, не во время просмотра) ── */}
+      {/* ── cyan veil of smooth cooling (from cooling on, not while watching) ── */}
       {phase !== "watching" && <div className="nr-cryo-frost" aria-hidden />}
 
-      {/* ── захваченный стоп-кадр — видео скрыто под статичной картинкой ── */}
+      {/* ── captured stop-frame — the video hides under a still image ── */}
       <canvas
         ref={frameRef}
         aria-hidden
@@ -623,53 +559,100 @@ export default function CryoStopCard({
         </>
       )}
 
-      {/* ── панель рынка (Block 4) ── */}
+      {/* ── the market panel (minimal, task 43) ── */}
       {showPanel && (
-        <div className="nr-cryo-panel nr-cryo-panel-up">
-          <div className="nr-cryo-panel-top">
-            <RingTimer
-              remainingMs={remainingMs}
-              boiling={boiling}
-              accent={market.accent}
-              bpm={bpm}
-            />
-            <div className="nr-cryo-qwrap">
-              <p className="nr-cryo-q" aria-label={market.question}>
-                {market.question.split("").map((ch, i) => (
-                  <span
-                    key={i}
-                    style={{ ["--ci" as string]: `${0.05 + i * 0.05}s` }}
-                    className="nr-cryo-ch"
-                  >
-                    {ch === " " ? "\u00A0" : ch}
-                  </span>
-                ))}
-              </p>
-              {payError && <p className="nr-cryo-payerr">{payError}</p>}
+        <div className="nr-cryo-panel nr-cryo-panel-up" role="dialog" aria-label="Prediction market">
+          {/* event horizon: thin liquid line draining with the countdown */}
+          <span
+            className={`nr-cryo-horizon ${boiling ? "nr-cryo-horizon-boil" : ""}`}
+            style={{ width: `${horizonPct}%` }}
+            aria-hidden
+          />
+
+          <div className="nr-cryo-head">
+            <span className="nr-cryo-live" aria-hidden>
+              <i /> prediction live
+            </span>
+            <span
+              className={`nr-cryo-timer ${boiling ? "nr-cryo-timer-boil" : ""}`}
+              title={`market window · pulse ${bpm}bpm`}
+            >
+              {formatRemaining(remainingMs)}
+            </span>
+          </div>
+
+          <p className="nr-cryo-q">{market.question}</p>
+
+          {/* stake: preset chips + custom amount, odds recalc live */}
+          <div className="nr-cryo-stake">
+            <span className="nr-cryo-stake-cap" id="cryo-stake-label">
+              stake
+            </span>
+            <div
+              className="nr-cryo-chips"
+              role="radiogroup"
+              aria-labelledby="cryo-stake-label"
+            >
+              {CRYO.betPresetsUsdc.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  role="radio"
+                  aria-checked={activePreset === p}
+                  disabled={Boolean(betting) || Boolean(bet)}
+                  onClick={() => {
+                    setAmount(p);
+                    setAmountText("");
+                  }}
+                  className={`nr-cryo-chip ${activePreset === p ? "nr-cryo-chip-on" : ""}`}
+                >
+                  ${p}
+                </button>
+              ))}
+              <span className={`nr-cryo-custom ${amountText ? "nr-cryo-custom-on" : ""}`}>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="custom"
+                  aria-label="Custom stake in USDC"
+                  value={amountText}
+                  disabled={Boolean(betting) || Boolean(bet)}
+                  onChange={(e) => applyCustom(e.target.value)}
+                  maxLength={9}
+                />
+                <em>USDC</em>
+              </span>
             </div>
           </div>
 
-          <div className="nr-cryo-crystals">
-            <Crystal
-              side="yes"
-              label={market.labelYes}
-              odds={market.oddsYes}
-              accent={market.accent}
-              disabled={Boolean(betting) || Boolean(bet)}
-              dim={Boolean(mySide && mySide !== "yes")}
-              flying={flyout === "yes"}
-              onPick={() => void pick("yes")}
-            />
-            <Crystal
-              side="no"
-              label={market.labelNo}
-              odds={market.oddsNo}
-              accent={market.accent}
-              disabled={Boolean(betting) || Boolean(bet)}
-              dim={Boolean(mySide && mySide !== "no")}
-              flying={flyout === "no"}
-              onPick={() => void pick("no")}
-            />
+          {/* two big outcomes — one tap fixes the position */}
+          <div className="nr-cryo-actions">
+            {(["yes", "no"] as const).map((side) => {
+              const label = side === "yes" ? market.labelYes : market.labelNo;
+              const odds = side === "yes" ? oddsYes : oddsNo;
+              return (
+                <button
+                  key={side}
+                  type="button"
+                  disabled={Boolean(betting) || Boolean(bet)}
+                  onClick={() => void pick(side)}
+                  aria-label={`Outcome ${label} — stake ${amount} USDC at ×${odds}`}
+                  className={[
+                    "nr-cryo-action",
+                    side === "yes" ? "nr-cryo-action-yes" : "nr-cryo-action-no",
+                    betting === side ? "nr-cryo-action-busy" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <b>{label}</b>
+                  <span className="nr-cryo-action-odds">×{odds.toFixed(2)}</span>
+                  <span className="nr-cryo-action-note">
+                    win ≈ ${(stakeNum * odds).toFixed(2)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <CrowdBar
@@ -678,16 +661,18 @@ export default function CryoStopCard({
             accent={market.accent}
             mySide={mySide}
           />
+
+          {payError && <p className="nr-cryo-payerr">{payError}</p>}
         </div>
       )}
 
-      {/* Block 5: изоляция внимания на время поп-апа кошелька */}
+      {/* attention isolation while the wallet pop-up is up */}
       {popup && (
         <ProtectedOverlay
-          side={popup}
-          label={popup === "yes" ? market.labelYes : market.labelNo}
+          label={popup.side === "yes" ? market.labelYes : market.labelNo}
           accent={market.accent}
           mode={market.exchange}
+          amount={popup.amount}
         />
       )}
     </div>
