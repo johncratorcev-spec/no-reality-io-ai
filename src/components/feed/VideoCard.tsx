@@ -40,8 +40,18 @@ import UnlockModal from "./UnlockModal";
 import CryoStopCard from "./CryoStopCard";
 import type { CryoMarketView, CryoSide } from "@/lib/cryo/core";
 import { readCryoLocalBet } from "@/lib/cryo/local";
+import { withRef } from "@/lib/shareRef";
 
 export type PostWithScore = FeedPost & { score: number };
+
+/** подпись исхода по ключу опции: нарративная опция → классика yes/no → сырой ключ */
+function cryoOptionLabel(m: CryoMarketView, key: string): string {
+  const o = m.options?.find((x) => x.key === key);
+  if (o) return o.label;
+  if (key === "yes") return m.labelYes;
+  if (key === "no") return m.labelNo;
+  return key;
+}
 
 interface VideoCardProps {
   post: PostWithScore;
@@ -56,6 +66,8 @@ interface VideoCardProps {
   autoDonate?: boolean;
   /** рынок предсказаний Cryo-Stop (task 41): скрыть chrome, заморозить, дать ставить */
   market?: CryoMarketView | null;
+  /** сколько авторизованных пользователей сохранили в избранное (task 44, §3) */
+  favCount?: number;
   /** stable callback — receives the slot index (memo-friendly, task 43) */
   onEnded: (index: number) => void;
 }
@@ -274,6 +286,7 @@ function VideoCardInner({
   eagerPreload = false,
   autoDonate = false,
   market = null,
+  favCount = 0,
   onEnded,
 }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -350,10 +363,11 @@ function VideoCardInner({
   };
 
   /* абсолютный UTM считаем только на клиенте в обработчиках —
-     чтобы SSR и клиент рендерили одинаковый HTML (без гидратационных конфликтов) */
+     чтобы SSR и клиент рендерили одинаковый HTML (без гидратационных конфликтов);
+     task 44: ссылка несёт персональный ?ref= — переходы засчитываются владельцу */
   const absoluteUtm = () =>
     typeof window !== "undefined"
-      ? `${window.location.origin}/r/${post.utmCode}`
+      ? withRef(`${window.location.origin}/r/${post.utmCode}`)
       : `/r/${post.utmCode}`;
 
   /* ---------------- статус: мягко появляется / исчезает ---------------- */
@@ -565,7 +579,7 @@ function VideoCardInner({
     if (!guarded(1200)) return; // флуд-контроль
     const linkUrl =
       typeof window !== "undefined"
-        ? `${window.location.origin}/v/${post.utmCode}`
+        ? withRef(`${window.location.origin}/v/${post.utmCode}`)
         : `/v/${post.utmCode}`;
     const ok = await writeClipboard(linkUrl);
     if (ok) {
@@ -832,17 +846,17 @@ function VideoCardInner({
             market.status === "resolved" && market.result ? (
               predicted === market.result ? (
                 <>
-                  ✓ PREDICTED · {predicted === "yes" ? market.labelYes : market.labelNo}
+                  ✓ PREDICTED · {cryoOptionLabel(market, predicted)}
                   <b>+${market.myPayout ?? "0.00"}</b>
                 </>
               ) : (
                 <>✓ PREDICTED · dissolved</>
               )
             ) : (
-              <>✓ PREDICTED · {predicted === "yes" ? market.labelYes : market.labelNo}</>
+              <>✓ PREDICTED · {cryoOptionLabel(market, predicted)}</>
             )
           ) : market.status === "resolved" && market.result ? (
-            <>verdict: {market.result === "yes" ? market.labelYes : market.labelNo}</>
+            <>verdict: {cryoOptionLabel(market, market.result)}</>
           ) : (
             <>❄ market closed</>
           )}
@@ -945,6 +959,17 @@ function VideoCardInner({
             </span>
           )}
         </button>
+        {/* ---------- счётчик избранного (task 44, §3):
+            «N авторизованных добавили» — социальное доказательство;
+            виден всем, рендерится только когда есть кого показывать ---------- */}
+        {favCount > 0 && !market && (
+          <span
+            aria-label={`${favCount} members saved this video to favorites`}
+            className="nr-glass pointer-events-none flex max-w-[3.4rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[0.55rem] font-extrabold leading-tight text-[#10161d]/80"
+          >
+            {favCount > 999 ? "1k+" : favCount} saved
+          </span>
+        )}
         </>
         )}
       </div>

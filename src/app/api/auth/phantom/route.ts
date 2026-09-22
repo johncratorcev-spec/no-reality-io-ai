@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import bs58 from "bs58";
 import nacl from "tweetnacl";
+import {
+  deriveRefCode,
+  normalizeRefCode,
+  upsertReferralProfile,
+} from "@/lib/referral";
+import { ensureUserProfile } from "@/lib/bonuses";
+import { emailSession, linkMagicUser } from "@/lib/magic";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +50,9 @@ export async function GET(req: NextRequest) {
   if (!wallet || !isSolanaWallet(wallet)) {
     return NextResponse.json({ wallet: null });
   }
-  return NextResponse.json({ wallet, provider: "phantom" });
+  // task 44: код возвращаем и на Phantom-сессии (раньше был только у MetaMask)
+  const refCode = (await upsertReferralProfile(wallet)) ?? deriveRefCode(wallet);
+  return NextResponse.json({ wallet, provider: "phantom", refCode });
 }
 
 export async function POST(req: NextRequest) {
@@ -100,7 +109,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Signature invalid" }, { status: 400 });
   }
 
-  const res = NextResponse.json({ wallet, provider: "phantom" });
+  // --- реферальный код + профиль (task 44): welcome-бонус при первом входе,
+  //     invitedBy — код пригласившего из ?ref= (бонус обеим сторонам) ---
+  const refCode =
+    (await upsertReferralProfile(wallet)) ?? deriveRefCode(wallet);
+  const invitedBy = normalizeRefCode(
+    (body as { invitedBy?: unknown }).invitedBy
+  );
+  const profile = await ensureUserProfile(wallet, invitedBy);
+
+  // --- связка email↔wallet (task 44): если в браузере живёт email-сессия ---
+  const linkedEmail = emailSession(req);
+  if (linkedEmail) await linkMagicUser(linkedEmail, wallet);
+
+  const res = NextResponse.json({
+    wallet,
+    provider: "phantom",
+    refCode,
+    ...(profile?.created ? { welcome: profile } : {}),
+  });
   res.cookies.set(COOKIE, wallet, {
     httpOnly: true,
     sameSite: "lax",

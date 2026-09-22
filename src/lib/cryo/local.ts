@@ -21,7 +21,10 @@ export function readCryoLocalBet(code: string): CryoLocalBet | null {
     const raw = localStorage.getItem(betKey(code));
     if (!raw) return null;
     const d = JSON.parse(raw) as CryoLocalBet;
-    if (d.side !== "yes" && d.side !== "no") return null;
+    // task 44: side — ключ любой опции рынка ("yes"/"no"/нарративный)
+    if (typeof d.side !== "string" || !/^[a-z0-9_-]{2,32}$/.test(d.side)) {
+      return null;
+    }
     return d;
   } catch {
     return null;

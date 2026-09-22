@@ -3,8 +3,11 @@ import { rateLimit } from "@/lib/rateLimit";
 import {
   WALLET_RE,
   deriveRefCode,
+  normalizeRefCode,
   upsertReferralProfile,
 } from "@/lib/referral";
+import { ensureUserProfile } from "@/lib/bonuses";
+import { emailSession, linkMagicUser } from "@/lib/magic";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +54,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ wallet: null });
   }
   const refCode = (await upsertReferralProfile(wallet)) ?? deriveRefCode(wallet);
-  return NextResponse.json(sessionPayload(wallet, refCode, req));
+  const email = emailSession(req);
+  return NextResponse.json({ ...sessionPayload(wallet, refCode, req), email: email ?? null });
 }
 
 export async function POST(req: NextRequest) {
@@ -63,9 +67,12 @@ export async function POST(req: NextRequest) {
   }
 
   let address = "";
+  let invitedBy: string | null = null;
   try {
-    const body = (await req.json()) as { address?: unknown };
+    const body = (await req.json()) as { address?: unknown; invitedBy?: unknown };
     address = typeof body.address === "string" ? body.address.trim() : "";
+    // task 44: код пригласившего из ?ref= (bонус обеим сторонам при первом входе)
+    invitedBy = normalizeRefCode(body.invitedBy);
   } catch {
     /* пустое/битое тело — отдаст 400 ниже */
   }
@@ -81,7 +88,16 @@ export async function POST(req: NextRequest) {
   const refCode =
     (await upsertReferralProfile(wallet)) ?? deriveRefCode(wallet);
 
-  const res = NextResponse.json(sessionPayload(wallet, refCode, req));
+  // --- task 44: welcome-бонус / invitedBy / связка email↔wallet ---
+  const profile = await ensureUserProfile(wallet, invitedBy);
+  const email = emailSession(req);
+  if (email) await linkMagicUser(email, wallet);
+
+  const res = NextResponse.json({
+    ...sessionPayload(wallet, refCode, req),
+    email: email ?? null,
+    ...(profile?.created ? { welcome: profile } : {}),
+  });
   res.cookies.set(COOKIE, wallet, {
     httpOnly: true,
     sameSite: "lax",

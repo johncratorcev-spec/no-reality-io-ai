@@ -88,6 +88,15 @@ export async function signInWithPhantom(): Promise<string> {
   const signed = await ph.signMessage(new TextEncoder().encode(message), "utf8");
 
   const { default: bs58 } = await import("bs58");
+  // task 44: код пригласившего (если гость пришёл по ?ref=) —
+  // сервер начисляет welcome-бонус обеим сторонам при первом входе
+  let invitedBy: string | null = null;
+  try {
+    const { myShareRef } = await import("@/lib/shareRef");
+    invitedBy = myShareRef();
+  } catch {
+    /* атрибуция не критична */
+  }
   const r = await fetch("/api/auth/phantom", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -95,6 +104,7 @@ export async function signInWithPhantom(): Promise<string> {
       wallet: address,
       message,
       signature: bs58.encode(signed.signature),
+      invitedBy,
     }),
   });
   const d = (await r.json()) as { wallet?: string; error?: string };

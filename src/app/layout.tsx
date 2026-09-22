@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Manrope } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import RefCapture from "@/components/wallet/RefCapture";
 import TrackVisit from "@/components/track/TrackVisit";
+import { FEATURES } from "@/lib/features";
 import { SITE } from "@/lib/site";
 import "./globals.css";
 
@@ -120,6 +122,19 @@ export default function RootLayout({
             код уже подключён). На других хостингах компонент просто
             ничего не отправляет. */}
         <Analytics />
+        {/* Cloudflare Web Analytics (task 44, §1.4): beacon ставится только
+            при заданном NEXT_PUBLIC_CF_BEACON_TOKEN (токен из
+            Cloudflare → Analytics → Install). Без токена — ничего не грузит. */}
+        {FEATURES.cloudflareBeacon && (
+          <Script
+            defer
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            data-cf-beacon={JSON.stringify({
+              token: process.env.NEXT_PUBLIC_CF_BEACON_TOKEN,
+            })}
+            strategy="afterInteractive"
+          />
+        )}
       </body>
     </html>
   );

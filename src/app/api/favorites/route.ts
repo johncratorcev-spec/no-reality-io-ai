@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
 import { getPostByCode } from "@/lib/csv";
 import { getRankedPosts } from "@/lib/posts";
+import { invalidateFavoriteCounts } from "@/lib/favstats";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,16 @@ export const dynamic = "force-dynamic";
 
 const PHANTOM_COOKIE = "nr_phantom";
 const WALLET_COOKIE = "nr_wallet";
+const EMAIL_COOKIE = "nr_email";
 const MAX_ITEMS = 200;
 
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,24}$/;
+
+/**
+ * Субъект сессии: wallet (Solana base58 / EVM 0x…) или email (Magic Link,
+ * task 44 §2). Email живёт в той же колонке Favorite.wallet с префиксом
+ * «email:» — unique(wallet, postCode) и счётчик работают без миграций.
+ */
 function sessionWallet(req: NextRequest): string | null {
   const sol = req.cookies.get(PHANTOM_COOKIE)?.value;
   if (sol) {
@@ -35,6 +44,8 @@ function sessionWallet(req: NextRequest): string | null {
   }
   const evm = req.cookies.get(WALLET_COOKIE)?.value?.toLowerCase();
   if (evm && /^0x[a-f0-9]{40}$/.test(evm)) return evm;
+  const email = req.cookies.get(EMAIL_COOKIE)?.value?.toLowerCase();
+  if (email && EMAIL_RE.test(email)) return `email:${email}`;
   return null;
 }
 
@@ -128,11 +139,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await db.favorite.upsert({
-      where: { wallet_postCode: { wallet, postCode } },
-      create: { wallet, postCode },
-      update: {}, // already saved — idempotent
-    });
+    // create (не upsert): только НОВАЯ строка двигает счётчик —
+    // дубль падает на unique-констрейнте и агрегат не трогает
+    try {
+      await db.favorite.create({ data: { wallet, postCode } });
+      await db.favoriteStats.upsert({
+        where: { postCode },
+        create: { postCode, count: 1 },
+        update: { count: { increment: 1 } },
+      });
+      invalidateFavoriteCounts();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes("Unique constraint")) throw e; // already saved — ок
+    }
     return NextResponse.json(
       { favorites: await listFavorites(wallet) },
       { headers: { "cache-control": "no-store" } }
@@ -161,7 +181,23 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    await db.favorite.deleteMany({ where: { wallet, postCode } });
+    const removed = await db.favorite.deleteMany({ where: { wallet, postCode } });
+    // счётчик вниз ровно на удалённые строки (защита от ухода в минус)
+    if (removed.count > 0) {
+      await db.favoriteStats.upsert({
+        where: { postCode },
+        create: { postCode, count: 0 },
+        update: { count: { decrement: removed.count } },
+      });
+      const agg = await db.favoriteStats.findUnique({ where: { postCode } });
+      if (agg && agg.count < 0) {
+        await db.favoriteStats.update({
+          where: { postCode },
+          data: { count: 0 },
+        });
+      }
+      invalidateFavoriteCounts();
+    }
     return NextResponse.json(
       { favorites: await listFavorites(wallet) },
       { headers: { "cache-control": "no-store" } }

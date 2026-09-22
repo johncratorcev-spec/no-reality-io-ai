@@ -13,8 +13,9 @@ export const dynamic = "force-dynamic";
  *
  * POST /api/admin/cryo/resolve?key=<ADMIN_SECRET>
  * Body:
- *   { postCode, result: "yes"|"no" }        — вердикт куратора
- *     («РЕАЛЬНОСТЬ ПОДТВЕРЖДЕНА» = yes, «ИЛЛЮЗИЯ РАССЕЯЛАСЬ» = no)
+ *   { postCode, result: "<optionKey>" }     — вердикт куратора
+ *     (task 44: ключ ЛЮБОЙ опции рынка — "yes"/"no" или нарративной
+ *      ("drip"/"vanish"/…); валидация по конфигу в resolveCryoMarket)
  *   { postCode, action: "expire" }          — заморозить терминал сейчас
  *   { postCode, action: "expire", inSec:10} — кипение за 10с (тест Block 7)
  *
@@ -53,14 +54,16 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       return NextResponse.json({ error: res.error }, { status: res.status });
     }
-  } else if (body.result === "yes" || body.result === "no") {
-    res = await resolveCryoMarket(body.postCode, body.result);
+  } else if (typeof body.result === "string" && body.result.trim()) {
+    // result — ключ любой опции рынка ("yes"/"no"/нарративный);
+    // неизвестный ключ вернёт 400 из resolveCryoMarket
+    res = await resolveCryoMarket(body.postCode, body.result.trim().toLowerCase());
     if (!res.ok) {
       return NextResponse.json({ error: res.error }, { status: res.status });
     }
   } else {
     return NextResponse.json(
-      { error: "result yes|no or action expire required" },
+      { error: "result <optionKey> or action expire required" },
       { status: 400 }
     );
   }

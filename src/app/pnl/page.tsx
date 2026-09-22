@@ -3,6 +3,7 @@ import Link from "next/link";
 import Menu from "@/components/menu/Menu";
 import { SITE } from "@/lib/site";
 import PnlWallet from "./PnlWallet";
+import ProfilePanel from "./ProfilePanel";
 
 export const metadata: Metadata = {
   title: "pnl wallet",
@@ -66,6 +67,8 @@ export default function PnlPage() {
 
       <section className="mx-auto max-w-4xl px-5 pb-24">
         <PnlWallet />
+        {/* task 44: персональные ссылки, охват, бонусы и бейджи */}
+        <ProfilePanel />
       </section>
     </main>
   );

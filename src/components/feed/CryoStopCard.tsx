@@ -10,7 +10,7 @@ import {
 } from "react";
 import { CRYO } from "@/lib/cryo/config";
 import { cryoOdds, normalizeUsdc } from "@/lib/cryo/odds";
-import type { CryoMarketView, CryoSide } from "@/lib/cryo/core";
+import type { CryoMarketView, CryoOptionView, CryoSide } from "@/lib/cryo/core";
 import { hookCryoAudioUnlock, playCryoSfx } from "@/lib/cryo/audio";
 import {
   ensureCryoWallet,
@@ -123,41 +123,42 @@ function formatRemaining(ms: number): string {
 }
 
 function CrowdBar({
-  yesPool,
-  noPool,
+  options,
   accent,
   mySide,
 }: {
-  yesPool: number;
-  noPool: number;
+  options: CryoOptionView[];
   accent: string;
   mySide: CryoSide | null;
 }) {
-  const total = yesPool + noPool;
-  const yesShare = total > 0 ? yesPool / total : 0.5;
+  const total = options.reduce((s, o) => s + o.pool, 0);
+  const betsCount = options.reduce((s, o) => s + o.count, 0);
   return (
     <div className="nr-cryo-crowd">
       <span className="nr-cryo-crowd-sums">
-        <b style={{ color: accent }}>${yesPool.toFixed(2)}</b>
+        <b style={{ color: accent }}>${total.toFixed(2)}</b>
         <i>the crowd</i>
-        <b>${noPool.toFixed(2)}</b>
+        <b>{betsCount} bets</b>
       </span>
       <span
         className={`nr-cryo-crowd-bar ${mySide ? "nr-cryo-crowd-my" : ""}`}
         role="img"
-        aria-label={`Crowd distribution: yes $${yesPool.toFixed(2)} / no $${noPool.toFixed(2)}`}
+        aria-label={`Crowd distribution: ${options
+          .map((o) => `${o.label} ${o.pct}%`)
+          .join(", ")}`}
       >
-        <i
-          className="nr-cryo-crowd-yes"
-          style={{ width: `${yesShare * 100}%`, background: accent }}
-        />
-        <i className="nr-cryo-crowd-no" style={{ width: `${(1 - yesShare) * 100}%` }} />
-        {mySide && (
+        {options.map((o, i) => (
           <i
-            className="nr-cryo-crowd-marker"
-            style={{ left: `${(mySide === "yes" ? yesShare / 2 : 1 - (1 - yesShare) / 2) * 100}%` }}
+            key={o.key}
+            className="nr-cryo-crowd-seg"
+            style={{
+              width: `${Math.max(o.pct, total > 0 ? 2 : 0)}%`,
+              background: i === 0 ? accent : undefined,
+              opacity: 1 - i * 0.22,
+            }}
           />
-        )}
+        ))}
+        {total === 0 && <i className="nr-cryo-crowd-seg" style={{ width: "100%" }} />}
       </span>
     </div>
   );
@@ -172,7 +173,7 @@ function ProtectedOverlay({
 }: {
   label: string;
   accent: string;
-  mode: "demo" | "usdc";
+  mode: "demo" | "usdc" | "bonus";
   amount: string;
 }) {
   return (
@@ -180,13 +181,13 @@ function ProtectedOverlay({
       <div className="nr-cryo-iso-card">
         <span className="nr-cryo-iso-head">
           <i className="nr-cryo-iso-ghost" aria-hidden />
-          <b>Phantom</b>
+          <b>{mode === "bonus" ? "no reality." : "Phantom"}</b>
           <em>protected</em>
         </span>
         <span className="nr-cryo-iso-swap">
           <span className="nr-cryo-iso-amt">
-            <small>you pay</small>
-            <b>{amount} USDC</b>
+            <small>{mode === "bonus" ? "you spend" : "you pay"}</small>
+            <b>{mode === "bonus" ? "1 free prediction" : `${amount} USDC`}</b>
           </span>
           <span className="nr-cryo-iso-arrow" aria-hidden>→</span>
           <span className="nr-cryo-iso-amt">
@@ -196,7 +197,11 @@ function ProtectedOverlay({
         </span>
         <span className="nr-cryo-iso-status">
           <i className="nr-cryo-iso-spin" aria-hidden />
-          {mode === "usdc" ? "confirming USDC transfer…" : "confirming position…"}
+          {mode === "usdc"
+            ? "confirming USDC transfer…"
+            : mode === "bonus"
+              ? "fixing free prediction…"
+              : "confirming position…"}
         </span>
       </div>
     </div>
@@ -240,6 +245,10 @@ export default function CryoStopCard({
   const [amount, setAmount] = useState<string>(CRYO.betAmountUsdc);
   const [amountText, setAmountText] = useState<string>("");
 
+  /* task 44 §6: бесплатные прогнозы (welcome-бонус) — чип возле stake */
+  const [bonusCredits, setBonusCredits] = useState(0);
+  const [useFree, setUseFree] = useState(false);
+
   const frameRef = useRef<HTMLCanvasElement>(null);
   const watchedRef = useRef(0);
   const coolingRef = useRef(false);
@@ -253,11 +262,16 @@ export default function CryoStopCard({
   const remainingMs = endsAtMs - now;
   const boiling = remainingMs <= CRYO.boilLeadSec * 1000 && remainingMs > 0;
 
-  /* live odds for the SELECTED stake (pari-mutuel, fee-aware) */
-  const totalPool = market.yesPool + market.noPool;
+  /* live odds for the SELECTED stake (pari-mutuel, fee-aware) — per option */
+  const totalPool = market.options.reduce((s, o) => s + o.pool, 0);
   const stakeNum = parseFloat(amount) || 0;
-  const oddsYes = cryoOdds(totalPool, market.yesPool, stakeNum, CRYO.feePct);
-  const oddsNo = cryoOdds(totalPool, market.noPool, stakeNum, CRYO.feePct);
+  const oddsOf = (key: string) => {
+    const o = market.options.find((x) => x.key === key);
+    return cryoOdds(totalPool, o?.pool ?? 0, stakeNum, CRYO.feePct);
+  };
+  const labelOf = (key: string) =>
+    market.options.find((x) => x.key === key)?.label ??
+    (key === "yes" ? market.labelYes : key === "no" ? market.labelNo : key);
 
   /* selected preset (for chip highlight); null when custom amount active */
   const activePreset = CRYO.betPresetsUsdc.includes(amount)
@@ -277,6 +291,27 @@ export default function CryoStopCard({
     const iv = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(iv);
   }, []);
+
+  /* бесплатные прогнозы: один запрос профиля на открытие панели;
+     401 → гость, чип не показывается (ставка требует сессию) */
+  useEffect(() => {
+    if (phase !== "market") return;
+    let stopped = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/profile", { cache: "no-store" });
+        if (r.ok && !stopped) {
+          const d = (await r.json()) as { bonusCredits?: number };
+          setBonusCredits(Math.max(0, d.bonusCredits ?? 0));
+        }
+      } catch {
+        /* без профиля чип просто не появится */
+      }
+    })();
+    return () => {
+      stopped = true;
+    };
+  }, [phase]);
 
   const clearVideoFilter = useCallback(() => {
     const v = videoRef.current;
@@ -419,19 +454,24 @@ export default function CryoStopCard({
       }
       setBetting(side);
       setPayError(null);
-      setPopup({ side, amount: stake });
+      setPopup({ side, amount: useFree ? "0.00" : stake });
 
       const w = await ensureCryoWallet();
       setWallet(w);
 
       const betRef = makeBetRef();
-      const pay = await payUsdc({
-        exchange: market.exchange,
-        usdcMint: CRYO.usdcMint,
-        treasury: CRYO.treasury,
-        amountUsdc: stake,
-        betRef,
-      });
+      // task 44: бесплатный прогноз — без платежа, номинал фиксирует сервер
+      const pay:
+        | { mode: "demo" | "phantom"; txSig?: string | null; error?: string | null }
+        | { mode: "bonus"; txSig: null; error?: null } = useFree
+        ? { mode: "bonus", txSig: null }
+        : await payUsdc({
+            exchange: market.exchange,
+            usdcMint: CRYO.usdcMint,
+            treasury: CRYO.treasury,
+            amountUsdc: stake,
+            betRef,
+          });
 
       if (pay.error) {
         // payment did not happen — do NOT fix the position, market stays open
@@ -455,15 +495,17 @@ export default function CryoStopCard({
           body: JSON.stringify({
             postCode: market.postCode,
             side,
-            amount: stake,
+            amount: useFree ? "1.00" : stake,
             wallet: w.address,
             mode: pay.mode,
             txSig: pay.txSig,
             betRef,
           }),
         });
-        if (r.ok) fixed = true;
-        else if (r.status === 503) localOnly = true;
+        if (r.ok) {
+          fixed = true;
+          if (useFree) setBonusCredits((c) => Math.max(0, c - 1));
+        } else if (r.status === 503) localOnly = true;
         else if (r.status === 409) fixed = true; // position exists — show it
         else {
           const d = (await r.json().catch(() => ({}))) as { error?: string };
@@ -478,6 +520,7 @@ export default function CryoStopCard({
 
       if (failMsg) {
         setPayError(failMsg);
+        if (useFree) setUseFree(false); // кредит вернул сервер — disarm
         return;
       }
 
@@ -492,7 +535,7 @@ export default function CryoStopCard({
         setTimeout(() => release(side), 620);
       }
     },
-    [phase, betting, bet, market, release, amount]
+    [phase, betting, bet, market, release, amount, useFree]
   );
 
   if (!active && phase === "dormant") return null;
@@ -598,18 +641,19 @@ export default function CryoStopCard({
                   key={p}
                   type="button"
                   role="radio"
-                  aria-checked={activePreset === p}
+                  aria-checked={!useFree && activePreset === p}
                   disabled={Boolean(betting) || Boolean(bet)}
                   onClick={() => {
+                    setUseFree(false);
                     setAmount(p);
                     setAmountText("");
                   }}
-                  className={`nr-cryo-chip ${activePreset === p ? "nr-cryo-chip-on" : ""}`}
+                  className={`nr-cryo-chip ${!useFree && activePreset === p ? "nr-cryo-chip-on" : ""}`}
                 >
                   ${p}
                 </button>
               ))}
-              <span className={`nr-cryo-custom ${amountText ? "nr-cryo-custom-on" : ""}`}>
+              <span className={`nr-cryo-custom ${!useFree && amountText ? "nr-cryo-custom-on" : ""}`}>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -617,38 +661,64 @@ export default function CryoStopCard({
                   aria-label="Custom stake in USDC"
                   value={amountText}
                   disabled={Boolean(betting) || Boolean(bet)}
-                  onChange={(e) => applyCustom(e.target.value)}
+                  onChange={(e) => {
+                    setUseFree(false);
+                    applyCustom(e.target.value);
+                  }}
                   maxLength={9}
                 />
                 <em>USDC</em>
               </span>
             </div>
+            {bonusCredits > 0 && !bet && (
+              <button
+                type="button"
+                onClick={() => setUseFree((v) => !v)}
+                aria-pressed={useFree}
+                className={`nr-cryo-freechip ${useFree ? "nr-cryo-freechip-on" : ""}`}
+              >
+                ❄ {bonusCredits} free{useFree ? " · armed" : ""}
+              </button>
+            )}
           </div>
 
-          {/* two big outcomes — one tap fixes the position */}
-          <div className="nr-cryo-actions">
-            {(["yes", "no"] as const).map((side) => {
-              const label = side === "yes" ? market.labelYes : market.labelNo;
-              const odds = side === "yes" ? oddsYes : oddsNo;
+          {/* нарративные опции «what happens next» (task 44, ТЗ §4):
+              [label … pct% · N bets · ×odds · win ≈] — один тап фиксирует позицию */}
+          <div className="nr-cryo-opts" role="radiogroup" aria-label="Outcomes">
+            {market.options.map((o) => {
+              const odds = oddsOf(o.key);
+              const busy = betting === o.key;
               return (
                 <button
-                  key={side}
+                  key={o.key}
                   type="button"
+                  role="radio"
+                  aria-checked={Boolean(bet && bet.side === o.key)}
                   disabled={Boolean(betting) || Boolean(bet)}
-                  onClick={() => void pick(side)}
-                  aria-label={`Outcome ${label} — stake ${amount} USDC at ×${odds}`}
-                  className={[
-                    "nr-cryo-action",
-                    side === "yes" ? "nr-cryo-action-yes" : "nr-cryo-action-no",
-                    betting === side ? "nr-cryo-action-busy" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  onClick={() => void pick(o.key)}
+                  aria-label={`Outcome “${o.label}” — stake ${amount} USDC at ×${odds.toFixed(2)} — win ≈ $${(stakeNum * odds).toFixed(2)}`}
+                  className={`nr-cryo-opt ${
+                    bet?.side === o.key ? "nr-cryo-opt-my" : ""
+                  } ${busy ? "nr-cryo-opt-busy" : ""}`}
                 >
-                  <b>{label}</b>
-                  <span className="nr-cryo-action-odds">×{odds.toFixed(2)}</span>
-                  <span className="nr-cryo-action-note">
-                    win ≈ ${(stakeNum * odds).toFixed(2)}
+                  <span className="nr-cryo-opt-label">
+                    <b>{o.label}</b>
+                    <i>{o.count} bets</i>
+                  </span>
+                  <span className="nr-cryo-opt-mid" aria-hidden>
+                    <em>{o.pct}%</em>
+                    <span className="nr-cryo-opt-bar">
+                      <i
+                        style={{
+                          width: `${o.pct}%`,
+                          background: market.accent,
+                        }}
+                      />
+                    </span>
+                  </span>
+                  <span className="nr-cryo-opt-odds">
+                    ×{odds.toFixed(2)}
+                    <small>win ≈ ${(stakeNum * odds).toFixed(2)}</small>
                   </span>
                 </button>
               );
@@ -656,8 +726,7 @@ export default function CryoStopCard({
           </div>
 
           <CrowdBar
-            yesPool={market.yesPool}
-            noPool={market.noPool}
+            options={market.options}
             accent={market.accent}
             mySide={mySide}
           />
@@ -669,9 +738,9 @@ export default function CryoStopCard({
       {/* attention isolation while the wallet pop-up is up */}
       {popup && (
         <ProtectedOverlay
-          label={popup.side === "yes" ? market.labelYes : market.labelNo}
+          label={labelOf(popup.side)}
           accent={market.accent}
-          mode={market.exchange}
+          mode={useFree ? "bonus" : market.exchange}
           amount={popup.amount}
         />
       )}

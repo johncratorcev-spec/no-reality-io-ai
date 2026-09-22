@@ -3,6 +3,11 @@ import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { getPostByCode } from "@/lib/csv";
 import { rateLimit } from "@/lib/rateLimit";
+import { FEATURES } from "@/lib/features";
+import {
+  normalizeOwnerCode,
+  recordUtmClick,
+} from "@/lib/utm";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +74,20 @@ export async function GET(
   } catch {
     // serverless (Netlify): БД может быть недоступна —
     // редирект обязан работать всегда, клик просто не засчитается
+  }
+
+  // --- персональная атрибуция (task 44, §5): /r/<code>?ref=rXXX —
+  //     переход засчитывается владельцу кода на объект video/code ---
+  if (FEATURES.utmTracking) {
+    const owner = normalizeOwnerCode(req.nextUrl.searchParams.get("ref"));
+    if (owner) {
+      await recordUtmClick({
+        ownerCode: owner,
+        targetType: "video",
+        targetId: code,
+        visitorHash,
+      });
+    }
   }
 
   return NextResponse.redirect(post.url, 302);

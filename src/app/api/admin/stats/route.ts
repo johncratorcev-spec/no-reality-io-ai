@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     const now = Date.now();
     const dayMs = 86_400_000;
 
-    const [visits, clicks, stats, profiles, events, purchases] =
+    const [visits, clicks, stats, profiles, events, purchases, favAgg, favTotal, utmClicks, markets, betsTotal] =
       await Promise.all([
         db.pageVisit.findMany({ orderBy: { createdAt: "asc" } }),
         db.click.findMany({ orderBy: { createdAt: "asc" } }),
@@ -50,6 +50,18 @@ export async function GET(req: NextRequest) {
         db.referralProfile.findMany({ orderBy: { createdAt: "asc" } }),
         db.referralEvent.findMany({ orderBy: { createdAt: "asc" } }),
         db.purchase.findMany({ orderBy: { createdAt: "asc" } }),
+        // task 44: счётчики избранного (агрегат-таблица)
+        db.favoriteStats.findMany({ orderBy: { count: "desc" } }),
+        db.favorite.count(),
+        // task 44: персональные UTM-переходы
+        db.utmClick.findMany({
+          select: { targetType: true, targetId: true, visitorHash: true },
+        }),
+        // task 44: сводка cryo-рынков
+        db.cryoMarket.findMany({
+          include: { _count: { select: { bets: true } } },
+        }),
+        db.cryoBet.count(),
       ]);
 
     /* --- pageviews: totals / windows / byPath / byDay --- */
@@ -108,6 +120,31 @@ export async function GET(req: NextRequest) {
       purchasesByStatus.set(p.status, (purchasesByStatus.get(p.status) ?? 0) + 1);
     }
 
+    /* --- task 44: избранное (агрегат + точный total) --- */
+    const topFavorites = favAgg
+      .filter((f) => f.count > 0)
+      .slice(0, 5)
+      .map((f) => ({ postCode: f.postCode, count: f.count }));
+
+    /* --- task 44: персональные UTM-переходы --- */
+    const utmVisitors = new Set<string>();
+    const utmByType = new Map<string, number>();
+    for (const u of utmClicks) {
+      utmVisitors.add(u.visitorHash);
+      utmByType.set(u.targetType, (utmByType.get(u.targetType) ?? 0) + 1);
+    }
+    const utmTopTargets = new Map<string, number>();
+    for (const u of utmClicks) {
+      const key = `${u.targetType}:${u.targetId || "-"}`;
+      utmTopTargets.set(key, (utmTopTargets.get(key) ?? 0) + 1);
+    }
+
+    /* --- task 44: сводка cryo-рынков --- */
+    const cryoByStatus = new Map<string, number>();
+    for (const m of markets) {
+      cryoByStatus.set(m.status, (cryoByStatus.get(m.status) ?? 0) + 1);
+    }
+
     return NextResponse.json({
       ok: true,
       generatedAt: new Date().toISOString(),
@@ -134,6 +171,25 @@ export async function GET(req: NextRequest) {
       purchases: {
         total: purchases.length,
         byStatus: Object.fromEntries(purchasesByStatus),
+      },
+      favorites: {
+        total: favTotal,
+        postsWithFavorites: favAgg.filter((f) => f.count > 0).length,
+        topPosts: topFavorites,
+      },
+      utm: {
+        total: utmClicks.length,
+        uniqueVisitors: utmVisitors.size,
+        byType: Object.fromEntries(utmByType),
+        topTargets: [...utmTopTargets.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([target, count]) => ({ target, count })),
+      },
+      cryo: {
+        markets: markets.length,
+        byStatus: Object.fromEntries(cryoByStatus),
+        betsTotal,
       },
     });
   } catch (e) {

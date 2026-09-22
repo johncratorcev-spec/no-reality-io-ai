@@ -27,7 +27,8 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
   const [keyError, setKeyError] = useState<string | null>(null);
   const [markets, setMarkets] = useState<CryoMarketView[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [signing, setSigning] = useState<{ postCode: string; result: "yes" | "no" } | null>(null);
+  // task 44: result — ключ любой опции рынка ("yes"/"no"/нарративный)
+  const [signing, setSigning] = useState<{ postCode: string; result: string } | null>(null);
   const [holdKey, setHoldKey] = useState<string | null>(null);
   const holdRaf = useRef<number>(0);
   const holdStart = useRef<number>(0);
@@ -100,8 +101,8 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── Hold-to-confirm (1.5s) ── */
-  const startHold = (postCode: string, result: "yes" | "no") => (e: React.PointerEvent) => {
+  /* ── Hold-to-confirm (1.5s) — по кнопке на КАЖДУЮ опцию рынка ── */
+  const startHold = (postCode: string, result: string) => (e: React.PointerEvent) => {
     e.preventDefault();
     if (holdKey) return;
     setHoldKey(`${postCode}:${result}`);
@@ -128,7 +129,7 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
 
   /* ── финализация: подпись оракула (второй фактор) ── */
   const signResolution = useCallback(
-    async (postCode: string, result: "yes" | "no") => {
+    async (postCode: string, result: string) => {
       setBusy(postCode);
       try {
         const r = await fetch(`/api/admin/cryo/resolve?key=${encodeURIComponent(key)}`, {
@@ -226,8 +227,6 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
       <div className="nr-oracle-grid">
         {markets.map((m) => {
           const post = postByCode.get(m.postCode);
-          const holdYes = holdKey === `${m.postCode}:yes`;
-          const holdNo = holdKey === `${m.postCode}:no`;
           return (
             <article key={m.postCode} className="nr-oracle-card">
               {/* стоп-кадр в титановой рамке */}
@@ -252,13 +251,13 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
               <div className="nr-oracle-data">
                 <p className="nr-oracle-q">{m.question}</p>
 
+                {/* task 44: пулы по КАЖДОЙ опции (не только yes/no) */}
                 <div className="nr-oracle-stats">
-                  <span>
-                    YES <b style={{ color: m.accent }}>${m.yesPool.toFixed(2)}</b>
-                  </span>
-                  <span>
-                    NO <b>${m.noPool.toFixed(2)}</b>
-                  </span>
+                  {m.options.map((o, i) => (
+                    <span key={o.key}>
+                      {o.label.slice(0, 16).toUpperCase()} <b style={i === 0 ? { color: m.accent } : undefined}>${o.pool.toFixed(2)}</b> <small>({o.pct}%)</small>
+                    </span>
+                  ))}
                   <span>
                     POSITIONS <b>{m.betsCount}</b>
                   </span>
@@ -279,55 +278,38 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
                 </div>
 
                 {m.status === "resolved" ? (
-                  <p
-                    className={`nr-oracle-verdict ${
-                      m.result === "yes" ? "nr-oracle-verdict-yes" : "nr-oracle-verdict-no"
-                    }`}
-                  >
-                    {m.result === "yes"
-                      ? "[ REALITY CONFIRMED ]"
-                      : "[ ILLUSION DISSOLVED ]"}
+                  <p className="nr-oracle-verdict nr-oracle-verdict-yes">
+                    [ VERDICT: {m.options.find((o) => o.key === m.result)?.label ?? m.result} ]
                   </p>
                 ) : (
                   <>
                     <p className="nr-oracle-awaiting">[ AWAITING ORACLE SIGNATURE ]</p>
 
-                    {/* тумблеры тяжёлого типа: hold-to-confirm 1.5s */}
+                    {/* тумблеры тяжёлого типа: hold-to-confirm 1.5s — по одному на опцию */}
                     <div className="nr-oracle-toggles">
-                      <button
-                        type="button"
-                        onPointerDown={startHold(m.postCode, "yes")}
-                        onPointerUp={cancelHold}
-                        onPointerLeave={holdYes ? cancelHold : undefined}
-                        disabled={busy === m.postCode}
-                        className={`nr-oracle-toggle nr-oracle-toggle-yes ${
-                          holdYes ? "nr-oracle-holding" : ""
-                        }`}
-                        style={
-                          holdYes
-                            ? ({ "--hold": `${holdPct * 100}%` } as React.CSSProperties)
-                            : undefined
-                        }
-                      >
-                        REALITY CONFIRMED
-                      </button>
-                      <button
-                        type="button"
-                        onPointerDown={startHold(m.postCode, "no")}
-                        onPointerUp={cancelHold}
-                        onPointerLeave={holdNo ? cancelHold : undefined}
-                        disabled={busy === m.postCode}
-                        className={`nr-oracle-toggle nr-oracle-toggle-no ${
-                          holdNo ? "nr-oracle-holding" : ""
-                        }`}
-                        style={
-                          holdNo
-                            ? ({ "--hold": `${holdPct * 100}%` } as React.CSSProperties)
-                            : undefined
-                        }
-                      >
-                        ILLUSION DISSOLVED
-                      </button>
+                      {m.options.map((o) => {
+                        const hold = holdKey === `${m.postCode}:${o.key}`;
+                        return (
+                          <button
+                            key={o.key}
+                            type="button"
+                            onPointerDown={startHold(m.postCode, o.key)}
+                            onPointerUp={cancelHold}
+                            onPointerLeave={hold ? cancelHold : undefined}
+                            disabled={busy === m.postCode}
+                            className={`nr-oracle-toggle nr-oracle-toggle-yes ${
+                              hold ? "nr-oracle-holding" : ""
+                            }`}
+                            style={
+                              hold
+                                ? ({ "--hold": `${holdPct * 100}%` } as React.CSSProperties)
+                                : undefined
+                            }
+                          >
+                            {o.label.toUpperCase()}
+                          </button>
+                        );
+                      })}
                     </div>
                     <p className="nr-oracle-hold-note">
                       hold 1.5s to charge the circuit · release aborts
@@ -368,8 +350,12 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
           <div className="nr-oracle-sign-card">
             <p className="nr-oracle-eyebrow">hardware signature required</p>
             <p className="nr-oracle-sign-q">
-              FINALIZE {signing.result === "yes" ? "REALITY CONFIRMED" : "ILLUSION DISSOLVED"}{" "}
-              on chamber {signing.postCode}?
+              FINALIZE “
+              {markets
+                .find((m) => m.postCode === signing.postCode)
+                ?.options.find((o) => o.key === signing.result)?.label ??
+                signing.result}
+              ” on chamber {signing.postCode}?
             </p>
             <p className="nr-oracle-note">
               This settles the pari-mutuel pool and is irreversible.

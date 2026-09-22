@@ -13,6 +13,9 @@ import {
    основной) или MetaMask (фолбэк) → сессия (cookie 30 дней) →
    в выпадашке pnl-кошелёк, избранное и пригласительная ссылка.
 
+   Task 44: в выпадашке — бесплатные прогнозы и бейджи профиля;
+   Magic Link вход (email) за серверным флагом /api/auth/magic/status.
+
    Сердце на карточке (task 43) диспатчит "nr-wallet-connect", когда
    зритель без сессии тапает «в избранное» — здесь ловим событие и
    открываем connect-флоу; после успеха перегидратуем избранное.
@@ -37,6 +40,13 @@ export default function WalletButton() {
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
 
+  /* task 44: бонусы/бейджи профиля + доступность Magic Link */
+  const [bonusCredits, setBonusCredits] = useState<number | null>(null);
+  const [badges, setBadges] = useState<string[]>([]);
+  const [magicEnabled, setMagicEnabled] = useState(false);
+  const [magicEmail, setMagicEmail] = useState("");
+  const [magicState, setMagicState] = useState<"idle" | "sending" | "sent">("idle");
+
   /* сердце на карточке просит кошелёк → открываем connect-флоу */
   useEffect(() => {
     const onRequest = () => {
@@ -56,6 +66,53 @@ export default function WalletButton() {
   useEffect(() => {
     if (open && wallet) void hydrateFavorites();
   }, [open, wallet]);
+
+  /* панель открыта — профиль (бонусы/бейджи) + флаг Magic Link */
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      try {
+        const r = await fetch("/api/profile", { cache: "no-store" });
+        if (r.ok) {
+          const d = (await r.json()) as {
+            bonusCredits?: number;
+            badges?: string[];
+          };
+          setBonusCredits(d.bonusCredits ?? 0);
+          setBadges(Array.isArray(d.badges) ? d.badges : []);
+        }
+      } catch {
+        /* без профиля просто без бонусной строки */
+      }
+      try {
+        const r = await fetch("/api/auth/magic/status", {
+          cache: "no-store",
+        });
+        if (r.ok) {
+          const d = (await r.json()) as { enabled?: boolean };
+          setMagicEnabled(Boolean(d.enabled));
+        }
+      } catch {
+        /* magic остаётся выключенным */
+      }
+    })();
+  }, [open]);
+
+  const sendMagic = async () => {
+    if (!magicEmail.trim() || magicState !== "idle") return;
+    setMagicState("sending");
+    try {
+      const r = await fetch("/api/auth/magic/request", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: magicEmail.trim() }),
+      });
+      if (r.ok) setMagicState("sent");
+      else setMagicState("idle");
+    } catch {
+      setMagicState("idle");
+    }
+  };
 
   const copyInvite = async () => {
     if (!inviteUrl) return;
@@ -132,9 +189,28 @@ export default function WalletButton() {
           >
             <span>◇ pnl wallet</span>
             <span aria-hidden className="text-[0.62rem] font-bold text-[#2b6cb0]/60">
-              positions · claims
+              positions · claims · reach
             </span>
           </a>
+
+          {/* ---------- бонусы и бейджи (task 44 §6) ---------- */}
+          {(bonusCredits !== null && (bonusCredits > 0 || badges.length > 0)) && (
+            <p className="mt-3 flex flex-wrap items-center gap-1.5">
+              {badges.map((b) => (
+                <span
+                  key={b}
+                  className="rounded-full bg-[#f3f0ff] px-2.5 py-1 text-[0.58rem] font-extrabold uppercase tracking-[0.12em] text-[#6d4fc2]"
+                >
+                  ◈ {b}
+                </span>
+              ))}
+              {bonusCredits > 0 && (
+                <span className="rounded-full bg-[#fff1e8] px-2.5 py-1 text-[0.58rem] font-extrabold uppercase tracking-[0.12em] text-[#c2410c]">
+                  ❄ {bonusCredits} free
+                </span>
+              )}
+            </p>
+          )}
 
           {/* ---------- избранное (task 43) ---------- */}
           {favs.ready && favs.items.length > 0 && (
@@ -183,6 +259,43 @@ export default function WalletButton() {
               >
                 {copied ? "copied ✓" : "copy invite"}
               </button>
+            </>
+          )}
+
+          {/* ---------- Magic Link (task 44 §6): email-вход как дополнение ---------- */}
+          {magicEnabled && (
+            <>
+              <p className="mt-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
+                email sign-in
+              </p>
+              {magicState === "sent" ? (
+                <p className="mt-1.5 text-[0.64rem] font-semibold leading-snug text-[#1d7a3e]">
+                  link sent ✓ — check your inbox, it works once and expires in
+                  15 minutes.
+                </p>
+              ) : (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <input
+                    type="email"
+                    inputMode="email"
+                    value={magicEmail}
+                    onChange={(e) => setMagicEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void sendMagic();
+                    }}
+                    placeholder="you@mail.com"
+                    aria-label="Email for magic sign-in link"
+                    className="min-w-0 flex-1 rounded-xl bg-[#10161d]/5 px-3 py-2 text-[0.66rem] font-semibold text-[#10161d] outline-none placeholder:text-[#10161d]/35 focus:ring-2 focus:ring-[#a8cfea]"
+                  />
+                  <button
+                    onClick={() => void sendMagic()}
+                    disabled={magicState === "sending" || !magicEmail.trim()}
+                    className="rounded-xl bg-[#10161d]/5 px-3 py-2 text-[0.62rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10 disabled:opacity-50"
+                  >
+                    {magicState === "sending" ? "…" : "send link"}
+                  </button>
+                </div>
+              )}
             </>
           )}
           <button

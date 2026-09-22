@@ -102,6 +102,79 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
     void hydrateFavorites();
   }, []);
 
+  /* ---- счётчики «N members saved» (task 44, ТЗ §3) ----
+     Лёгкий поллер (60с, setTimeout-цепочка, на скрытой вкладке спит):
+     один запрос на всю ленту; после тоггла сердца счётчик двигается
+     оптимистично через событие nr-fav-toggled (без запроса). */
+  const [favCounts, setFavCounts] = useState<Record<string, number>>({});
+  const postCodes = useMemo(() => posts.map((p) => p.utmCode), [posts]);
+
+  useEffect(() => {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastJson = "";
+
+    const schedule = () => {
+      if (!stopped) timer = setTimeout(() => void load(), 60_000);
+    };
+
+    const load = async () => {
+      if (document.visibilityState === "hidden") {
+        schedule();
+        return;
+      }
+      try {
+        const qs = encodeURIComponent(postCodes.join(","));
+        const r = await fetch(`/api/favorites/counts?codes=${qs}`, {
+          cache: "no-store",
+        });
+        if (r.ok && !stopped) {
+          const d = (await r.json()) as {
+            counts?: Record<string, number>;
+          };
+          const json = JSON.stringify(d.counts ?? {});
+          if (json !== lastJson) {
+            lastJson = json;
+            setFavCounts(d.counts ?? {});
+          }
+        }
+      } catch {
+        /* счётчик не критичен */
+      }
+      schedule();
+    };
+
+    const onToggle = (e: Event) => {
+      const detail = (e as CustomEvent<{ postCode: string; on: boolean }>).detail;
+      if (!detail) return;
+      setFavCounts((m) => ({
+        ...m,
+        [detail.postCode]: Math.max(
+          0,
+          (m[detail.postCode] ?? 0) + (detail.on ? 1 : -1)
+        ),
+      }));
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        if (timer) clearTimeout(timer);
+        void load();
+      }
+    };
+
+    void load();
+    schedule();
+    window.addEventListener("nr-fav-toggled", onToggle);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("nr-fav-toggled", onToggle);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [postCodes]);
+
   const slots = useMemo<Slot[]>(() => {
     const s: Slot[] = [];
     for (const post of posts) {
@@ -258,6 +331,7 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
             eagerPreload={i === activeIndex + 1}
             autoDonate={donateOpen === true && slot.post.utmCode === focusCode}
             market={cryoViews.get(slot.post.utmCode) ?? null}
+            favCount={favCounts[slot.post.utmCode] ?? 0}
             onEnded={handleEnded}
           />
         ) : (

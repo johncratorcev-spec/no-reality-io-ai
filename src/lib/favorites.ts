@@ -187,6 +187,17 @@ export async function toggleFavorite(
         });
       }
     }
+    // счётчик «N members saved» на карточках (task 44): Feed слушает
+    // и двигает пилюлю мгновенно, не дожидаясь следующего опроса
+    try {
+      window.dispatchEvent(
+        new CustomEvent("nr-fav-toggled", {
+          detail: { postCode, on: !isOn },
+        })
+      );
+    } catch {
+      /* счётчик просто обновится на следующем опросе */
+    }
     return isOn ? "off" : "on";
   } catch {
     setState({ codes: prev.codes, items: prev.items });

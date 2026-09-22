@@ -99,6 +99,7 @@ model CryoMarket {
   updatedAt  DateTime  @updatedAt
 
   bets CryoBet[]
+  options CryoOption[]
 
   @@index([status])
 }
@@ -125,6 +126,22 @@ model CryoBet {
   @@index([marketId, side])
 }
 
+// Опции нарративного рынка «what happens next» (task 44, п.4):
+// 2–4 понятных варианта развития сцены вместо голого YES/NO.
+// Для 2-опционных рынков ключи остаются "yes"/"no" — совместимо
+// с существующими ставками (CryoBet.side = ключ опции).
+// Пусто в таблице → рынок деградирует к labelYes/labelNo.
+model CryoOption {
+  id       String     @id @default(uuid())
+  marketId String
+  key      String // "yes" | "no" | нарративный ключ ("fall", "boom", …)
+  label    String // человеческая формулировка («it all explodes»)
+  idx      Int        @default(0) // порядок показа
+  market   CryoMarket @relation(fields: [marketId], references: [id])
+
+  @@unique([marketId, key])
+}
+
 // Избранное (task 43, п.4): после авторизации по кошельку зритель
 // добавляет видео из ленты в избранное. Одна запись на (wallet, postCode).
 // Гостям (без кошелька) кнопка недоступна — API требует сессию.
@@ -137,6 +154,16 @@ model Favorite {
   @@unique([wallet, postCode])
   @@index([wallet])
   @@index([postCode])
+}
+
+// Агрегат счётчика избранного (task 44, п.2): «X авторизованных
+// пользователей добавили в избранное» на карточке видео.
+// Поддерживается транзакционно в api/favorites (POST/DELETE);
+// чтение — один findMany по кодам, поверх — in-memory кэш 30с.
+model FavoriteStats {
+  postCode  String   @id
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
 }
 
 // Покупка промпта: оплата через 2328.io → разблокировка prompt_full.
@@ -178,4 +205,64 @@ model Purchase {
   @@index([utmCode])
   @@index([buyerHash])
   @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 44 — персональные UTM, бонусы, Magic Link.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Переходы по ПЕРСОНАЛЬНЫМ ссылкам пользователя (task 44, п.4):
+// владелец кода (ReferralProfile.code) делится ссылкой на ЛЮБОЙ объект —
+// видео (/v/[code]), рынок, баннер, промпт — и каждый уникальный
+// посетитель считается один раз на (owner, target).
+// visitorHash — тот же анонимный отпечаток ip+ua+секрет, что в Click:
+// дедуп через unique-констрейнт, накрутка бессмысленна.
+model UtmClick {
+  id          String   @id @default(uuid())
+  ownerCode   String // персональный код автора ссылки (r…)
+  targetType  String // video | market | banner | prompt | page
+  targetId    String   @default("") // utm_code поста / код промпта / пусто
+  visitorHash String
+  createdAt   DateTime @default(now())
+
+  @@unique([ownerCode, targetType, targetId, visitorHash])
+  @@index([ownerCode])
+  @@index([targetType, targetId])
+}
+
+// Профиль пользователя (task 44, п.5): кошелёк → виральные бонусы.
+// bonusCredits — бесплатные прогнозы без риска (mode "bonus" в CryoBet);
+// badges — JSON-массив строк ("early", "seer"); invitedBy — код
+// пригласившего при первом входе (обоим начисляется бонус).
+model UserProfile {
+  wallet       String   @id // lowercase base58 / 0x…
+  bonusCredits Int      @default(0)
+  badges       String   @default("[]") // JSON: ["early","seer"]
+  invitedBy    String? // персональный код пригласившего (если был)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Одноразовые токены Magic Link (task 44, п.6): email-вход как ДОПОЛНЕНИЕ
+// к кошельку. Храним только sha256(token) — утечка БД не раскрывает ссылки.
+// TTL 15 минут, одноразовый (usedAt), ставка через Resend (free 3000/мес).
+model MagicLogin {
+  id        String    @id @default(uuid())
+  email     String // lowercase
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
+// Email-аккаунт с опционально привязанным кошельком (task 44, п.6):
+// связывание обеих личностей — при verify с активной wallet-сессией
+// или при wallet-авторизации с активной email-сессией (best-effort).
+model MagicUser {
+  email     String   @id // lowercase
+  wallet    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

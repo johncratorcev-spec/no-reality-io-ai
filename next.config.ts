@@ -38,6 +38,40 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+
+  /* Task 44 (Cloudflare free, §1): origin-заголовки, которыми CF (и любые
+     CDN/браузеры) руководствуются автоматически:
+       - /_next/static — хэшированный бандл: immutable, год;
+       - /images, /sfx, /partner — наши ассеты: неделя + SWR-сутки;
+       - /api — никогда не кэшировать (ставки/сессии/статистика).
+     HTML Next отдаёт сам с no-store (страницы динамические) — в CF
+     достаточно Cache Rule «Bypass для HTML», см. docs/cloudflare-setup.md. */
+  async headers() {
+    return [
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/:asset(images|sfx|partner)/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      {
+        source: "/api/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store, max-age=0" }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

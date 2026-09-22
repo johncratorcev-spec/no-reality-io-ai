@@ -232,7 +232,8 @@ export default function PnlWallet() {
       {/* позиции */}
       <div className="mt-5 space-y-3">
         {s?.items.map((it) => {
-          const sideLabel = it.side === "yes" ? it.labelYes : it.labelNo;
+          // task 44: подпись исхода — нарративная опция (optionLabel)
+          const sideLabel = it.optionLabel ?? (it.side === "yes" ? it.labelYes : it.labelNo);
           const isWin =
             it.status === "resolved" && it.result === it.side && (parseFloat(it.payout || "0") > 0);
           const isLoss = it.status === "resolved" && (it.result !== it.side || !(parseFloat(it.payout || "0") > 0));

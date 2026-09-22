@@ -1,0 +1,33 @@
+name = "nr-r-redirect"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 44 (§1): Worker для /r/:code на бесплатном тарифе Cloudflare.
+#
+# Что делает:
+#   1) берёт назначение из KV (мгновенно) или с origin /api/r-lookup/[code];
+#   2) отвечает 302 на пост Threads СРАЗУ с грани (без ожидания БД);
+#   3) через ctx.waitUntil дописывает клик в СУЩЕСТВУЮЩУЮ БД сайта
+#      (POST /api/track/click) — тот же Click + PostStats, тот же дедуп.
+#
+# Деплой (см. docs/cloudflare-setup.md):
+#   npm i -g wrangler
+#   wrangler kv namespace create POST_URLS   # id → ниже
+#   wrangler secret put CLICK_WORKER_SECRET  # тот же секрет, что в Vercel env
+#   wrangler deploy
+# ─────────────────────────────────────────────────────────────────────────────
+
+kv_namespaces = [
+  { binding = "POST_URLS", id = "REPLACE_WITH_KV_NAMESPACE_ID" }
+]
+
+[vars]
+# origin сайта (без слэша в конце)
+ORIGIN = "https://no-reality.fun"
+
+# Worker вешается на маршрут /r/* зоны — остальной трафик идёт мимо
+[routes]
+routes = [
+  { pattern = "no-reality.fun/r/*", zone_name = "no-reality.fun" }
+]

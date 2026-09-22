@@ -13,12 +13,31 @@
  * ставки в этом режиме клиент сохраняет локально (UX не ломается).
  */
 import { db } from "@/lib/db";
-import { CRYO, cryoMarketByCode, cryoUsdcEnabled, type CryoMarketConfigItem } from "./config";
+import {
+  CRYO,
+  cryoMarketByCode,
+  cryoOptionsOf,
+  cryoUsdcEnabled,
+  type CryoMarketConfigItem,
+} from "./config";
 import { normalizeUsdc } from "./odds";
 import { verifyUsdcBet } from "./verify";
+import { awardSeerBadge } from "@/lib/bonuses";
 
-export type CryoSide = "yes" | "no";
+export type CryoSide = string; // ключ опции: "yes"|"no" или нарративный
 export type CryoStatus = "live" | "expired" | "resolved";
+
+/** витрина одной опции нарративного рынка (task 44, ТЗ §4) */
+export interface CryoOptionView {
+  key: string;
+  label: string;
+  pool: number;
+  count: number;
+  /** коэффициент пари-мьютюэля при ставке $1 (null — некорректные пулы) */
+  odds: number | null;
+  /** доля пула опции в процентах (для полосы толпы) */
+  pct: number;
+}
 
 export interface CryoMarketView {
   id: string | null;
@@ -36,6 +55,8 @@ export interface CryoMarketView {
   /** коэффициент пари-мьютюэля при ставке $1 сейчас (null — пул исхода пуст) */
   oddsYes: number | null;
   oddsNo: number | null;
+  /** нарративные опции рынка (task 44): 2–4 варианта, классика yes/no — тоже сюда */
+  options: CryoOptionView[];
   /** режим ставки: usdc — прямой перевод на казначея, demo — симуляция */
   exchange: "demo" | "usdc";
   /** false — БД недоступна: пулы нулевые, ставки только локально */
@@ -55,10 +76,33 @@ function oddsFor(total: number, sidePool: number): number | null {
   return round2(payout);
 }
 
+/** витрина опций конфиг-рынка без БД (деградация): пулы пустые */
+function optionsViewOf(
+  c: CryoMarketConfigItem,
+  pools?: Map<string, { pool: number; count: number }>
+): CryoOptionView[] {
+  const opts = cryoOptionsOf(c);
+  const total = [...(pools?.values() ?? [])].reduce((s, p) => s + p.pool, 0);
+  return opts.map((o) => {
+    const p = pools?.get(o.key) ?? { pool: 0, count: 0 };
+    return {
+      key: o.key,
+      label: o.label,
+      pool: round2(p.pool),
+      count: p.count,
+      odds: oddsFor(total, p.pool),
+      pct: total > 0 ? Math.round((p.pool / total) * 100) : 0,
+    };
+  });
+}
+
 /** Конфиг-view без БД (деградация) */
 function configView(c: CryoMarketConfigItem, dbOk: boolean): CryoMarketView {
   const endsAt = new Date(c.endsAtUtc);
   const status: CryoStatus = Date.now() >= endsAt.getTime() ? "expired" : "live";
+  const options = optionsViewOf(c);
+  const yesPool = options.find((o) => o.key === "yes")?.pool ?? 0;
+  const noPool = options.find((o) => o.key === "no")?.pool ?? 0;
   return {
     id: null,
     postCode: c.postCode,
@@ -69,11 +113,12 @@ function configView(c: CryoMarketConfigItem, dbOk: boolean): CryoMarketView {
     status,
     endsAt: c.endsAtUtc,
     result: null,
-    yesPool: 0,
-    noPool: 0,
+    yesPool,
+    noPool,
     betsCount: 0,
     oddsYes: oddsFor(0, 0),
     oddsNo: oddsFor(0, 0),
+    options,
     exchange: cryoUsdcEnabled() ? "usdc" : "demo",
     db: dbOk,
   };
@@ -101,6 +146,25 @@ export async function ensureCryoMarkets(): Promise<boolean> {
         // status/endsAt/result stay admin-owned — upsert never touches them
         update: { question: c.question, labelYes: c.labelYes, labelNo: c.labelNo },
       });
+
+      // нарративные опции (task 44): идемпотентный upsert по (marketId, key);
+      // порядок и подписи следуют конфигу, ставки не трогаются
+      if (c.options) {
+        const market = await db.cryoMarket.findUnique({
+          where: { postCode: c.postCode },
+          select: { id: true },
+        });
+        if (market) {
+          for (let i = 0; i < c.options.length; i++) {
+            const o = c.options[i];
+            await db.cryoOption.upsert({
+              where: { marketId_key: { marketId: market.id, key: o.key } },
+              create: { marketId: market.id, key: o.key, label: o.label, idx: i },
+              update: { label: o.label, idx: i },
+            });
+          }
+        }
+      }
     }
     // авто-expire: просроченные live-рынки закрываем на чтении
     await db.cryoMarket.updateMany({
@@ -125,7 +189,7 @@ export async function getCryoMarketViews(
 
   const rows = await db.cryoMarket.findMany({
     where: { postCode: { in: CRYO.markets.map((m) => m.postCode) } },
-    include: { bets: true },
+    include: { bets: true, options: { orderBy: { idx: "asc" as const } } },
   });
 
   const mine = wallet
@@ -139,15 +203,39 @@ export async function getCryoMarketViews(
     const row = byCode.get(c.postCode);
     if (!row) return configView(c, true); // upsert не дошёл — крайний случай
 
-    let yes = 0;
-    let no = 0;
+    // N-пульный пари-мьютюэль (task 44): пул/счётчик на КАЖДУЮ опцию
+    const pools = new Map<string, { pool: number; count: number }>();
     for (const b of row.bets) {
       const amt = parseFloat(b.amount) || 0;
-      if (b.side === "yes") yes += amt;
-      else no += amt;
+      const cur = pools.get(b.side) ?? { pool: 0, count: 0 };
+      cur.pool += amt;
+      cur.count += 1;
+      pools.set(b.side, cur);
     }
-    const total = yes + no;
+    const total = [...pools.values()].reduce((s, p) => s + p.pool, 0);
+    const betsCount = row.bets.length;
+
+    // подписи опций: из БД (upsert синхронизирован с конфигом),
+    // фолбэк — конфиг (деградация чтения опций)
+    const options: CryoOptionView[] = (row.options.length > 0
+      ? row.options.map((o) => ({ key: o.key, label: o.label }))
+      : cryoOptionsOf(c).map((o) => ({ key: o.key, label: o.label }))
+    ).map((o) => {
+      const p = pools.get(o.key) ?? { pool: 0, count: 0 };
+      return {
+        ...o,
+        pool: round2(p.pool),
+        count: p.count,
+        odds: oddsFor(total, p.pool),
+        pct: total > 0 ? Math.round((p.pool / total) * 100) : 0,
+      };
+    });
+
     const mb = mineByMarket.get(row.id);
+
+    // обратная совместимость: классические поля yes/no для старых потребителей
+    const yesPool = round2(options.find((o) => o.key === "yes")?.pool ?? 0);
+    const noPool = round2(options.find((o) => o.key === "no")?.pool ?? 0);
 
     return {
       id: row.id,
@@ -159,14 +247,15 @@ export async function getCryoMarketViews(
       status: row.status as CryoStatus,
       endsAt: row.endsAt.toISOString(),
       result: (row.result as CryoSide | null) ?? null,
-      yesPool: round2(yes),
-      noPool: round2(no),
-      betsCount: row.bets.length,
-      oddsYes: oddsFor(total, yes),
-      oddsNo: oddsFor(total, no),
+      yesPool,
+      noPool,
+      betsCount,
+      oddsYes: oddsFor(total, yesPool),
+      oddsNo: oddsFor(total, noPool),
+      options,
       exchange: cryoUsdcEnabled() ? "usdc" : "demo",
       db: true,
-      myBet: mb ? (mb.side as CryoSide) : null,
+      myBet: mb ? mb.side : null,
       myPayout: mb?.payout ?? null,
       myClaimed: mb?.claimed ?? false,
     };
@@ -193,15 +282,18 @@ export interface PlaceBetResult {
 export async function placeCryoBet(args: {
   postCode: string;
   wallet: string;
-  side: CryoSide;
+  side: CryoSide; // ключ опции ("yes"/"no" или нарративный)
   amount: string; // USDC decimal string, validated below
-  mode: "demo" | "phantom";
+  mode: "demo" | "phantom" | "bonus"; // bonus = free prediction (task 44)
   txSig?: string | null;
   betRef?: string | null;
 }): Promise<PlaceBetResult> {
   const cfg = cryoMarketByCode(args.postCode);
   if (!cfg) return { ok: false, status: 404, error: "Unknown market" };
-  if (args.side !== "yes" && args.side !== "no") {
+  // side — ключ одной из опций рынка (2–4 нарративных, включая yes/no)
+  const optionKeys = cryoOptionsOf(cfg).map((o) => o.key);
+  const side = (args.side ?? "").trim().toLowerCase();
+  if (!optionKeys.includes(side)) {
     return { ok: false, status: 400, error: "Bad side" };
   }
   if (!args.wallet || args.wallet.length < 8 || args.wallet.length > 64) {
@@ -262,12 +354,17 @@ export async function placeCryoBet(args: {
       data: {
         marketId: market.id,
         wallet: args.wallet.toLowerCase(),
-        side: args.side,
+        side,
         amount,
         mode: args.mode,
         txSig: args.txSig ?? null,
       },
     });
+
+    // журналирование денежной операции (ТЗ §9: все денежные операции логировать)
+    console.info(
+      `[money-op] cryo bet fixed: market=${args.postCode} side=${side} amount=${amount} mode=${args.mode} wallet=${args.wallet.toLowerCase()} tx=${args.txSig ?? "-"}`
+    );
 
     const views = await getCryoMarketViews(args.wallet);
     const view = views.find((v) => v.postCode === args.postCode);
@@ -291,15 +388,19 @@ export interface ResolveResult {
 }
 
 /**
- * Вердикт оракула (Block 8 → Block 9): пари-мьютюэль расчистка.
- * Выигравшим ставкам проставляется payout, проигравшие остаются с null.
+ * Вердикт оракула (Block 8 → Block 9): пари-мьютюэль расчистка на N пулов.
+ * result — КЛЮЧ ОПЦИИ ("yes"/"no" или нарративный); выигравшим ставкам
+ * (side === result) проставляется payout, остальные остаются с null.
  */
 export async function resolveCryoMarket(
   postCode: string,
   result: CryoSide
 ): Promise<ResolveResult> {
-  if (result !== "yes" && result !== "no") {
-    return { ok: false, status: 400, error: "Bad result" };
+  const cfg = cryoMarketByCode(postCode);
+  if (!cfg) return { ok: false, status: 404, error: "Unknown market" };
+  const optionKeys = cryoOptionsOf(cfg).map((o) => o.key);
+  if (!optionKeys.includes(result)) {
+    return { ok: false, status: 400, error: "Bad result — unknown option" };
   }
   const dbOk = await ensureCryoMarkets();
   if (!dbOk) return { ok: false, status: 503, error: "DB unavailable" };
@@ -314,20 +415,20 @@ export async function resolveCryoMarket(
       return { ok: false, status: 409, error: "Already resolved" };
     }
 
-    const yes = market.bets.filter((b) => b.side === "yes");
-    const no = market.bets.filter((b) => b.side === "no");
-    const yesPool = yes.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
-    const noPool = no.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
-    const totalPool = round2(yesPool + noPool);
-    const winningPool = result === "yes" ? yesPool : noPool;
+    const totalPool = round2(
+      market.bets.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0)
+    );
+    const winningPool = market.bets
+      .filter((b) => b.side === result)
+      .reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
     const distributable = totalPool * (1 - CRYO.feePct);
+    const winners = market.bets.filter((b) => b.side === result);
 
     await db.$transaction(async (tx) => {
       await tx.cryoMarket.update({
         where: { id: market.id },
         data: { status: "resolved", result, resolvedAt: new Date() },
       });
-      const winners = result === "yes" ? yes : no;
       for (const b of winners) {
         const share =
           winningPool > 0
@@ -340,7 +441,17 @@ export async function resolveCryoMarket(
       }
     });
 
-    return { ok: true, status: 200, settled: market.bets.length, totalPool, winningPool };
+    // журналирование расчистки (все денежные операции — в лог)
+    console.info(
+      `[money-op] cryo resolved: market=${postCode} result=${result} pool=${totalPool} winners=${winners.length} distributable=${distributable.toFixed(2)}`
+    );
+
+    // бейдж «seer» победителям за серию верных прогнозов (best-effort, task 44 §6)
+    for (const b of winners) {
+      await awardSeerBadge(b.wallet);
+    }
+
+    return { ok: true, status: 200, settled: market.bets.length, totalPool, winningPool: round2(winningPool) };
   } catch (e) {
     return { ok: false, status: 503, error: e instanceof Error ? e.message : "DB error" };
   }
@@ -416,6 +527,8 @@ export interface CryoPnlItem {
   question: string;
   labelYes: string;
   labelNo: string;
+  /** подпись исхода по ключу опции (task 44: нарративные рынки) */
+  optionLabel: string;
   accent: string;
   side: CryoSide;
   amount: string;
@@ -457,6 +570,7 @@ export async function getCryoPnl(
   });
   const markets = await db.cryoMarket.findMany({
     where: { postCode: { in: CRYO.markets.map((m) => m.postCode) } },
+    include: { options: { orderBy: { idx: "asc" as const } } },
   });
   const byId = new Map(markets.map((m) => [m.id, m]));
 
@@ -488,6 +602,17 @@ export async function getCryoPnl(
       question: m?.question ?? cfg?.question ?? "—",
       labelYes: m?.labelYes ?? cfg?.labelYes ?? "YES",
       labelNo: m?.labelNo ?? cfg?.labelNo ?? "NO",
+      // подпись исхода: нарративная опция по ключу; фолбэк — классика yes/no
+      optionLabel:
+        (cfg
+          ? cryoOptionsOf(cfg).find((o) => o.key === b.side)?.label
+          : undefined) ??
+        m?.options.find((o) => o.key === b.side)?.label ??
+        (b.side === "yes"
+          ? m?.labelYes ?? cfg?.labelYes ?? "YES"
+          : b.side === "no"
+            ? m?.labelNo ?? cfg?.labelNo ?? "NO"
+            : b.side),
       accent: cfg?.accent ?? "#5b9bd5",
       side: b.side as CryoSide,
       amount: b.amount,

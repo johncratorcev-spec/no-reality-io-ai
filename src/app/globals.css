@@ -1673,6 +1673,27 @@ section:hover .nr-mc-arrow,
   border-color: rgba(15, 107, 255, 0.65);
   box-shadow: 0 0 0 3px rgba(46, 168, 255, 0.18);
 }
+
+/* task 44 §6: чип «N free» — бесплатные прогнозы (welcome-бонус) */
+.nr-cryo-freechip {
+  margin-left: auto;
+  border: 1px solid rgba(194, 65, 12, 0.35);
+  background: rgba(255, 244, 235, 0.9);
+  color: #c2410c;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.nr-cryo-freechip:hover { transform: translateY(-1px); }
+.nr-cryo-freechip-on {
+  background: #c2410c;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(194, 65, 12, 0.35);
+}
 .nr-cryo-custom-on { border-color: rgba(15, 107, 255, 0.55); }
 .nr-cryo-custom input {
   width: 64px;
@@ -1698,64 +1719,110 @@ section:hover .nr-mc-arrow,
   color: rgba(11, 26, 42, 0.4);
 }
 
-/* ── task 43: two big outcomes — один тап фиксирует позицию ── */
-.nr-cryo-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+/* ── task 44: нарративные опции «what happens next» — ряд на всю ширину,
+      один тап фиксирует позицию. Формат ТЗ: [label] pct% N-bets ×odds ── */
+.nr-cryo-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 10px;
 }
-.nr-cryo-action {
+.nr-cryo-opt {
   position: relative;
   overflow: hidden;
   border: 0;
-  border-radius: 16px;
-  padding: 11px 14px 10px;
+  border-radius: 14px;
+  padding: 9px 12px;
   cursor: pointer;
   text-align: left;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.16)), rgba(233, 241, 248, 0.85);
+  color: #10161d;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 4px 14px rgba(16, 22, 29, 0.08);
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, filter 0.22s ease;
 }
-.nr-cryo-action b {
-  font-weight: 900;
-  font-size: 19px;
-  letter-spacing: 0.03em;
-  line-height: 1.1;
+.nr-cryo-opt-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
-.nr-cryo-action-odds {
+.nr-cryo-opt-label b {
+  font-weight: 900;
+  font-size: 13.5px;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nr-cryo-opt-label i {
+  font-style: normal;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+.nr-cryo-opt-mid {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nr-cryo-opt-mid em {
+  font-style: normal;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0b1a2a;
+  min-width: 34px;
+  text-align: right;
+}
+.nr-cryo-opt-bar {
+  width: 52px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(12, 40, 70, 0.12);
+  overflow: hidden;
+}
+.nr-cryo-opt-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.7s ease;
+}
+.nr-cryo-opt-odds {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
   font-family: ui-monospace, Menlo, monospace;
   font-size: 12.5px;
   font-weight: 800;
+  color: #0b1a2a;
 }
-.nr-cryo-action-note {
-  font-size: 9px;
+.nr-cryo-opt-odds small {
+  font-size: 8.5px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  opacity: 0.66;
+  opacity: 0.55;
 }
-.nr-cryo-action-yes {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.08)) , var(--accent, #2ea8ff);
-  background-blend-mode: normal;
-  color: #101317;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent, #2ea8ff) 42%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+.nr-cryo-opt-my {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent, #2ea8ff) 75%, transparent), 0 6px 18px color-mix(in srgb, var(--accent, #2ea8ff) 30%, transparent);
 }
-.nr-cryo-action-yes b { text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35); }
-.nr-cryo-action-no {
-  background: linear-gradient(165deg, #2b3646, #10161d);
-  color: #f2f6fa;
-  box-shadow: 0 10px 24px rgba(16, 22, 29, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+.nr-cryo-opt:hover:not(:disabled) {
+  transform: translateY(-1.5px);
+  filter: brightness(1.04);
 }
-.nr-cryo-action-no .nr-cryo-action-odds { color: #9fd8ff; }
-.nr-cryo-action:hover:not(:disabled) {
-  transform: translateY(-2px);
-  filter: brightness(1.05);
-}
-.nr-cryo-action:active:not(:disabled) { transform: scale(0.97); }
-.nr-cryo-action:disabled { cursor: default; }
-.nr-cryo-action-busy {
+.nr-cryo-opt:active:not(:disabled) { transform: scale(0.98); }
+.nr-cryo-opt:disabled { cursor: default; }
+.nr-cryo-opt-busy {
   animation: nr-cryo-pulse 0.5s ease-in-out infinite;
 }
 .nr-cryo-payerr {
@@ -1765,7 +1832,7 @@ section:hover .nr-mc-arrow,
   color: #c2410c;
 }
 
-/* Block 6: индикатор толпы — распределение денег между ДА и НЕТ */
+/* Block 6 / task 44: индикатор толпы — N сегментов по опциям */
 .nr-cryo-crowd { margin-top: 4px; }
 .nr-cryo-crowd-sums {
   display: flex;
@@ -1795,17 +1862,15 @@ section:hover .nr-mc-arrow,
   overflow: visible;
   background: rgba(12, 40, 70, 0.1);
 }
-.nr-cryo-crowd-yes {
-  height: 100%;
-  border-radius: 999px 0 0 999px;
-  transition: width 0.7s ease;
-}
-.nr-cryo-crowd-no {
+.nr-cryo-crowd-seg {
+  display: block;
   height: 100%;
   background: linear-gradient(90deg, #6e7e90, #47566a);
-  border-radius: 0 999px 999px 0;
   transition: width 0.7s ease;
 }
+.nr-cryo-crowd-seg:first-child { border-radius: 999px 0 0 999px; }
+.nr-cryo-crowd-seg:last-child { border-radius: 0 999px 999px 0; }
+.nr-cryo-crowd-seg:only-child { border-radius: 999px; }
 .nr-cryo-crowd-my::after {
   content: "";
   position: absolute;
@@ -1814,16 +1879,6 @@ section:hover .nr-mc-arrow,
   border: 1px solid rgba(255, 200, 60, 0.85);
   animation: nr-cryo-gold-pulse 1.6s ease-in-out infinite;
   pointer-events: none;
-}
-.nr-cryo-crowd-marker {
-  position: absolute;
-  top: 50%;
-  width: 9px;
-  height: 9px;
-  transform: translate(-50%, -50%) rotate(45deg);
-  background: #ffc83c;
-  border: 1.5px solid #fff;
-  box-shadow: 0 0 8px rgba(255, 200, 60, 0.95);
 }
 
 /* Block 5: изоляция внимания — мир за поп-апом перестаёт существовать */
@@ -1973,7 +2028,7 @@ section:hover .nr-mc-arrow,
   .nr-cryo-noise,
   .nr-cryo-horizon,
   .nr-cryo-live i,
-  .nr-cryo-action { animation: none !important; }
+  .nr-cryo-opt { animation: none !important; }
   .nr-cryo-timer-boil { animation: none !important; }
 }
 

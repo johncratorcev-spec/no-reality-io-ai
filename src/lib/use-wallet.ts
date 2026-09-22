@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { REFERRAL } from "@/lib/site";
+import { myShareRef, storeMyRef } from "@/lib/shareRef";
 import { signInWithPhantom, phantomProvider } from "@/lib/cryo/wallet";
 
 /* ================================================================
@@ -66,17 +67,20 @@ export function useWalletSession() {
           .catch(() => ({ wallet: null })),
       ]);
       if (ph.wallet) {
+        // task 44: phantom-роут теперь отдаёт refCode — запоминаем свой код
+        storeMyRef(ph.refCode ?? null);
         setState((s) => ({
           ...s,
           wallet: ph.wallet,
           provider: "phantom",
-          refCode: null,
+          refCode: ph.refCode ?? null,
           inviteUrl: null,
           ready: true,
         }));
         return;
       }
       if (mm.wallet) {
+        storeMyRef(mm.refCode ?? null);
         setState((s) => ({
           ...s,
           wallet: mm.wallet,
@@ -104,12 +108,12 @@ export function useWalletSession() {
     if (phantomProvider()) {
       try {
         const address = await signInWithPhantom();
+        // подпись ставит cookie — перечитываем сессию, чтобы забрать refCode
+        await refresh();
         setState((s) => ({
           ...s,
           wallet: address,
           provider: "phantom",
-          refCode: null,
-          inviteUrl: null,
           connecting: false,
         }));
         return;
@@ -142,12 +146,13 @@ export function useWalletSession() {
       const r = await fetch("/api/auth/metamask", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ address }),
+        body: JSON.stringify({ address, invitedBy: myShareRef() }),
       });
       const d = (await r.json()) as SessionResponse;
       if (!r.ok || !d.wallet) {
         throw new Error(d.error || "Sign-in failed");
       }
+      storeMyRef(d.refCode ?? null);
       setState((s) => ({
         ...s,
         wallet: d.wallet,
