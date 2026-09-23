@@ -39,14 +39,15 @@ export default function ReferralPanel() {
       </h2>
       <p className="mt-3 max-w-xl text-[0.86rem] font-semibold leading-relaxed text-[#10161d]/60">
         connect your MetaMask, share your personal invite link and get 20% of
-        every invoice paid through it. paid out in USDT, no caps, no tricks.
+        every paid drop through it — card (Stripe) or crypto (2328.io).
+        paid out in USDT, no caps, no tricks.
       </p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {[
           { n: "01", t: "connect", d: "your wallet is your identity and payout address" },
           { n: "02", t: "invite", d: "share the link — attribution lives 90 days" },
-          { n: "03", t: "earn", d: "20% of each paid invoice lands on your wallet" },
+          { n: "03", t: "earn", d: "20% of each paid drop — card or crypto — lands on your wallet" },
         ].map((s) => (
           <div
             key={s.n}

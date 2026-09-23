@@ -243,6 +243,43 @@ model UserProfile {
   updatedAt    DateTime @updatedAt
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 45 — Stripe-продажа промптов картой (test mode) + реферальный %.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Заказ витрины промптов (/market), оплаченный КАРТОЙ через Stripe
+// Checkout (hosted). Параллельный канал к 2328.io (USDT): каталог товаров —
+// src/lib/market/catalog.ts, полные тексты — data/prompts.csv (utm_code).
+//
+// Жизненный цикл status:
+//   pending — сессия создана, ждём оплату (webhook / реконсиляция)
+//   paid    — checkout.session.completed с payment_status=paid
+//   expired — checkout.session.expired (или истекла по expires_at)
+//
+// Идемпотентность: sessionId уникален, перевод статуса — updateMany
+// «из pending», повторный webhook находит 0 строк и получает 200.
+// Атрибуция реферера живёт в metadata сессии И в refCode здесь —
+// при paid пишем ReferralEvent (kind=paid, сумма в USD-строке).
+model StripeOrder {
+  id              String    @id @default(uuid())
+  productCode     String // код из MARKET_ITEMS ("neon-rain", …)
+  buyerHash       String // nr_buyer cookie (anonymous UUID)
+  buyerWallet     String? // lowercase 0x… — если покупатель авторизован
+  refCode         String? // персональный код пригласившего (r…)
+  sessionId       String?   @unique // cs_test_… / cs_live_… (пишется после create)
+  paymentIntentId String? // pi_… (заполняется webhook'ом)
+  amountCents     Int // цена в центах (1200 = $12.00)
+  currency        String    @default("usd")
+  status          String    @default("pending")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  paidAt          DateTime?
+
+  @@index([productCode])
+  @@index([buyerHash])
+  @@index([status])
+}
+
 // Одноразовые токены Magic Link (task 44, п.6): email-вход как ДОПОЛНЕНИЕ
 // к кошельку. Храним только sha256(token) — утечка БД не раскрывает ссылки.
 // TTL 15 минут, одноразовый (usedAt), ставка через Resend (free 3000/мес).

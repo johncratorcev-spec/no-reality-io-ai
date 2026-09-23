@@ -1,34 +1,46 @@
 import type { Metadata } from "next";
 import PromptDropCard from "@/components/feed/PromptDropCard";
+import PromptCard from "@/components/market/PromptCard";
 import ReferralPanel from "@/components/wallet/ReferralPanel";
 import Menu from "@/components/menu/Menu";
-import { PROMPT_DROP } from "@/lib/site";
+import { MARKET_ITEMS } from "@/lib/market/catalog";
+import { FEATURES } from "@/lib/features";
 
 export const metadata: Metadata = {
   title: "prompt market",
   description:
-    "The official prompt market of no reality.: buy the exact prompts behind the characters. The loki drop — the black cat in the hoodie from the collab — is live: one payment, one 60-second look.",
+    "The official prompt market of no reality.: buy the exact prompts behind the characters. Pay with card via Stripe — instant unlock — or crypto via 2328.io. Creators keep 75%.",
   alternates: { canonical: "/market" },
 };
 
+/* динамическая витрина: FEATURES.stripeMarket зависит от env РАНТАЙМА —
+   статический пререндер запёк бы «card checkout soon» с билд-машины */
+export const dynamic = "force-dynamic";
+
 /* ================================================================
-   PROMPT MARKET — витрина промптов (/market).
-   Сейчас в витрине один активный дроп (loki-hoodie) + реферальная
-   программа. Новые дропы = новый PROMPT_*-конфиг + карточка здесь.
+   PROMPT MARKET — витрина промптов (/market), task 45.
+
+   Минималистичный стиль платформы продаж промптов:
+   • каталог карточек (MARKET_ITEMS) — оплата КАРТОЙ через Stripe
+     Checkout (hosted), test/live определяется ключом;
+   • featured-дроп loki (PromptDropCard) — прежний crypto-канал
+     2328.io, не трогаем;
+   • реферальная панель: 20% с оплаченного инвойса в ОБОИХ каналах —
+     атрибуция ?ref= → ReferralEvent (kind=paid) в одном реестре.
+
+   Новые дропы = новая запись в MARKET_ITEMS + строка в
+   data/prompts.csv (utm_code = productCode). Кода писать не нужно.
    ================================================================ */
 
 const STEPS = [
-  { n: "01", t: "watch", d: "the character comes from a real collab video — follow the link on the card" },
-  { n: "02", t: "pay", d: "crypto checkout via 2328.io — USDT, no account needed" },
-  { n: "03", t: "unlock", d: "the prompt reveals for 60 seconds — screenshot it before the timer eats it" },
-];
-
-const SOON = [
-  { tag: "coming soon", t: "the mimic — entity #018", d: "the tape-filed anomaly from the creepy shelf" },
-  { tag: "coming soon", t: "robot #6 — carbonara", d: "the kitchen drone that cooks while you sleep" },
+  { n: "01", t: "pick", d: "every drop is the exact prompt behind a character or scene you've already seen in the wild" },
+  { n: "02", t: "pay", d: "card checkout via Stripe — or crypto via 2328.io for the featured drop. no account needed" },
+  { n: "03", t: "unlock", d: "the full prompt reveals the second the payment confirms — copy it and go make it real" },
 ];
 
 export default function MarketPage() {
+  const cardPayEnabled = FEATURES.stripeMarket;
+
   return (
     <main className="min-h-dvh bg-white">
       {/* ---------- hero (светлый, перламутровый) ---------- */}
@@ -61,9 +73,9 @@ export default function MarketPage() {
             the prompts behind the characters
           </h1>
           <p className="mt-4 max-w-xl text-[0.92rem] font-semibold leading-relaxed text-[#10161d]/60">
-            every drop here is the exact prompt behind a character you&apos;ve
-            already seen in the wild. flash mechanics: pay, unlock, screenshot —
-            one look is all you get.
+            every drop here is the exact prompt behind a scene you&apos;ve seen
+            in the wild. pick one, pay with card or crypto, copy the prompt —
+            one look is all you need to recreate it.
           </p>
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             {STEPS.map((s) => (
@@ -84,48 +96,51 @@ export default function MarketPage() {
         </div>
       </section>
 
-      {/* ---------- активный дроп: loki ---------- */}
-      <div className="bg-white">
-        <PromptDropCard variant="section" />
-
-        {/* ---------- soon-плейсхолдеры ---------- */}
-        <section className="mx-auto max-w-4xl px-5 pb-4" aria-label="Upcoming drops">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {SOON.map((d) => (
-              <div
-                key={d.t}
-                className="rounded-3xl border border-dashed border-[#1B1523]/15 bg-[#f7f5fb] p-6"
-              >
-                <p className="text-[0.6rem] font-extrabold uppercase tracking-[0.24em] text-[#1B1523]/35">
-                  {d.tag}
-                </p>
-                <p className="mt-2 text-[1.05rem] font-extrabold tracking-tight text-[#1B1523]/55">
-                  {d.t}
-                </p>
-                <p className="mt-1 text-[0.72rem] font-semibold text-[#1B1523]/40">
-                  {d.d}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ---------- реферальная программа ---------- */}
-        <ReferralPanel />
-
-        {/* ---------- нижний футер-строка ---------- */}
-        <section className="mx-auto max-w-4xl px-5 pb-20 pt-10 text-center">
-          <p className="text-[0.72rem] font-semibold text-[#1B1523]/45">
-            paid drops unlock instantly after confirmation · questions —{" "}
-            <a
-              href="/feed"
-              className="underline decoration-[#1B1523]/25 underline-offset-4 hover:text-[#1B1523]"
-            >
-              find us in the feed
-            </a>
+      {/* ---------- каталог: карточные дропы (Stripe) ---------- */}
+      <section className="mx-auto max-w-5xl px-5" aria-label="Prompt drops">
+        <div className="flex items-end justify-between gap-4">
+          <h2 className="text-[1.6rem] font-extrabold tracking-tight text-[#10161d] sm:text-3xl">
+            fresh drops
+          </h2>
+          <p className="pb-1 text-[0.64rem] font-extrabold uppercase tracking-[0.22em] text-[#10161d]/35">
+            card checkout · instant unlock
           </p>
-        </section>
+        </div>
+
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {MARKET_ITEMS.map((item) => (
+            <PromptCard
+              key={item.code}
+              item={item}
+              cardPayEnabled={cardPayEnabled}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* ---------- featured: loki, crypto-канал 2328.io ---------- */}
+      <div className="mt-16 bg-white">
+        <PromptDropCard variant="section" />
       </div>
+
+      {/* ---------- реферальная программа ---------- */}
+      <div className="mx-auto max-w-4xl px-5">
+        <ReferralPanel />
+      </div>
+
+      {/* ---------- нижний футер-строка ---------- */}
+      <section className="mx-auto max-w-4xl px-5 pb-20 pt-10 text-center">
+        <p className="text-[0.72rem] font-semibold text-[#1B1523]/45">
+          card payments run in Stripe test mode for these drops · crypto drops
+          unlock instantly after confirmation · questions —{" "}
+          <a
+            href="/feed"
+            className="underline decoration-[#1B1523]/25 underline-offset-4 hover:text-[#1B1523]"
+          >
+            find us in the feed
+          </a>
+        </p>
+      </section>
     </main>
   );
 }

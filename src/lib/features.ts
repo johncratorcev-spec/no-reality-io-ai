@@ -33,6 +33,11 @@ export const FEATURES = {
   magicLink:
     process.env.FEATURE_MAGIC_LINK !== "0" &&
     Boolean(process.env.RESEND_API_KEY),
+
+  /** продажа промптов картой через Stripe (task 45): только при ключе */
+  stripeMarket:
+    process.env.FEATURE_STRIPE_MARKET !== "0" &&
+    Boolean(process.env.STRIPE_SECRET_KEY),
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
