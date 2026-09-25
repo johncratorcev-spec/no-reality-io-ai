@@ -26,7 +26,7 @@ import {
   VolumeX,
   Wrench,
 } from "lucide-react";
-import type { FeedPost } from "@/lib/csv";
+import type { ClientPost } from "@/lib/csv";
 import { isBoosted } from "@/lib/boost";
 import { pseudoViews } from "@/lib/utils";
 import { playMeow } from "@/lib/meow";
@@ -34,6 +34,7 @@ import { PARTNER_OF_WEEK } from "@/lib/site";
 import { toggleFavorite, useFavoritesStore } from "@/lib/favorites";
 import MediaCarousel from "./MediaCarousel";
 import DonateBox from "./DonateBox";
+import BetPanel from "@/components/bet/BetPanel";
 import { extractPrompt } from "@/lib/prompts/extract";
 import VideoFallback from "./VideoFallback";
 import UnlockModal from "./UnlockModal";
@@ -42,7 +43,7 @@ import type { CryoMarketView, CryoSide } from "@/lib/cryo/core";
 import { readCryoLocalBet } from "@/lib/cryo/local";
 import { withRef } from "@/lib/shareRef";
 
-export type PostWithScore = FeedPost & { score: number };
+export type PostWithScore = ClientPost & { score: number };
 
 /** подпись исхода по ключу опции: нарративная опция → классика yes/no → сырой ключ */
 function cryoOptionLabel(m: CryoMarketView, key: string): string {
@@ -68,6 +69,8 @@ interface VideoCardProps {
   market?: CryoMarketView | null;
   /** сколько авторизованных пользователей сохранили в избранное (task 44, §3) */
   favCount?: number;
+  /** deep-link вход на ЭТУ карточку (/v/CODE) — land-hard у панели ставки */
+  landHard?: boolean;
   /** stable callback — receives the slot index (memo-friendly, task 43) */
   onEnded: (index: number) => void;
 }
@@ -287,6 +290,7 @@ function VideoCardInner({
   autoDonate = false,
   market = null,
   favCount = 0,
+  landHard = false,
   onEnded,
 }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -294,9 +298,32 @@ function VideoCardInner({
   const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAction = useRef(0);
   const lastSnap = useRef(0);
+  const fxTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [muted, setMuted] = useState(true);
   const [statusVisible, setStatusVisible] = useState(false);
+
+  /* ---- v2: crush / glitch-eye на весь кадр (§3.1) ----
+      BetPanel диспатчит nb-crush (проигрыш) и nb-glitch (резолв REAL);
+      здесь слушаем только СВОЙ clip и кратко вешаем класс на корень. */
+  const [frameFx, setFrameFx] = useState<"" | "nb-crush" | "nb-glitch">("");
+  useEffect(() => {
+    const onFx = (e: Event) => {
+      const clip = (e as CustomEvent<{ clip?: string }>).detail?.clip;
+      if (clip !== post.utmCode) return;
+      const kind = e.type === "nb-crush" ? "nb-crush" : "nb-glitch";
+      setFrameFx(kind);
+      const t = setTimeout(() => setFrameFx(""), 300);
+      fxTimer.current = t;
+    };
+    window.addEventListener("nb-crush", onFx);
+    window.addEventListener("nb-glitch", onFx);
+    return () => {
+      window.removeEventListener("nb-crush", onFx);
+      window.removeEventListener("nb-glitch", onFx);
+      if (fxTimer.current) clearTimeout(fxTimer.current);
+    };
+  }, [post.utmCode]);
   const [pulse, setPulse] = useState<"play" | "pause" | null>(null);
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -708,7 +735,7 @@ function VideoCardInner({
   return (
     <section
       data-index={index}
-      className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-[#eef5fb]"
+      className={`relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-[#0A0A0F] ${frameFx}`}
     >
       {/* ---------- размытый фон: canvas-снимок кадра (только у активной) ---------- */}
       {isActive && !isCarousel && (
@@ -1215,6 +1242,19 @@ function VideoCardInner({
         !overlayUp && (
           <DonateBox utmCode={post.utmCode} autoOpen={autoDonate} />
         )}
+
+      {/* ---------- v2: панель ставки REAL/SYNTH (ТЗ §1, §3.1) ----------
+          только на клипах с curator truth (bettable) и без Cryo-оверлея:
+          два рынка на один кадр — каша. Панель сама прячется у неактивных. */}
+      {post.bettable && !market && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <BetPanel
+            clipCode={post.utmCode}
+            isActive={isActive}
+            landHard={landHard}
+          />
+        </div>
+      )}
 
       {/* ---------- вспышка разблокировки: кольцо + конфетти ---------- */}
       {unlockFlash && (

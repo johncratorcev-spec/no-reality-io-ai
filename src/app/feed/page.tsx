@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import FeedScreen from "@/components/FeedScreen";
-import { getRankedPosts } from "@/lib/posts";
+import { getRankedPosts, toClientRankedPosts } from "@/lib/posts";
 
 export const dynamic = "force-dynamic";
 
@@ -23,5 +23,5 @@ export const metadata: Metadata = {
 export default async function FeedPage() {
   const posts = await getRankedPosts();
 
-  return <FeedScreen posts={posts} />;
+  return <FeedScreen posts={toClientRankedPosts(posts)} />;
 }

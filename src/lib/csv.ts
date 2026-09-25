@@ -25,6 +25,24 @@ export interface FeedPost {
   priceUsdt?: string;    // цена в USDT, decimal-строка ("3.00")
   promptPreview?: string; // публичный тизер промпта (виден до оплаты)
   sellerWallet?: string; // USDT-кошелёк автора (публичный блокчейн-адрес)
+  // --- v2: ставки REAL/SYNTH ---
+  // ВАЖНО (анти-чит): truth НИКОГДА не попадает в RSC-пейлоад/клиентский бандл —
+  // клиент получает ClientPost (posts.ts → toClientPost), где truth вырезан,
+  // а bettable = Boolean(truth). Резолв круглa живёт только на сервере.
+  truth?: "real" | "synth"; // кураторский вердикт (в CSV колонка truth)
+  mood?: string;            // swag | creepy | future | ufo (косметика)
+}
+
+/** Клиентский пост: truth вырезан, bettable не раскрывает КАКАЯ правда */
+export type ClientPost = Omit<FeedPost, "truth"> & { bettable: boolean };
+
+export function toClientPost(p: FeedPost): ClientPost {
+  const { truth, ...rest } = p;
+  return { ...rest, bettable: truth === "real" || truth === "synth" };
+}
+
+export function toClientPosts(posts: FeedPost[]): ClientPost[] {
+  return posts.map(toClientPost);
 }
 
 /** Колонка media: компактный JSON [{"t":"i"|"v","u":"https://…"}] → слайды */
@@ -114,6 +132,10 @@ function load(): PostCache {
     const promptPreview = (row.prompt_preview || "").trim();
     const sellerWallet = (row.seller_wallet || "").trim();
 
+    const truthRaw = (row.truth || "").trim().toLowerCase();
+    const truth = truthRaw === "real" || truthRaw === "synth" ? truthRaw : undefined;
+    const mood = (row.mood || "").trim().toLowerCase();
+
     const post: FeedPost = {
       url,
       title: (row.title || "").trim(),
@@ -130,6 +152,8 @@ function load(): PostCache {
       ...(isPaid && priceUsdt ? { priceUsdt } : {}),
       ...(promptPreview ? { promptPreview } : {}),
       ...(sellerWallet ? { sellerWallet } : {}),
+      ...(truth ? { truth } : {}),
+      ...(mood ? { mood } : {}),
     };
     posts.push(post);
     byCode.set(utmCode, post);

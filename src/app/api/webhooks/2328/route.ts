@@ -8,6 +8,7 @@ import {
 } from "@/lib/2328/webhook";
 import { is2328PayoutConfigured } from "@/lib/2328/payout";
 import { runSinglePayout } from "@/lib/payouts";
+import { confirmBetPayment, failBetPayment } from "@/lib/bet/core";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,25 @@ async function handlePayment(p: {
   txid: string | null;
   payerAmount: string | null;
 }) {
+  /* ---- v2: ставки REAL/SYNTH (orderId rb-…) идут в свой контур ----
+      Покупки промптов (pd-…) обрабатываются ниже; rb-* сюда не заходит,
+      чтобы Bet не находил Purchase и наоборот. */
+  if (p.orderId.startsWith("rb-")) {
+    if (isPaidStatus(p.paymentStatus)) {
+      const bet = await confirmBetPayment(p.uuid, p.orderId);
+      log(bet ? "bet_payment_confirmed" : "bet_payment_unknown", {
+        orderId: p.orderId,
+        uuid: p.uuid,
+      });
+    } else if (p.paymentStatus === "cancel" || p.paymentStatus === "underpaid") {
+      await failBetPayment(p.uuid, p.orderId);
+      log("bet_payment_failed_final", { orderId: p.orderId, status: p.paymentStatus });
+    } else {
+      log("bet_payment_intermediate", { orderId: p.orderId, status: p.paymentStatus });
+    }
+    return;
+  }
+
   const purchase = await db.purchase.findUnique({
     where: { paymentId: p.uuid },
   });

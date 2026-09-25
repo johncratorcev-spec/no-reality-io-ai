@@ -2,10 +2,10 @@ import Header from "@/components/Header";
 import WebGLBanner from "@/components/WebGLBanner";
 import Feed from "@/components/feed/Feed";
 import Footer from "@/components/Footer";
-import type { RankedPost } from "@/lib/posts";
+import type { ClientRankedPost } from "@/lib/posts";
 
 interface FeedScreenProps {
-  posts: RankedPost[];
+  posts: ClientRankedPost[];
   /** utm-код поста, к которому лента должна проскроллиться при загрузке (/v/[code]) */
   focusCode?: string;
   /** deep-link ?donate=1 — авто-открыть карточку доната на сфокусированном посте */
@@ -26,7 +26,7 @@ export default function FeedScreen({
   dropOpen,
 }: FeedScreenProps) {
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-white">
+    <div className="nr-night flex h-dvh flex-col overflow-hidden bg-[#0A0A0F] text-[#F2EDE4]">
       <Header />
       <WebGLBanner />
 

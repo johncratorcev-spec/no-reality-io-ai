@@ -2849,3 +2849,413 @@ section:hover .nr-mc-arrow,
     animation: none !important;
   }
 }
+
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  v2 — TOXIC CARNIVAL / BROKEN ELEGANCE (ТЗ v2 §2, §3)         ║
+   ║  Кровь #FF003C · Яд #C8FF00 · Ночь #0A0A0F · Металл #1A1A24   ║
+   ║  Кость #F2EDE4 · Глитч #7B2CBF + #00F0FF                      ║
+   ║  Префиксы: .nr-night — scope ночной темы ленты;               ║
+   ║            .nb-* — анимации и поверхности ставки.             ║
+   ╚══════════════════════════════════════════════════════════════╝ */
+
+.nr-night {
+  --nb-blood: #ff003c;
+  --nb-poison: #c8ff00;
+  --nb-night: #0a0a0f;
+  --nb-metal: #1a1a24;
+  --nb-bone: #f2ede4;
+  --nb-glitch-a: #7b2cbf;
+  --nb-glitch-b: #00f0ff;
+}
+
+/* ---------------------------------------------------------------
+   Ночная тема ленты (scope): Header/Footer/стекло перекрашиваются
+   внутри .nr-night, лендинг и другие светлые страницы не затронуты.
+   --------------------------------------------------------------- */
+.nr-night {
+  background: var(--nb-night);
+  color: var(--nb-bone);
+}
+.nr-night .bg-white {
+  background-color: var(--nb-night);
+}
+.nr-night header {
+  background: rgba(10, 10, 15, 0.92);
+  backdrop-filter: blur(20px) saturate(1.2);
+}
+.nr-night .nr-logo {
+  color: var(--nb-bone);
+  filter: drop-shadow(0 0 14px rgba(255, 0, 60, 0.45));
+}
+.nr-night footer {
+  background: rgba(10, 10, 15, 0.78);
+  border-top-color: rgba(242, 237, 228, 0.08);
+}
+.nr-night .nr-glass {
+  background: rgba(26, 26, 36, 0.66);
+  border: 1px solid rgba(242, 237, 228, 0.12);
+  color: var(--nb-bone);
+}
+.nr-night .nr-glass-deep {
+  background: rgba(26, 26, 36, 0.85);
+  border: 1px solid rgba(242, 237, 228, 0.14);
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.55);
+  color: var(--nb-bone);
+}
+/* текст внутри стекла: явные tailwind-цвета перекрываются атрибут-селекторами */
+.nr-night [class*="text-[#0a0a0a]"] {
+  color: var(--nb-bone) !important;
+}
+.nr-night [class*="text-[#10161d]"] {
+  color: rgba(242, 237, 228, 0.78) !important;
+}
+.nr-night [class*="bg-[#0a0a0a]"] {
+  background-color: var(--nb-bone) !important;
+  color: var(--nb-night) !important;
+}
+.nr-night [class*="bg-white/"] {
+  background-color: rgba(242, 237, 228, 0.1) !important;
+}
+.nr-night .bg-white {
+  background-color: var(--nb-metal);
+}
+.nr-night .nr-views-chip {
+  background: var(--nb-blood) !important;
+  color: #fff !important;
+}
+/* прогресс-бар: тёмный металл, заливка — яд */
+.nr-night .nr-progress {
+  background: rgba(26, 26, 36, 0.85) !important;
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.55),
+    0 2px 14px rgba(0, 0, 0, 0.45) !important;
+}
+.nr-night .nr-progress .bg-white\/55 {
+  background-color: rgba(242, 237, 228, 0.14) !important;
+}
+/* баннер партнёра: шёлк затемняется в кислотно-фиолетовый */
+.nr-night canvas {
+  filter: brightness(0.42) saturate(1.5) hue-rotate(-38deg);
+}
+.nr-night .nr-banner-veil {
+  background: radial-gradient(
+    60% 140% at 50% 50%,
+    rgba(10, 10, 15, 0.55) 0%,
+    rgba(10, 10, 15, 0.12) 55%,
+    rgba(10, 10, 15, 0) 100%
+  ) !important;
+}
+.nr-night .nr-banner-fallback {
+  background: linear-gradient(
+    110deg,
+    #16101d 0%,
+    #241536 30%,
+    #1a1030 55%,
+    #201335 80%,
+    #120b1c 100%
+  ) !important;
+}
+
+/* ---------------------------------------------------------------
+   Поверхности ставки (BetPanel)
+   --------------------------------------------------------------- */
+.nb-panel {
+  border: 1px solid rgba(242, 237, 228, 0.14);
+  background: linear-gradient(
+    160deg,
+    rgba(26, 26, 36, 0.92) 0%,
+    rgba(10, 10, 15, 0.94) 100%
+  );
+  backdrop-filter: blur(18px) saturate(1.3);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 0, 60, 0.06);
+}
+.nb-btn {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 150ms ease,
+    box-shadow 200ms ease,
+    background-color 150ms ease;
+  touch-action: manipulation;
+}
+.nb-btn:active {
+  transform: scale(0.97);
+}
+.nb-btn-real {
+  background: rgba(242, 237, 228, 0.08);
+  border: 1px solid rgba(242, 237, 228, 0.3);
+  color: var(--nb-bone);
+}
+.nb-btn-real:hover {
+  border-color: var(--nb-poison);
+  box-shadow: 0 0 24px rgba(200, 255, 0, 0.22);
+}
+.nb-btn-synth {
+  background: rgba(255, 0, 60, 0.14);
+  border: 1px solid rgba(255, 0, 60, 0.45);
+  color: #ffd9e2;
+}
+.nb-btn-synth:hover {
+  box-shadow: 0 0 26px rgba(255, 0, 60, 0.4);
+}
+.nb-btn-mine {
+  outline: 2px solid var(--nb-poison);
+  outline-offset: -2px;
+}
+.nb-chip {
+  transition: transform 150ms ease, box-shadow 200ms ease;
+}
+.nb-chip:hover {
+  transform: translateY(-1px);
+}
+.nb-bank-num {
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 18px rgba(200, 255, 0, 0.25);
+}
+
+/* ---------------------------------------------------------------
+   Анимации §3.1 — «мало, но странно». Только transform/opacity/
+   clip-path/filter. Одна странность за раз.
+   --------------------------------------------------------------- */
+
+/* iris-cut: кадр открывается круглой маской из центра, 280ms */
+@property --nb-r {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 150%;
+}
+.nb-iris-veil {
+  position: absolute;
+  inset: -1px;
+  z-index: 35;
+  pointer-events: none;
+  background: var(--nb-night);
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 46%,
+    transparent var(--nb-r),
+    #000 calc(var(--nb-r) + 1%)
+  );
+  mask-image: radial-gradient(
+    circle at 50% 46%,
+    transparent var(--nb-r),
+    #000 calc(var(--nb-r) + 1%)
+  );
+}
+.nb-iris-run {
+  animation: nb-iris-open 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes nb-iris-open {
+  from { --nb-r: 0%; }
+  to   { --nb-r: 150%; }
+}
+
+/* pulse-lime: тап REAL — вспышка ядом, scale 1→1.04→1, 180ms */
+.nb-pulse-lime {
+  animation: nb-pulse-lime 180ms ease-out;
+}
+@keyframes nb-pulse-lime {
+  0%   { transform: scale(1); box-shadow: 0 0 0 rgba(200, 255, 0, 0); }
+  45%  { transform: scale(1.04); box-shadow: 0 0 34px rgba(200, 255, 0, 0.55); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(200, 255, 0, 0); }
+}
+
+/* blood-flash: красная вспышка по краям экрана (2px inset), 160ms */
+.nb-blood-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--nb-blood);
+  background: radial-gradient(
+    120% 120% at 50% 50%,
+    transparent 62%,
+    rgba(255, 0, 60, 0.32) 100%
+  );
+  animation: nb-blood-flash 160ms ease-out both;
+}
+@keyframes nb-blood-flash {
+  0%   { opacity: 0; }
+  30%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* chip-drop: сумма «падает» в банк с overshoot, 320ms */
+.nb-chip-drop {
+  animation: nb-chip-drop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes nb-chip-drop {
+  0%   { opacity: 0; transform: translateY(-18px) scale(0.85); }
+  60%  { opacity: 1; transform: translateY(3px) scale(1.06); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* crush: проигрыш — кадр сжимается + кровавая кайма, 240ms */
+.nb-crush {
+  animation: nb-crush 240ms ease-out;
+}
+@keyframes nb-crush {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.97); filter: contrast(1.12) saturate(1.25); }
+  100% { transform: scale(1); filter: none; }
+}
+
+/* discharge: лаймовая молния по диагонали (SVG stroke-dash), 400ms */
+.nb-discharge path {
+  stroke-dasharray: 240;
+  stroke-dashoffset: 240;
+  animation: nb-discharge 400ms ease-out both;
+}
+.nb-discharge path:nth-child(2) {
+  animation-delay: 60ms;
+}
+@keyframes nb-discharge {
+  0%   { stroke-dashoffset: 240; opacity: 1; }
+  70%  { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+/* glitch-eye: серия 3+ — сдвиг центра 3px + RGB split, 120ms */
+.nb-glitch {
+  animation: nb-glitch 120ms steps(2, end) 1;
+  filter: drop-shadow(-2px 0 var(--nb-glitch-b)) drop-shadow(2px 0 var(--nb-blood));
+}
+@keyframes nb-glitch {
+  0%   { transform: translateX(3px); }
+  50%  { transform: translateX(-3px); }
+  100% { transform: translateX(0); }
+}
+
+/* joker-blink: серия 5+ — силуэт птицы-джокера в углу, 80ms */
+.nb-joker-blink {
+  animation: nb-joker-blink 80ms ease-in-out 1 both;
+}
+@keyframes nb-joker-blink {
+  0%   { opacity: 0; transform: rotate(-8deg) scale(0.9); }
+  50%  { opacity: 1; transform: rotate(0deg) scale(1); }
+  100% { opacity: 0; transform: rotate(6deg) scale(1.04); }
+}
+
+/* seam-tear: верх клипа «сдирается» как бумага, 300ms */
+.nb-tear-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+  background: var(--nb-night);
+  animation: nb-tear 300ms cubic-bezier(0.5, 0, 0.75, 0.4) both;
+}
+@keyframes nb-tear {
+  0% {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    opacity: 1;
+  }
+  100% {
+    clip-path: polygon(0 0, 100% 0, 100% 3%, 0 24%);
+    opacity: 0.9;
+  }
+}
+
+/* bone-reveal: резолв REAL — текст выезжает костяным цветом,
+   letter-spacing 0.3em → 0.06em, 400ms */
+.nb-bone-reveal {
+  animation: nb-bone-reveal 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes nb-bone-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+    letter-spacing: 0.3em;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    letter-spacing: 0.06em;
+  }
+}
+
+/* crow-scratch: резолв SYNTH — красные царапины поверх кадра, 200ms */
+.nb-scratch line {
+  stroke-dasharray: 160;
+  stroke-dashoffset: 160;
+  animation: nb-scratch 200ms ease-out both;
+}
+.nb-scratch line:nth-child(2) { animation-delay: 40ms; }
+.nb-scratch line:nth-child(3) { animation-delay: 80ms; }
+@keyframes nb-scratch {
+  0%   { stroke-dashoffset: 160; opacity: 1; }
+  80%  { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+/* cage-shake: пустой банк / ошибка — тряска по X ±2px, 200ms */
+.nb-shake {
+  animation: nb-shake 200ms ease-in-out 1;
+}
+@keyframes nb-shake {
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(-2px); }
+  50%  { transform: translateX(2px); }
+  75%  { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
+}
+
+/* land-hard: deep link вход — клип врезается сверху с отскоком, 400ms */
+.nb-land {
+  animation: nb-land 400ms cubic-bezier(0.34, 1.3, 0.5, 1) both;
+}
+@keyframes nb-land {
+  0%   { opacity: 0.35; transform: translateY(-44px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* счётчик банка: цифры «проявляются» с зерном (не крутятся слотом) */
+.nb-grain-in {
+  animation: nb-grain-in 150ms steps(3, end) 1;
+}
+@keyframes nb-grain-in {
+  0%   { opacity: 0.25; filter: blur(1.2px) contrast(1.6); }
+  60%  { opacity: 0.75; filter: blur(0.5px) contrast(1.3); }
+  100% { opacity: 1; filter: none; }
+}
+
+/* диафрагма таймера: сжимающееся кольцо вокруг банка */
+.nb-diaphragm {
+  transform: rotate(-90deg);
+}
+.nb-diaphragm .nb-diaphragm-arc {
+  transition: stroke-dashoffset 300ms linear;
+  filter: drop-shadow(0 0 4px rgba(200, 255, 0, 0.5));
+}
+.nb-diaphragm-low .nb-diaphragm-arc {
+  stroke: var(--nb-blood);
+  filter: drop-shadow(0 0 5px rgba(255, 0, 60, 0.6));
+}
+
+/* ---------------------------------------------------------------
+   Доступность: prefers-reduced-motion → только opacity (§3.2)
+   --------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .nb-iris-veil,
+  .nb-tear-veil,
+  .nb-blood-flash,
+  .nb-discharge,
+  .nb-scratch,
+  .nb-joker-blink {
+    display: none !important;
+  }
+  .nb-pulse-lime,
+  .nb-chip-drop,
+  .nb-crush,
+  .nb-glitch,
+  .nb-shake,
+  .nb-land,
+  .nb-grain-in,
+  .nb-bone-reveal,
+  .nb-diaphragm .nb-diaphragm-arc {
+    animation: none !important;
+    transition: none !important;
+  }
+  .nb-crush { transform: none !important; filter: none !important; }
+}

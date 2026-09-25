@@ -200,7 +200,7 @@ export default function WebGLBanner() {
       {failed ? (
         <div
           aria-hidden
-          className="absolute inset-0"
+          className="nr-banner-fallback absolute inset-0"
           style={{
             background:
               "linear-gradient(110deg, #e2eff8 0%, #c3ddf0 30%, #dcebf7 55%, #b3d4ec 80%, #e8f2fa 100%)",
@@ -217,7 +217,7 @@ export default function WebGLBanner() {
       {/* мягкая воздушная вуаль для читаемости центра */}
       <div
         aria-hidden
-        className="absolute inset-0"
+        className="nr-banner-veil absolute inset-0"
         style={{
           background:
             "radial-gradient(60% 140% at 50% 50%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.12) 55%, rgba(255,255,255,0) 100%)",

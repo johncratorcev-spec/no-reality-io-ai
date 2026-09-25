@@ -303,3 +303,94 @@ model MagicUser {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v2 — ставки REAL/SYNTH на клип (ТЗ v2 §4.1): вертикальный фид синтетического
+// кино + спор на каждый клип. Пари-мьютюэль: пул реальных против пула
+// синтетических, рейк платформе, доля автора клипа, доля реферера.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Раунд ставок на один клип. Открывается лениво (ensureOpenRound) при первом
+// взгляде на клип с truth; окно ставок BET_WINDOW_SEC (15–60с). Truth клипа
+// живёт в posts.csv и НЕ хранится здесь до резолва — клиент не может её
+// прочитать из БД или API, пока round.status != "resolved".
+//
+// status: open → locked (closesAt истёк) → resolved (пулы посчитаны).
+// resolved_as: "real" | "synth" — появляется ТОЛЬКО после резолва.
+model Round {
+  id              String    @id @default(uuid())
+  clipCode        String // utm_code поста из posts.csv (truth в CSV, не здесь)
+  opensAt         DateTime
+  closesAt        DateTime
+  poolRealCents   Int       @default(0) // активные ставки на REAL, центы
+  poolSynthCents  Int       @default(0) // активные ставки на SYNTH, центы
+  status          String    @default("open") // open | locked | resolved
+  resolvedAs      String? // real | synth
+  rakeCents       Int? // рейк платформы (RAKE_PCT от общего пула)
+  authorShareCents Int? // доля автора клипа (AUTHOR_SHARE_OF_RAKE × рейк)
+  refShareCents   Int? // суммарная доля рефереров (REF_RATE_PCT × рейк)
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  bets Bet[]
+
+  @@index([clipCode, status])
+  @@index([status, closesAt])
+}
+
+// Ставка. Без аккаунта: bettorId — анонимная httpOnly-cookie (nr_bet),
+// fingerprint — visitorHash (ip+ua+секрет) для анти-фрода.
+// 1 активная ставка на раунд с одного bettorId (проверка в коде при placeBet).
+//
+// status:
+//   pending — инвойс 2328.io создан, ждём оплату (в пуле НЕ участвует)
+//   active  — оплачена / demo — участвует в пуле
+//   won     — резолв: сторона угадана, payoutCents > 0
+//   lost    — резолв: сторона не угадана
+//   late    — оплачена ПОСЛЕ резолва раунда: возврат/ручной разбор
+//   failed  — инвойс отменён/недоплачен
+// payout: хранится прямо здесь (ledger) — отдельная таблица Payout избыточна
+// для MVP; вывод — ручной через админ-реестр.
+model Bet {
+  id          String   @id @default(uuid())
+  roundId     String
+  clipCode    String
+  side        String // real | synth
+  amountCents Int // 100..500 (MIN/MAX_BET_CENTS)
+  bettorId    String // анонимная cookie nr_bet (uuid)
+  fingerprint String // visitorHash (ip+ua+secret) — анти-фрод
+  wallet      String? // кошелёк, если авторизован (вывод/рефка)
+  refCode     String? // код пригласившего (r…) — 20% с рейка его ставки
+  mode        String   @default("demo") // demo | crypto (2328.io)
+  orderId     String?  @unique // rb-<betId>[-<ref>] — вшит в платёж 2328
+  paymentId   String?  @unique // uuid платежа 2328 (webhook)
+  status      String   @default("pending")
+  payoutCents Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  round Round @relation(fields: [roundId], references: [id])
+
+  @@index([roundId, side])
+  @@index([roundId, status])
+  @@index([bettorId])
+  @@index([fingerprint])
+  @@index([refCode])
+}
+
+// События аналитики (ТЗ v2 §4.3.10 — «обязательно писать»):
+// clip_view, bet_placed, bet_won, bet_lost, ref_click, ref_converted,
+// share_click, prompt_upsell_click. Без них нельзя крутить приток.
+// Пишутся сервером (bet-жизненный цикл) и через POST /api/track/event.
+model TrackEvent {
+  id          String   @id @default(uuid())
+  name        String
+  clipCode    String   @default("")
+  visitorHash String   @default("")
+  meta        String   @default("{}") // JSON-строка
+  createdAt   DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([clipCode])
+}

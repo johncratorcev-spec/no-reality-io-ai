@@ -8,33 +8,32 @@
 export const SITE = {
   name: "no reality.",
   url: "https://no-reality.fun",
-  tagline: "your only limit is mind",
-  title: "no reality. — AI Video Feed & Prompt Marketplace",
+  tagline: "watch what shouldn’t exist. bet the seam.",
+  title: "no reality. — REAL or SYNTH? bet the seam",
   description:
-    "no reality. is a curated discovery feed of AI-generated video from Threads — swag, creepy, welcome-to-the-future. Watch the feed, share deep links and unlock the exact prompts: creators keep 75%.",
+    "no reality. is a vertical feed of synthetic cinema: every clip is either REAL footage or a machine dream. Guess REAL or SYNTH, bet $1–5 on the seam, the bank resolves in under a minute — and bring a friend: 20% of the rake is yours.",
 } as const;
 
+/**
+ * Соцсети (Phase 0, v2): только реальные каналы.
+ *  - telegram — живой бот проекта (вирусная ссылка из WebGL-баннера);
+ *  - threads  — хэндл куратора ленты.
+ * Заглушка-инстаграм убрана: мёртвая ссылка в футере хуже, чем один канал.
+ */
 export const SOCIALS = [
   {
-    key: "instagram",
-    label: "Instagram",
-    handle: "@your_betfriend",
-    url: "https://www.instagram.com/your_betfriend",
-    blurb: "Behind-the-scenes stills, moodboards and drop announcements.",
+    key: "telegram",
+    label: "Telegram",
+    handle: "@smartluvon_bot",
+    url: "https://t.me/smartluvon_bot",
+    blurb: "Daily best-of clips, the best eye of the week and drop alerts.",
   },
   {
     key: "threads",
     label: "Threads",
     handle: "@your_betfriend",
-    url: "https://www.threads.com/@your_betfriend",
+    url: "https://www.threads.net/@your_betfriend",
     blurb: "Where the raw feed lives — follow the source of the signal.",
-  },
-  {
-    key: "telegram",
-    label: "Telegram",
-    handle: "@your_betfriend",
-    url: "https://t.me/your_betfriend",
-    blurb: "Daily best-of clips, prompt giveaways and the crew’s notes.",
   },
 ] as const;
 

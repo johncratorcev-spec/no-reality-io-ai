@@ -146,12 +146,45 @@ def run(args, log):
 
     def save_rows():
         """Атомарная запись CSV (вызывается после каждого обновления —
-        фоновый процесс может быть убит средой, работа не должна теряться)."""
+        фоновый процесс может быть убит средой, работа не должна теряться).
+
+        Слияние на уровне строк (v2): пока джоба работает (до 15 минут),
+        другой писатель (кураторская разметка truth/mood, админ-очередь)
+        мог дописать файлу НОВЫЕ КОЛОНКИ/ЗНАЧЕНИЯ. Мы перечитываем файл с
+        диска и добираем в свои строки те колонки, которые у нас пусты —
+        так джоба больше не стирает чужую разметку (урок: гонка 20:26/20:31
+        обнулила колонку truth у всех строк)."""
+        merge_names: list = []
+        try:
+            with open(csv_path, newline="", encoding="utf-8") as f:
+                fr = csv.DictReader(f)
+                merge_names = list(fr.fieldnames or [])
+                fresh = {
+                    (r.get("utm_code") or "").strip(): r
+                    for r in fr
+                }
+        except Exception:
+            fresh = {}
+
+        merged = []
+        for row in rows:
+            frow = fresh.get((row.get("utm_code") or "").strip())
+            if frow:
+                for k, v in frow.items():
+                    if k in row and not (row.get(k) or "").strip():
+                        row[k] = v
+            merged.append(row)
+
+        names = list(fieldnames)
+        for k in merge_names:
+            if k not in names:
+                names.append(k)
+
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(csv_path), suffix=".tmp")
         with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
+            w = csv.DictWriter(f, fieldnames=names, lineterminator="\n")
             w.writeheader()
-            w.writerows(rows)
+            w.writerows(merged)
         os.chmod(tmp, 0o644)  # mkstemp создаёт 0600 — возвращаем обычные права
         os.replace(tmp, csv_path)
 

@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
-import { getPostsFromCSV, type FeedPost } from "@/lib/csv";
+import { getPostsFromCSV, toClientPosts, type ClientPost, type FeedPost } from "@/lib/csv";
 import { isBoosted } from "@/lib/boost";
 
 export type RankedPost = FeedPost & { score: number };
+export type ClientRankedPost = ClientPost & { score: number };
 
 /**
  * Единственная реализация "ленты с рейтингом":
@@ -71,4 +72,13 @@ export async function getRankedPosts(): Promise<RankedPost[]> {
       }
       return b.score - a.score;
     });
+}
+
+/**
+ * Клиентский срез ленты: truth (кураторский вердикт REAL/SYNTH) вырезается
+ * ДО сериализации в RSC-пейлоад. Иначе игрок читает ответ из view-source —
+ * и рынок мёртв. bettable=true не раскрывает, КАКАЯ правда.
+ */
+export function toClientRankedPosts(posts: RankedPost[]): ClientRankedPost[] {
+  return toClientPosts(posts) as ClientRankedPost[];
 }

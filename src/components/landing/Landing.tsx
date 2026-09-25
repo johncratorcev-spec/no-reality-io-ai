@@ -21,7 +21,6 @@ import "./landing.css";
 const NAV = [
   { href: "#about", label: "about" },
   { href: "#how", label: "how it works" },
-  { href: "/market", label: "✦ prompt market" },
   { href: "#creators", label: "creators" },
   { href: "#team", label: "team" },
   { href: "/collab", label: "🐾 cat collab" },
@@ -190,21 +189,22 @@ export default function Landing() {
         <div className="relative z-20 mx-auto max-w-3xl px-5 pb-16 pt-28 text-center">
           <p className="nrld-hero-in mb-5 inline-flex items-center gap-2 text-[0.66rem] font-extrabold uppercase tracking-[0.3em] text-[#10161d]/55" style={{ animationDelay: "0.1s" }}>
             <span className="nrld-live-dot inline-block h-1.5 w-1.5 rounded-full bg-[#3d7db8]" aria-hidden />
-            ai video discovery feed
+            synthetic cinema · bet the seam
           </p>
 
           <h1 className="nrld-hero-in text-[3.4rem] font-extrabold leading-[0.95] tracking-[-0.03em] text-[#0a0a0a] sm:text-[5rem]" style={{ animationDelay: "0.2s" }}>
             no reality.
-            <span className="sr-only"> — AI video feed and prompt marketplace</span>
+            <span className="sr-only"> — watch what shouldn’t exist. bet the seam.</span>
           </h1>
 
           <p className="nrld-hero-in nrld-irid mt-4 text-[1.5rem] font-extrabold tracking-tight sm:text-[2.2rem]" style={{ animationDelay: "0.35s" }}>
-            Reality is optional.
+            Watch what shouldn’t exist.
           </p>
 
           <p className="nrld-hero-in mx-auto mt-5 max-w-xl text-[0.95rem] font-semibold leading-relaxed text-[#10161d]/70 sm:text-base" style={{ animationDelay: "0.5s" }}>
-            A curated feed of AI-generated video, hand-picked from the endless scroll of
-            Threads. Watch the clips that shouldn’t exist — then take the exact prompts home.
+            A vertical feed of synthetic cinema: every clip is either REAL footage or a
+            machine dream. Swipe, guess REAL or SYNTH, put $1–5 on the seam — the bank
+            resolves in under a minute.
           </p>
 
           <div className="nrld-hero-in mt-9 flex flex-wrap items-center justify-center gap-3" style={{ animationDelay: "0.65s" }}>
@@ -212,15 +212,14 @@ export default function Landing() {
               href="/feed"
               className="nr-btn-glow group inline-flex items-center gap-2 rounded-full bg-[#0a0a0a] px-7 py-3.5 text-[0.9rem] font-extrabold tracking-tight text-white transition-transform duration-300 hover:scale-[1.04] active:scale-[0.97]"
             >
-              watch the feed
+              bet the seam
               <IconArrow className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
             </a>
             <a
-              href="#prompts"
+              href="#how"
               className="nr-glass inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[0.9rem] font-extrabold tracking-tight text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.03] active:scale-[0.97]"
             >
-              <IconLock className="h-3.5 w-3.5" />
-              get the prompts
+              how it works
             </a>
           </div>
         </div>
@@ -238,7 +237,7 @@ export default function Landing() {
         <div className="nrld-marquee-track">
           {[0, 1].map((copy) => (
             <div key={copy} className="flex shrink-0 items-center">
-              {["swag", "welcome to the future", "creepy", "ufo", "ai video", "prompts", "deep links", "47+ curated clips"].map((w) => (
+              {["swag", "welcome to the future", "creepy", "ufo", "real or synth", "bet the seam", "deep links", "47+ curated clips"].map((w) => (
                 <span key={`${copy}-${w}`} className="flex items-center text-[0.72rem] font-extrabold uppercase tracking-[0.32em] text-[#10161d]/45">
                   <span className="px-5">{w}</span>
                   <span className="text-[#5b9bd5]/70">✦</span>
@@ -279,8 +278,8 @@ export default function Landing() {
             <div className="grid grid-cols-2 gap-3.5 self-start">
               {[
                 { v: 47, suffix: "+", label: "curated clips in the feed" },
-                { v: 100, suffix: "%", label: "AI-generated, credited to authors" },
-                { v: 75, suffix: "%", label: "of every prompt sale goes to creators" },
+                { v: 100, suffix: "%", label: "credited to their authors" },
+                { v: 20, suffix: "%", label: "of the rake goes to the referrer" },
                 { v: 4, suffix: "", label: "moods — one channel per reality" },
               ].map((s, i) => (
                 <Reveal key={s.label} delay={120 + i * 90}>
@@ -378,8 +377,8 @@ export default function Landing() {
                 href="/market"
                 className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#0a0a0a] px-5 py-2.5 text-[0.72rem] font-extrabold uppercase tracking-[0.18em] text-white transition-transform duration-300 hover:scale-[1.04] active:scale-95"
               >
-                <span className="nrld-live-dot inline-block h-1.5 w-1.5 rounded-full bg-[#e39fd0]" aria-hidden />
-                enter the prompt market — loki drop is live
+                <IconLock className="h-3.5 w-3.5" />
+                browse the prompt archive
               </a>
             </Reveal>
 

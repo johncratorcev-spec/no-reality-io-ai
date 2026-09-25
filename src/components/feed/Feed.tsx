@@ -2,16 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VideoCard, { type PostWithScore } from "./VideoCard";
-import PromptDropCard from "./PromptDropCard";
-import { PROMPT_DROP } from "@/lib/site";
 import { CRYO } from "@/lib/cryo/config";
 import type { CryoMarketView } from "@/lib/cryo/core";
 import { peekCryoWallet } from "@/lib/cryo/wallet";
 import { hydrateFavorites } from "@/lib/favorites";
 
-type Slot =
-  | { kind: "post"; post: PostWithScore }
-  | { kind: "ad" };
+type Slot = { kind: "post"; post: PostWithScore };
 
 interface FeedProps {
   posts: PostWithScore[];
@@ -19,7 +15,8 @@ interface FeedProps {
   focusCode?: string;
   /** deep-link ?donate=1: авто-открыть донат на сфокусированной карточке */
   donateOpen?: boolean;
-  /** deep-link ?drop=1: авто-прыжок на рекламную карточку prompt drop после сфокусированного поста */
+  /** ⚠️ устарел (v2): рекламный слот prompt drop убран с главного пути.
+   *  Принимается для совместимости ссылки ?drop=1, но игнорируется. */
   dropOpen?: boolean;
 }
 
@@ -28,15 +25,14 @@ interface FeedProps {
  * Активная карточка определяется IntersectionObserver'ом,
  * по окончании видео — мягкий автопереход к следующей.
  *
- * Слоты: между постами вставляется рекламная карточка prompt drop
- * (после поста PROMPT_DROP.afterUtm). Слот-реклама участвует в
- * навигации, но не меняет адресную строку и не играет видео.
+ * v2: рекламный слот prompt drop УБРАН с главного пути (ТЗ §6 Phase 0) —
+ * промпт-маркет живёт только как апселл после проигрыша (BetPanel).
  *
  * Deep-link (/v/[code]): начальный активный индекс берётся из focusCode,
  * а адресная строка всегда синхронизируется с активным видео
  * (history.replaceState — без записей в истории, Next это поддерживает).
  */
-export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedProps) {
+export default function Feed({ posts, focusCode, donateOpen }: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   /* ---- Cryo-Stop: рынки предсказаний (task 41) ----
@@ -175,14 +171,10 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
     };
   }, [postCodes]);
 
-  const slots = useMemo<Slot[]>(() => {
-    const s: Slot[] = [];
-    for (const post of posts) {
-      s.push({ kind: "post", post });
-      if (post.utmCode === PROMPT_DROP.afterUtm) s.push({ kind: "ad" });
-    }
-    return s;
-  }, [posts]);
+  const slots = useMemo<Slot[]>(
+    () => posts.map((post) => ({ kind: "post", post })),
+    [posts]
+  );
 
   const findPostSlot = useCallback(
     (code: string) =>
@@ -192,29 +184,7 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
     [slots]
   );
 
-  const findAdAfterPost = useCallback(
-    (code: string) => {
-      for (let i = 1; i < slots.length; i++) {
-        const s = slots[i];
-        const prev = slots[i - 1];
-        if (
-          s.kind === "ad" &&
-          prev.kind === "post" &&
-          prev.post.utmCode === code
-        ) {
-          return i;
-        }
-      }
-      return -1;
-    },
-    [slots]
-  );
-
   const [activeIndex, setActiveIndex] = useState(() => {
-    if (dropOpen && focusCode) {
-      const ad = findAdAfterPost(focusCode);
-      if (ad > 0) return ad;
-    }
     if (!focusCode) return 0;
     const i = findPostSlot(focusCode);
     return i >= 0 ? i : 0;
@@ -225,14 +195,12 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
       активный индекс уже установлен выше — нужное видео монтируется сразу) */
   useEffect(() => {
     if (!focusCode) return;
-    const idx = dropOpen
-      ? findAdAfterPost(focusCode)
-      : findPostSlot(focusCode);
+    const idx = findPostSlot(focusCode);
     if (idx <= 0) return;
     containerRef.current
       ?.querySelector<HTMLElement>(`[data-index="${idx}"]`)
       ?.scrollIntoView({ block: "start" });
-  }, [focusCode, dropOpen, findAdAfterPost, findPostSlot]);
+  }, [focusCode, findPostSlot]);
 
   /* адресная строка всегда указывает на активное видео.
      Первый запуск пропускаем: на /v/[code] URL уже верный,
@@ -318,8 +286,7 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
       aria-label="Video feed"
       className="nr-feed h-full w-full snap-y snap-mandatory overflow-y-auto outline-none"
     >
-      {slots.map((slot, i) =>
-        slot.kind === "post" ? (
+      {slots.map((slot, i) => (
           <VideoCard
             key={slot.post.utmCode}
             post={slot.post}
@@ -330,22 +297,12 @@ export default function Feed({ posts, focusCode, donateOpen, dropOpen }: FeedPro
             /* следующее видео грузим полностью — переход мгновенный */
             eagerPreload={i === activeIndex + 1}
             autoDonate={donateOpen === true && slot.post.utmCode === focusCode}
+            landHard={focusCode === slot.post.utmCode}
             market={cryoViews.get(slot.post.utmCode) ?? null}
             favCount={favCounts[slot.post.utmCode] ?? 0}
             onEnded={handleEnded}
           />
-        ) : (
-          /* рекламная карточка prompt drop — полноэкранный snap-слот */
-          <section
-            key="prompt-drop-ad"
-            data-index={i}
-            aria-label="Prompt drop — the loki prompt"
-            className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden"
-          >
-            <PromptDropCard variant="feed" />
-          </section>
-        )
-      )}
+      ))}
     </div>
   );
 }
