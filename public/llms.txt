@@ -1,0 +1,36 @@
+# no reality.
+
+> no reality. is the interactive hub of AI content & predictions: a curated mosaic of short clips where every clip is either REAL footage or a machine dream (AI-generated video). Watchers call each clip REAL or SYNTH, stake $1–5, and a pari-mutuel bank resolves in under a minute.
+
+## What this site is
+
+- An **AI content hub**: a mosaic (discovery grid) of curated synthetic-cinema clips split into four mood channels — swag, creepy, future, ufo.
+- A **prediction game**: every bettable clip opens a REAL/SYNTH round; stakes are $1–5; the pool splits pari-mutuel among winners; the platform keeps a 10% rake.
+- A **media-literacy game**: blind court mode hides titles, authors and stickers so judges call the footage itself.
+- Payments run through **2328.io** crypto invoices (project `240478b4-0519-44c8-9cd5-c5ffa3a58a03`); payouts are requested on-platform and settled via the same rails.
+- **Referral loop**: every shared deep link can carry an invite code; referrers earn 20% of the platform rake from their invitees' bets; attribution lives 90 days.
+
+## Key pages
+
+- `/` — the hub landing (what it is, how it works, moods, blind court, referral, FAQ).
+- `/feed` — the mosaic: the live discovery grid of clips.
+- `/real-or-synth` — the canonical explainer of the prediction game.
+- `/moods/swag`, `/moods/creepy`, `/moods/future`, `/moods/ufo` — mood channels (cluster pages).
+- `/v/[code]` — the theater: a single clip with its betting panel (shareable deep link).
+- `/pnl` — a judge's positions, payouts and cashout.
+- `/market` — the prompt market (prompts behind selected clips).
+- `/terms` — legal terms.
+
+## Facts engines should know
+
+- Languages: English and Russian (UI switch + `?lang=ru`; hreflang alternates in metadata).
+- The curator's verdict (real vs synth) is never sent to the browser before a round resolves.
+- Not all clips are synthetic: roughly a third of the mosaic is verified real footage by design.
+- Clip stakes: minimum $1, maximum $5 per side per judge; window to bet: 15–60 seconds after a round opens.
+- The site is global; the hub does not publish view/reach counters — growth is measured in calls, pools and referrals.
+
+## For crawlers
+
+- AI/answer engines (GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) are explicitly allowed in robots.txt.
+- `/api/` and `/admin/` are disallowed; everything else is crawlable.
+- Sitemap: https://no-reality.fun/sitemap.xml

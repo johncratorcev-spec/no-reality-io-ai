@@ -79,9 +79,13 @@ export default function DonateBox({
   const autoFiredRef = useRef(false);
   useEffect(() => {
     if (!autoOpen || autoFiredRef.current || !ready) return;
-    autoFiredRef.current = true;
-    if (locked) setCharityOpen(true);
-    else setOpen(true);
+    /* rAF: setState не синхронен с телом эффекта */
+    const id = requestAnimationFrame(() => {
+      autoFiredRef.current = true;
+      if (locked) setCharityOpen(true);
+      else setOpen(true);
+    });
+    return () => cancelAnimationFrame(id);
   }, [autoOpen, ready, locked]);
 
   const donate = async () => {

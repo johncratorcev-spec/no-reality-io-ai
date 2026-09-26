@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import FeedScreen from "@/components/FeedScreen";
+import TheaterScreen from "@/components/vhz/TheaterScreen";
 import { getRankedPosts, toClientRankedPosts } from "@/lib/posts";
 
 export const dynamic = "force-dynamic";
@@ -27,40 +27,38 @@ export async function generateMetadata({
 
   if (!post) return { title: "video not found", robots: { index: false } };
 
-  /* v2 (§4.3.1 deep link first): OG-карточка = кадр + «REAL or SYNTH?» +
-     текущий банк. Банк живёт на клиенте (карточка), в статику не вытащить —
-     поэтому в мете сам вопрос и ставка; банк подгревает первый экран. */
+  /* v2 (§4.3.1 deep link first): OG-карточка = «REAL or SYNTH?» + кадр.
+     В v3 карточка ведёт в театр: суд + ставка на одном экране. */
   const t = post.title ? post.title.slice(0, 160) : undefined;
   return {
     title: `REAL or SYNTH? — ${post.author || "video"}`.slice(0, 120),
-    description:
-      t
-        ? `${t.slice(0, 110)} — real or synth? bet the seam.`
-        : "real or synth? bet the seam — $1–5, the bank resolves in under a minute.",
+    description: t
+      ? `${t.slice(0, 110)} — real or synth? call it and win the pool.`
+      : "real or synth? call it — $1–5, the bank resolves in under a minute.",
     alternates: { canonical: `/v/${post.utmCode}` },
     openGraph: {
       title: `REAL or SYNTH? — ${post.author || "video"} on no reality.`,
       description: t
-        ? `${t.slice(0, 110)} — real or synth? bet the seam.`
-        : "real or synth? bet the seam.",
+        ? `${t.slice(0, 110)} — real or synth? call it and win the pool.`
+        : "real or synth? call it and win the pool.",
       url: `/v/${post.utmCode}`,
       type: "article",
-      images: ["/images/og-cover.png"],
+      images: ["/images/og-vhs.png"],
     },
     twitter: {
       card: "summary_large_image",
       title: `REAL or SYNTH? — ${post.author || "video"}`,
       description: t
-        ? `${t.slice(0, 110)} — real or synth? bet the seam.`
-        : "real or synth? bet the seam.",
+        ? `${t.slice(0, 110)} — real or synth? call it and win the pool.`
+        : "real or synth? call it and win the pool.",
     },
   };
 }
 
 /**
- * Deep-link на конкретное видео: /v/[utmCode].
- * Рендерим ту же ленту (чтобы соседние видео оставались доступными),
- * а Feed сам проскроллится к запрошенному посту и синхронизирует адрес.
+ * ТЕАТР (v3): deep-link /v/[utmCode] = один клип на весь экран
+ * (BetPanel/CryoStopCard внутри) + полоса «ещё из мозаики».
+ * Полный грид-дискавери — на /feed (мозаика).
  */
 export default async function VideoByCodePage({ params, searchParams }: PageProps) {
   const { code } = await params;
@@ -71,17 +69,14 @@ export default async function VideoByCodePage({ params, searchParams }: PageProp
   if (!post) notFound();
 
   /* ?donate=1 — виральный deep-link с коллаб-страницы: донат открывается сам.
-     ?drop=1 — возврат с чекаута prompt drop: лента прыгает на рекламную карточку,
-     где session-инвойс поллит статус и сам раскрывает промпт. */
+     ?drop=1 устарел (v2) — принимается, игнорируется. */
   const donateOpen = sp.donate === "1";
-  const dropOpen = sp.drop === "1";
 
   return (
-    <FeedScreen
+    <TheaterScreen
       posts={toClientRankedPosts(posts)}
       focusCode={post.utmCode}
       donateOpen={donateOpen}
-      dropOpen={dropOpen}
     />
   );
 }

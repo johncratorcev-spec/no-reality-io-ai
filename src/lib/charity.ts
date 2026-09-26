@@ -16,9 +16,13 @@ export function useCountdown(openingIso: string) {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
-    setNow(Date.now());
+    /* rAF: setState не синхронен с телом эффекта (react-hooks rules) */
+    const raf = requestAnimationFrame(() => setNow(Date.now()));
     const t = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(t);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearInterval(t);
+    };
   }, []);
 
   const msLeft =

@@ -2,13 +2,43 @@ import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/site";
 
 /**
- * robots.txt (task 43): open to all crawlers, sitemap + host from the single
- * source of truth (SITE.url) — the old static file pointed at the dead
- * no-reality.io domain.
+ * robots.txt (v3 hub): открыт всем краулерам — и классическим, и
+ * генеративным. GEO-стратегия хаба: AI-движки (AI Overviews, Perplexity,
+ * ChatGPT search, Claude) должны ЦИТИРОВАТЬ нас, поэтому каждый
+ * сборщик контента явно разрешён. Закрыты только API и админка.
  */
 export default function robots(): MetadataRoute.Robots {
+  const aiCrawlers = [
+    // поисковые + генеративные движки
+    "Googlebot",
+    "Google-Extended", // обучение/ответы Gemini
+    "Bingbot",
+    "BingPreview",
+    "GPTBot", // OpenAI сбор
+    "OAI-SearchBot", // ChatGPT search
+    "ChatGPT-User",
+    "ClaudeBot", // Anthropic сбор
+    "Claude-User",
+    "Claude-SearchBot",
+    "PerplexityBot", // Perplexity ответчик
+    "Perplexity-User",
+    "Applebot",
+    "Applebot-Extended",
+    "CCBot",
+    "Bytespider",
+    "Amazonbot",
+    "meta-externalagent",
+    "YouBot",
+    "Diffbot",
+  ];
+
   return {
     rules: [
+      ...aiCrawlers.map((userAgent) => ({
+        userAgent,
+        allow: "/",
+        disallow: ["/api/", "/admin/"],
+      })),
       {
         userAgent: "*",
         allow: "/",

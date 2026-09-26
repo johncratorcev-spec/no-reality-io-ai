@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: Unbounded; src: url('https://fonts.gstatic.com/s/unbounded/v7/yoP7ZEyT+4k=') format('woff2'); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1200px; height:630px; overflow:hidden; }
+  body {
+    background:
+      radial-gradient(90% 60% at 15% -10%, rgba(255,43,166,.22) 0%, transparent 60%),
+      radial-gradient(70% 55% at 88% 6%, rgba(0,229,255,.16) 0%, transparent 55%),
+      radial-gradient(120% 80% at 50% 120%, rgba(124,255,77,.10) 0%, transparent 60%),
+      #0b0b10;
+    color:#f4f2ec;
+    font-family:'Manrope','Noto Sans',sans-serif;
+    position:relative;
+  }
+  /* сканлайны + зерно */
+  body::after {
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:
+      repeating-linear-gradient(to bottom, rgba(255,255,255,.05) 0 1px, transparent 1px 4px);
+  }
+  .wrap { position:absolute; inset:0; padding:44px 72px; display:flex; flex-direction:column; }
+  .brand { font-weight:800; font-size:26px; letter-spacing:-.02em; text-shadow:-2px 0 rgba(0,229,255,.6), 2px 0 rgba(255,43,166,.6); }
+  .tickerbar {
+    margin-top:16px; border-top:1.5px solid rgba(244,242,236,.25); border-bottom:1.5px solid rgba(244,242,236,.25);
+    padding:10px 0; font:600 17px/1 'IBM Plex Mono',monospace; letter-spacing:.22em; text-transform:uppercase; color:rgba(244,242,236,.72);
+    display:flex; gap:26px; white-space:nowrap;
+  }
+  .tickerbar b { color:#ffd400; }
+  h1 {
+    margin-top:34px; font-weight:900; font-size:82px; line-height:.98; letter-spacing:-.01em;
+    text-shadow:-3px 0 rgba(0,229,255,.5), 3px 0 rgba(255,43,166,.5);
+  }
+  h1 span { color:#ffd400; }
+  .sub { margin-top:20px; font-size:21px; line-height:1.45; color:rgba(244,242,236,.75); max-width:760px; }
+  .chips { margin-top:auto; display:flex; gap:18px; align-items:center; }
+  .chip {
+    border:2px solid #f4f2ec; border-radius:12px; padding:12px 22px; font-weight:800; font-size:21px;
+    background:#14141e; box-shadow:6px 6px 0 rgba(0,0,0,.55); transform:rotate(-1.4deg);
+  }
+  .chip.acid { background:#ffd400; color:#0b0b10; transform:rotate(1.2deg); }
+  .chip.blood { background:#ff003c; border-color:#fff; color:#fff; transform:rotate(-1deg); }
+  .url { margin-left:auto; font:600 20px 'IBM Plex Mono',monospace; color:#7cff4d; letter-spacing:.08em; }
+  .rec { position:absolute; top:64px; right:72px; display:flex; align-items:center; gap:10px; font:600 20px 'IBM Plex Mono',monospace; color:rgba(244,242,236,.7); }
+  .rec i { width:14px; height:14px; border-radius:50%; background:#ff003c; box-shadow:0 0 12px 3px rgba(255,0,60,.5); }
+  /* глаз-оракул справа */
+  .eye { position:absolute; right:84px; top:110px; transform:rotate(6deg); }
+</style>
+</head>
+<body>
+  <div class="rec"><i></i>REC 00:00:45</div>
+  <div class="wrap">
+    <div class="brand">no reality.</div>
+    <div class="tickerbar"><b>◆</b> REAL OR SYNTH? <b>✕</b> BET THE SEAM <b>◑</b> BLIND COURT <b>✦</b> WIN THE POOL</div>
+    <h1>watch what<br>shouldn’t exist.<br><span>call it.</span></h1>
+    <p class="sub">The interactive hub of AI content &amp; predictions — machine dreams and real footage, one mosaic. $1–5 a call, the bank resolves in under a minute.</p>
+    <div class="chips">
+      <div class="chip acid">▶ enter the mosaic</div>
+      <div class="chip">REAL?</div>
+      <div class="chip blood">SYNTH?</div>
+      <div class="url">no-reality.fun</div>
+    </div>
+  </div>
+  <svg class="eye" width="190" height="190" viewBox="0 0 240 240">
+    <path d="M122 56 L198 182 L46 182 Z" fill="none" stroke="#00e5ff" stroke-width="2.5" opacity=".5" transform="translate(-5 2)"/>
+    <path d="M122 56 L198 182 L46 182 Z" fill="none" stroke="#ff2ba6" stroke-width="2.5" opacity=".5" transform="translate(5 -2)"/>
+    <path d="M120 48 L198 180 L42 180 Z" fill="#14141e" stroke="#f4f2ec" stroke-width="4"/>
+    <ellipse cx="120" cy="136" rx="44" ry="27" fill="#0b0b10" stroke="#f4f2ec" stroke-width="4"/>
+    <circle cx="120" cy="136" r="15" fill="#ffd400" stroke="#f4f2ec" stroke-width="3"/>
+    <circle cx="120" cy="136" r="6" fill="#0b0b10"/>
+    <circle cx="126" cy="129" r="4" fill="#fff"/>
+    <line x1="120" y1="48" x2="120" y2="26" stroke="#f4f2ec" stroke-width="3"/>
+    <circle cx="120" cy="20" r="5" fill="#ff003c" stroke="#f4f2ec" stroke-width="2.4"/>
+  </svg>
+</body>
+</html>

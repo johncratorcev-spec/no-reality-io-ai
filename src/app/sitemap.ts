@@ -1,21 +1,39 @@
 import type { MetadataRoute } from "next";
+import { MOOD_KEYS } from "@/lib/moods";
 import { SITE } from "@/lib/site";
 
 /**
- * Карта сайта: лендинг (приоритет 1) + фид и legal-страницы.
+ * Карта сайта (v3 hub): хаб-лендинг, мозаика, GEO-кластер
+ * (real-or-synth + 4 канала-настроения) и легаси-разделы.
  * /v/[code] — бесконечное пространство deep-link'ов, в sitemap не входит.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
+  const p = (
+    path: string,
+    priority: number,
+    changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]
+  ) => ({
+    url: SITE.url + path,
+    lastModified: now,
+    changeFrequency,
+    priority,
+    ...(path !== "/" && path !== "/feed"
+      ? { alternates: { languages: { en: SITE.url + path, ru: `${SITE.url}${path}?lang=ru` } } }
+      : {}),
+  });
+
   return [
-    { url: SITE.url + "/", lastModified: now, changeFrequency: "daily", priority: 1 },
-    { url: SITE.url + "/feed", lastModified: now, changeFrequency: "hourly", priority: 0.9 },
-    { url: SITE.url + "/market", lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: SITE.url + "/predict", lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: SITE.url + "/pnl", lastModified: now, changeFrequency: "weekly", priority: 0.5 },
-    { url: SITE.url + "/collab", lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: SITE.url + "/future", lastModified: now, changeFrequency: "weekly", priority: 0.6 },
-    { url: SITE.url + "/terms", lastModified: now, changeFrequency: "yearly", priority: 0.3 },
-    { url: SITE.url + "/creators", lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    p("/", 1, "daily"),
+    p("/feed", 0.9, "hourly"),
+    p("/real-or-synth", 0.9, "weekly"),
+    ...MOOD_KEYS.map((m) => p(`/moods/${m}`, 0.8, "daily")),
+    p("/market", 0.7, "weekly"),
+    p("/predict", 0.7, "weekly"),
+    p("/pnl", 0.4, "weekly"),
+    p("/collab", 0.6, "weekly"),
+    p("/future", 0.5, "weekly"),
+    p("/terms", 0.3, "yearly"),
+    p("/creators", 0.3, "yearly"),
   ];
 }

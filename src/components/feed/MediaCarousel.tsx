@@ -47,7 +47,9 @@ export default function MediaCarousel({
   const rafRef = useRef(0);
   const dwellStart = useRef(0);
   const idxRef = useRef(0);
-  idxRef.current = idx;
+  useEffect(() => {
+    idxRef.current = idx;
+  }, [idx]);
 
   const hasVideo = slides.some((s) => s.type === "video");
 

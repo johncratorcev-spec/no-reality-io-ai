@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import Landing from "@/components/landing/Landing";
-import { FAQ_ITEMS } from "@/components/landing/faq";
+import Hub from "@/components/vhz/Hub";
+import { HUB_FAQ } from "@/lib/hubFaq";
+import { MOODS } from "@/lib/moods";
 import { SITE, SOCIALS } from "@/lib/site";
 
 /**
- * Главная = лендинг (статика, идеальна для SEO/GEO).
- * Лента живёт на /feed, deep-link'и — /v/[code] (рендерят ту же ленту).
+ * Главная = хаб-лендинг (v3, статика — идеальна для SEO/GEO).
+ * Мозаика живёт на /feed, deep-link'и — /v/[code], театр = один клип.
  *
- * JSON-LD внизу страницы: WebSite + Organization (соцсети) + FAQPage —
- * Google Rich Results и генеративные движки (AI Overviews, Perplexity)
- * вытаскивают факты прямо из этих структурированных данных.
+ * JSON-LD: WebSite + Organization + FAQPage (EN) — Google Rich Results
+ * и генеративные движки (AI Overviews, Perplexity, ChatGPT search)
+ * вытаскивают факты хаба из структурированных данных.
  */
 
 export const metadata: Metadata = {
@@ -17,18 +18,30 @@ export const metadata: Metadata = {
   title: { absolute: SITE.title },
   description: SITE.description,
   keywords: [
+    "AI content hub",
+    "AI predictions",
+    "real or synth",
+    "AI generated video",
+    "synthetic media game",
+    "spot AI video",
     "AI video feed",
-    "AI generated videos",
-    "prompt marketplace",
-    "buy AI video prompts",
-    "Threads AI video",
+    "prediction game",
+    "pari-mutuel betting",
+    "crypto predictions",
+    "prompt market",
     "Veo prompts",
-    "AI video curation",
-    "swag AI video",
-    "creepy AI video",
-    "USDT creator payouts",
+    "интерактивный хаб",
+    "AI-контент",
+    "предсказания реал или синтик",
   ],
-  alternates: { canonical: "/" },
+  alternates: {
+    canonical: "/",
+    languages: {
+      en: "/",
+      ru: "/?lang=ru",
+      "x-default": "/",
+    },
+  },
   openGraph: {
     type: "website",
     url: SITE.url,
@@ -36,11 +49,21 @@ export const metadata: Metadata = {
     title: { absolute: SITE.title },
     description: SITE.description,
     locale: "en_US",
+    alternateLocale: ["ru_RU"],
+    images: [
+      {
+        url: "/images/og-vhs.png",
+        width: 1200,
+        height: 630,
+        alt: "no reality. — interactive hub of AI content & predictions",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: { absolute: SITE.title },
     description: SITE.description,
+    images: ["/images/og-vhs.png"],
   },
   robots: {
     index: true,
@@ -59,7 +82,7 @@ const jsonLd = {
       name: SITE.name,
       alternateName: "no reality",
       description: SITE.description,
-      inLanguage: "en",
+      inLanguage: ["en", "ru"],
     },
     {
       "@type": "Organization",
@@ -68,13 +91,25 @@ const jsonLd = {
       url: SITE.url,
       slogan: SITE.tagline,
       description:
-        "Decentralized curation crew building a discovery feed for AI-generated video and a prompt marketplace.",
+        "Interactive hub of AI content & predictions: a mosaic of synthetic cinema where every clip is either real footage or a machine dream — watch, call REAL or SYNTH, win the pool.",
       sameAs: SOCIALS.map((s) => s.url),
+    },
+    {
+      "@type": "ItemList",
+      "@id": `${SITE.url}/#moods`,
+      name: "Mood channels of the hub",
+      itemListElement: MOODS.map((m, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: m.en.label,
+        description: m.en.blurb,
+        url: `${SITE.url}/moods/${m.key}`,
+      })),
     },
     {
       "@type": "FAQPage",
       "@id": `${SITE.url}/#faq`,
-      mainEntity: FAQ_ITEMS.map((f) => ({
+      mainEntity: HUB_FAQ.map((f) => ({
         "@type": "Question",
         name: f.q,
         acceptedAnswer: { "@type": "Answer", text: f.a },
@@ -90,7 +125,7 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <Landing />
+      <Hub />
     </>
   );
 }

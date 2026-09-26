@@ -42,7 +42,10 @@ export default function CharityModal({
   const [mounted, setMounted] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   /* esc + блокировка скролла фона + фокус на крестик */
   useEffect(() => {

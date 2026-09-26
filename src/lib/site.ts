@@ -8,10 +8,20 @@
 export const SITE = {
   name: "no reality.",
   url: "https://no-reality.fun",
-  tagline: "watch what shouldn’t exist. bet the seam.",
-  title: "no reality. — REAL or SYNTH? bet the seam",
+  /** v3 hub: позиционирование — интерактивный хаб AI-контента и предсказаний */
+  tagline: "watch what shouldn’t exist. call it. win the pool.",
+  title: "no reality. — interactive hub of AI content & predictions",
   description:
-    "no reality. is a vertical feed of synthetic cinema: every clip is either REAL footage or a machine dream. Guess REAL or SYNTH, bet $1–5 on the seam, the bank resolves in under a minute — and bring a friend: 20% of the rake is yours.",
+    "no reality. is the interactive hub of AI content & predictions: a mosaic of synthetic cinema where every clip is either REAL footage or a machine dream. Watch, call REAL or SYNTH, stake $1–5 on the seam and the bank resolves in under a minute. Blind court mode, four mood channels, shareable deep links — and 20% of the rake is yours when you bring an eye.",
+  /** короткие слоганы для тикеров и OG */
+  tickerLines: [
+    "watch what shouldn’t exist",
+    "real or synth?",
+    "bet the seam — $1–5",
+    "the bank resolves in under a minute",
+    "blind court: no hints, pure eye",
+    "bring an eye — 20% of the rake is yours",
+  ],
 } as const;
 
 /**

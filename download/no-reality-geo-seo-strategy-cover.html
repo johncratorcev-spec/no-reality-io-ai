@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;900&display=swap" rel="stylesheet">
+<style>
+  /* Cascade palette (palette.cascade, mode=minimal) — CSS aliases */
+  :root {
+    --c-bg: #f3f4f4;
+    --c-accent: #328ebd;
+    --c-text: #1e2021;
+    --c-muted: #81878a;
+    --c-mid: #304956;
+    --c-surface: #e4e7e8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--c-bg); }
+  .poster {
+    position: relative;
+    width: 794px;
+    height: 1123px;
+    background: var(--c-bg);
+    font-family: 'Inter', 'Noto Sans', sans-serif;
+    color: var(--c-text);
+    border: none; outline: none; box-shadow: none;
+  }
+  /* Layer 1: фоновая сетка, 2% непрозрачности, clip обязателен */
+  .layer-bg {
+    position: absolute; inset: 0; overflow: hidden; z-index: 1;
+    background-image:
+      linear-gradient(to right, rgba(48,73,86,0.05) 0.5px, transparent 0.5px),
+      linear-gradient(to bottom, rgba(48,73,86,0.05) 0.5px, transparent 0.5px);
+    background-size: 50px 50px;
+  }
+  /* Layer 2: толстая вертикальная якорная линия (Template 01) */
+  .layer-structure { position: absolute; inset: 0; z-index: 2; }
+  .anchor-line {
+    position: absolute;
+    left: 95px;              /* 0.12 * 794 */
+    top: 112px;              /* 0.10 * 1123 */
+    bottom: 140px;           /* якорь короче футера — нет вертикального пересечения */
+    width: 6px;
+    background: var(--c-mid);
+  }
+  /* Layer 3: контент; X контента = 0.12W + 30pt = 135px */
+  .layer-content { position: absolute; inset: 0; z-index: 3; }
+  .kicker {
+    position: absolute; left: 145px; top: 168px;   /* 0.15H */
+    font-size: 16pt; font-weight: 400; letter-spacing: 3pt;
+    text-transform: uppercase; color: var(--c-text); opacity: 0.6;
+    max-width: 560px;
+  }
+  .hero {
+    position: absolute; left: 145px; top: 337px;   /* 0.30H */
+    font-size: 65pt; font-weight: 900; line-height: 1.15;
+    color: var(--c-text); max-width: 600px;
+  }
+  .summary {
+    position: absolute; left: 145px; top: 562px;   /* 0.50H */
+    font-size: 17pt; font-weight: 300; line-height: 1.6;
+    color: var(--c-text); opacity: 0.85; max-width: 476px; /* W*0.6 */
+  }
+  .meta {
+    position: absolute; left: 145px; top: 842px;   /* 0.75H */
+    font-size: 18pt; font-weight: 600; line-height: 1.5;
+    color: var(--c-mid); max-width: 520px;
+  }
+  .meta .sub { font-size: 16pt; font-weight: 400; color: var(--c-muted); }
+  .footer {
+    position: absolute; left: 145px; top: 1010px;  /* 0.90H */
+    font-size: 16pt; font-weight: 400; letter-spacing: 3pt;
+    text-transform: uppercase; color: var(--c-text); opacity: 0.6;
+  }
+  .footer .page { color: var(--c-accent); }
+</style>
+</head>
+<body>
+  <div class="poster">
+    <div class="layer-bg"></div>
+    <div class="layer-structure">
+      <div class="anchor-line"></div>
+    </div>
+    <div class="layer-content">
+      <div class="kicker">GEO/SEO стратегия · v3 hub</div>
+      <div class="hero">no reality.</div>
+      <div class="summary">
+        Позиционирование, семантическое ядро и протокол видимости
+        для интерактивного хаба AI-контента и предсказаний:
+        мозаика клипов, вердикты REAL/SYNTH и реферальный цикл.
+      </div>
+      <div class="meta">
+        no-reality.fun<br>
+        <span class="sub">мозаика · blind court · пари-мьютюэль · 2328.io</span>
+      </div>
+      <div class="footer">сентябрь 2026 · <span class="page">v3.0</span></div>
+    </div>
+  </div>
+</body>
+</html>

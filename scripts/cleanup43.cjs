@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /* Cleanup task 43 test data: bets, market state, favorites */
 const { PrismaClient } = require("@prisma/client");
 const db = new PrismaClient();

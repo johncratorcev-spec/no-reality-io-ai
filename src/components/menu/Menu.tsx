@@ -19,17 +19,21 @@ import WalletButton from "@/components/wallet/WalletButton";
    ================================================================ */
 
 const ITEMS = [
-  { href: "/feed", icon: "▸", label: "feed", desc: "guess real or synth" },
+  { href: "/feed", icon: "▸", label: "mosaic", desc: "watch & call real or synth" },
+  { href: "/real-or-synth", icon: "◈", label: "what is the hub", desc: "AI content & predictions explained" },
   { href: "/predict", icon: "❄", label: "predictions", desc: "call the ending — any USDC stake" },
-  { href: "/collab", icon: "🐾", label: "collab", desc: "cats & the charity drive" },
-  { href: "/future", icon: "◑", label: "in future", desc: "roadmap — ending predictions" },
+  { href: "/pnl", icon: "◑", label: "my positions", desc: "bets, payouts, cashout" },
+  { href: "/market", icon: "◆", label: "prompt market", desc: "prompts behind the clips" },
+  { href: "/future", icon: "✦", label: "in future", desc: "roadmap — ending predictions" },
 ] as const;
 
 export default function Menu({ variant = "light" }: { variant?: "light" | "dark" }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const dark = variant === "dark";
+  /* v3: весь сайт тёмный (VHS-zine) — тёмный вариант всегда.
+     Проп light оставлен для совместимости вызовов. */
+  const dark = true;
 
   /* клик вне панели и Esc закрывают */
   useEffect(() => {
