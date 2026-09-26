@@ -463,7 +463,7 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
       {/* ---------- ПАНЕЛЬ СТАВКИ ---------- */}
       {round && !result && (
         <div
-          className={`pointer-events-none absolute bottom-[8.4rem] left-3 right-3 z-30 ${
+          className={`pointer-events-none absolute bottom-[4.6rem] left-3 right-3 z-30 sm:left-auto sm:max-w-md ${
             isActive && landHard && activations === 1 ? "nb-land" : ""
           }`}
         >

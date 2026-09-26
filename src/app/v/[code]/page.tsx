@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import TheaterScreen from "@/components/vhz/TheaterScreen";
+import FeedScreen from "@/components/feed/FeedScreen";
 import { getRankedPosts, toClientRankedPosts } from "@/lib/posts";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +27,7 @@ export async function generateMetadata({
 
   if (!post) return { title: "video not found", robots: { index: false } };
 
-  /* v2 (§4.3.1 deep link first): OG-карточка = «REAL or SYNTH?» + кадр.
-     В v3 карточка ведёт в театр: суд + ставка на одном экране. */
+  /* deep link first: OG-карточка = «REAL or SYNTH?» + кадр */
   const t = post.title ? post.title.slice(0, 160) : undefined;
   return {
     title: `REAL or SYNTH? — ${post.author || "video"}`.slice(0, 120),
@@ -56,27 +55,25 @@ export async function generateMetadata({
 }
 
 /**
- * ТЕАТР (v3): deep-link /v/[utmCode] = один клип на весь экран
- * (BetPanel/CryoStopCard внутри) + полоса «ещё из мозаики».
- * Полный грид-дискавери — на /feed (мозаика).
+ * Deep-link /v/[utmCode] (v4): лента, приземляющаяся на этот клип.
+ * Ставочный клип → рафл (слепой суд + BetPanel), обычный → чистый просмотр.
  */
-export default async function VideoByCodePage({ params, searchParams }: PageProps) {
+export default async function VideoByCodePage({ params }: PageProps) {
   const { code } = await params;
-  const sp = await searchParams;
   const posts = await getFeed();
   const post = posts.find((p) => p.utmCode === code.trim());
 
   if (!post) notFound();
 
-  /* ?donate=1 — виральный deep-link с коллаб-страницы: донат открывается сам.
-     ?drop=1 устарел (v2) — принимается, игнорируется. */
-  const donateOpen = sp.donate === "1";
+  /* searchParams ?donate/?drop устарели — принимаются молча, игнорируются */
 
   return (
-    <TheaterScreen
-      posts={toClientRankedPosts(posts)}
+    <FeedScreen
+      posts={toClientRankedPosts(
+        post.truth ? posts.filter((p) => p.truth) : posts
+      )}
+      mode={post.truth ? "bet" : "watch"}
       focusCode={post.utmCode}
-      donateOpen={donateOpen}
     />
   );
 }

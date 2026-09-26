@@ -1,10 +1,9 @@
 import type { MetadataRoute } from "next";
-import { MOOD_KEYS } from "@/lib/moods";
 import { SITE } from "@/lib/site";
 
 /**
- * Карта сайта (v3 hub): хаб-лендинг, мозаика, GEO-кластер
- * (real-or-synth + 4 канала-настроения) и легаси-разделы.
+ * Карта сайта (v4): лендинг, две ленты (feed/bet), GEO-кластер
+ * (real-or-synth) и легаси-разделы.
  * /v/[code] — бесконечное пространство deep-link'ов, в sitemap не входит.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -26,8 +25,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     p("/", 1, "daily"),
     p("/feed", 0.9, "hourly"),
+    p("/bet", 0.9, "hourly"),
     p("/real-or-synth", 0.9, "weekly"),
-    ...MOOD_KEYS.map((m) => p(`/moods/${m}`, 0.8, "daily")),
     p("/market", 0.7, "weekly"),
     p("/predict", 0.7, "weekly"),
     p("/pnl", 0.4, "weekly"),

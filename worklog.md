@@ -977,3 +977,24 @@ Work Log:
 Stage Summary:
 - v3 hub (VHS-zine redesign, mosaic feed, i18n RU/EN, GEO/SEO pack) is now live on main
 - Amount/money chain (2328.io) untouched, still covered by selftests
+
+---
+Task ID: v4-two-feeds
+Agent: main
+Task: Две ленты (watch + raffles), вернуть джокеров/тёмную тему, убрать мозаику/тэги/Threads-кнопки, лёгкий UI, полный прогон бэк-тестов
+
+Work Log:
+- Восстановлен blood-carnival лендинг из f0501af: Characters (JokerCard/JokerFace/CrowInHat), HeroCanvas, Reveal/Tilt/CountUp, Partner, faq; копирайт переписан под две ленты; джокерские карты переименованы (REAL/SYNTH/THE SEAM/NO REALITY)
+- Новые лёгкие компоненты ленты: ClipCard (режимы watch/bet, тёмное стекло, белый текст, без Threads-кнопок/промптов/дононов), ClipFeed (snap-scroll + IntersectionObserver, без cryo/fav-поллеров), FeedScreen (каркас с nr-night scope — фикс CSS-переменных --nb-*)
+- /feed = бесконечные ИИ-видео (смотреть), /bet = рафлы «угадай, ИИ или нет» (слепой суд + BetPanel), /v/[code] = deep-link в соответствующую ленту
+- Удалены: vhz/* (Hub, Mosaic, Mascots, TheaterScreen, vhz.css), /moods/*, lib/moods.ts, VideoCard (1300 строк), MediaCarousel, DonateBox, UnlockModal, CryoStopCard, VideoFallback, CharityModal; PromptDropCard оставлен (нужен market/collab)
+- Header/Footer/Menu/LangSwitch перекрашены в тёмный blood-carnival; /real-or-synth переписан с vhz на nrld; шрифты: только Manrope (Unbounded и IBM Plex Mono выпилены)
+- i18n: словарь почищен от moods/mosaic; hubFaq и landing faq обновлены (рафлы вместо каналов); site.ts: новый title/description; llms.txt/llms-full.txt переписаны; sitemap: /bet добавлен, /moods/* убраны; next.config: 308-редиректы /moods/* → /feed
+- Тесты: bet_selftest 30/30 (дважды), cashout_selftest 37/37 (с тестовыми ключами 2328 в .env, восстановлен), stripe_selftest 51/51 (после npm run build), lint 0 ошибок, tsc чисто, production build OK
+- Браузерная проверка: десктоп 1440/планшет 768/мобайл 375 — лендинг, /feed, /bet, /v/[code], /real-or-synth, меню, RU-переключатель, раунд (открытие→резолв→вердикт→ещё шов→REAL→суммы), snap-скролл ленты; перекрытий нет, текст везде на тёмном
+- Инцидент: OOM-killer убивал dev-сервер (сборка+браузер в 4GB RAM) — перезапущен, всё стабильно
+
+Stage Summary:
+- Сайт v4: лендинг blood-carnival с джокерами + две ленты (/feed смотреть, /bet рафлы)
+- Денежная цепочка (2328.io) не тронута, все бэк-тесты зелёные
+- Коммит готов к пушу

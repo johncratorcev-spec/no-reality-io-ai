@@ -12,10 +12,10 @@ export interface HubFaqItem {
 export const HUB_FAQ: HubFaqItem[] = [
   {
     q: "What is no reality.?",
-    a: "no reality. is an interactive hub of AI content and predictions. It curates a mosaic of short clips where every clip is either REAL footage or a machine dream (AI-generated video). You watch, call REAL or SYNTH, and stake $1–5 on your call — the pari-mutuel pool pays the winning side.",
+    a: "no reality. is a curation project and prediction game for AI video. It runs two feeds: the feed — an endless stream of curated AI clips you can just watch — and the raffles, where every clip is either REAL footage or a machine dream. You call REAL or SYNTH and stake $1–5 — the pari-mutuel pool pays the winning side.",
     ru: {
       q: "Что такое no reality.?",
-      a: "no reality. — интерактивный хаб AI-контента и предсказаний. Мы курируем мозаику коротких клипов, где каждый — либо реальная съёмка, либо машинный сон (AI-видео). Ты смотришь, выносишь вердикт РЕАЛ или СИНТИК и ставишь $1–5 — пари-мьютюэль пул платит угадавшей стороне.",
+      a: "no reality. — проект-кураторство и игра-предсказание вокруг AI-видео. На сайте две ленты: лента — бесконечный поток курируемых AI-клипов, просто смотри; и рафлы, где каждый клип — либо реальная съёмка, либо машинный сон. Ты выносишь вердикт РЕАЛ или СИНТИК и ставишь $1–5 — пари-мьютюэль пул платит угадавшей стороне.",
     },
   },
   {
@@ -35,19 +35,11 @@ export const HUB_FAQ: HubFaqItem[] = [
     },
   },
   {
-    q: "What is blind court mode?",
-    a: "Blind court is the mosaic with the metadata hidden: titles, authors and mood stickers disappear, so you judge the footage itself, not the packaging. It is the purest test of your eye for synthetic content.",
+    q: "What are the raffles?",
+    a: "The raffles are blind prediction rounds: titles and authors are hidden, so you judge the footage itself, not the packaging. Call REAL or SYNTH, stake $1–5 and split the bank when the verdict lands. It is the purest test of your eye for synthetic content.",
     ru: {
-      q: "Что такое режим слепого суда?",
-      a: "Слепой суд — это мозаика со скрытыми метаданными: заголовки, авторы и стикеры настроений исчезают, и ты судишь само изображение, а не упаковку. Это самый чистый тест твоего глаза на синтетику.",
-    },
-  },
-  {
-    q: "What are the four mood channels?",
-    a: "The mosaic is curated into four moods: swag (machine-made style), creepy (the uncanny valley), future (machine dreams of tomorrow) and ufo (anomalies and skies that lie). Each mood has its own page, its own pool of clips and its own community of judges.",
-    ru: {
-      q: "Что за четыре канала-настроения?",
-      a: "Мозаика курируется по четырём настроениям: свэг (машинный стиль), жуть (зловещая долина), будущее (машинные сны о завтра) и НЛО (аномалии и небеса, которые врут). У каждого настроения своя страница, свой пул клипов и свои судьи.",
+      q: "Что такое рафлы?",
+      a: "Рафлы — слепые раунды-предсказания: заголовки и авторы скрыты, ты судишь само изображение, а не упаковку. Вынеси вердикт РЕАЛ или СИНТИК, поставь $1–5 и дели банк, когда упадёт вердикт. Это самый чистый тест твоего глаза на синтетику.",
     },
   },
   {

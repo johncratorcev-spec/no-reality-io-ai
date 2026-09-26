@@ -1,27 +1,25 @@
 import type { Metadata } from "next";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import Mosaic from "@/components/vhz/Mosaic";
+import FeedScreen from "@/components/feed/FeedScreen";
 import { getRankedPosts, toClientRankedPosts } from "@/lib/posts";
 import { SITE } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-/* Лента v3 = МОЗАИКА: грид-дискавери с фильтрами настроений и
-   слепым судом. Полный экран проигрывания живёт в театре /v/[code]. */
+/* Лента v4 = бесконечный поток ИИ-видео (Threads/Instagram) — просто смотри.
+   Рафлы «угадай, ИИ или нет» живут на /bet, deep-link'и — /v/[code]. */
 
 export const metadata: Metadata = {
-  title: "the mosaic — AI clips, real or synth?",
+  title: "the feed — an endless stream of AI videos",
   description:
-    "The mosaic of no reality.: machine dreams and real footage shuffled into one grid. Filter by mood, flip on blind court, open a clip and call REAL or SYNTH — the bank resolves in under a minute.",
+    "An infinite vertical feed of synthetic cinema: machine dreams and terrifyingly real footage from Threads and Instagram, curated by a roost of crows. No account, no paywall — just watch.",
   alternates: {
     canonical: "/feed",
     languages: { en: "/feed", ru: "/feed?lang=ru", "x-default": "/feed" },
   },
   openGraph: {
-    title: "the mosaic — watch what shouldn’t exist",
+    title: "the feed — watch what shouldn’t exist",
     description:
-      "AI clips & real footage, shuffled. Call REAL or SYNTH, stake $1–5, split the pool.",
+      "An endless stream of curated AI video. When you’re ready to test your eye — the raffles are one tap away.",
     url: "/feed",
     type: "website",
     images: ["/images/og-vhs.png"],
@@ -32,15 +30,15 @@ export default async function FeedPage() {
   const posts = await getRankedPosts();
   const clientPosts = toClientRankedPosts(posts);
 
-  /* ItemList (GEO): генеративные движки получают каталог клипов с
-     настроениями и ссылками на суд; truth по-прежнему не покидает сервер. */
+  /* ItemList (GEO): генеративные движки получают каталог клипов;
+     truth по-прежнему не покидает сервер. */
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: "the mosaic — no reality.",
+    name: "the feed — no reality.",
     url: `${SITE.url}/feed`,
     description:
-      "A curated mosaic of AI-generated and real video clips; judges call each clip REAL or SYNTH.",
+      "An endless curated stream of AI-generated and real video clips; viewers can switch to the raffle feed to call each clip REAL or SYNTH.",
     inLanguage: ["en", "ru"],
     mainEntity: {
       "@type": "ItemList",
@@ -50,31 +48,17 @@ export default async function FeedPage() {
         position: i + 1,
         name: p.title || `clip ${p.utmCode}`,
         url: `${SITE.url}/v/${p.utmCode}`,
-        ...(p.mood ? { genre: p.mood } : {}),
       })),
     },
   };
 
   return (
-    <div className="vhz-page flex min-h-dvh flex-col">
-      <div className="vhz-tracking" aria-hidden />
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <Header />
-      <main className="flex-1 pt-8">
-        <div className="mx-auto max-w-7xl px-4 pb-2 sm:px-6">
-          <h1 className="vhz-display vhz-cmyk vhz-glitchy text-3xl font-extrabold sm:text-4xl">
-            the mosaic
-          </h1>
-          <p className="vhz-mono mt-2 text-[0.74rem] tracking-[0.18em] text-[var(--vhz-dim)] uppercase">
-            machine dreams &amp; real footage, shuffled
-          </p>
-        </div>
-        <Mosaic posts={clientPosts} />
-      </main>
-      <Footer />
-    </div>
+      <FeedScreen posts={clientPosts} mode="watch" />
+    </>
   );
 }

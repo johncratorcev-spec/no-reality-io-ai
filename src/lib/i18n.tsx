@@ -26,10 +26,9 @@ const en = {
   langLabel: "EN",
   otherLang: "RU",
   nav: {
-    mosaic: "mosaic",
+    feed: "the feed",
+    bet: "the raffles",
     how: "how it works",
-    moods: "moods",
-    blind: "blind court",
     ref: "bring an eye",
     faq: "faq",
     predictions: "predictions",
@@ -38,12 +37,12 @@ const en = {
     menu: "menu",
   },
   hero: {
-    kicker: "the interactive hub of AI content & predictions",
+    kicker: "AI video feed & real-or-synth raffles",
     title1: "watch what",
     title2: "shouldn’t exist.",
     title3: "call it.",
-    sub: "A mosaic of synthetic cinema. Every clip is either REAL footage or a machine dream — watch, call it, stake $1–5 and the bank resolves in under a minute.",
-    cta: "enter the mosaic",
+    sub: "Two feeds: an endless stream of AI cinema, and blind raffles where every clip is either REAL footage or a machine dream — call it, stake $1–5 and the bank resolves in under a minute.",
+    cta: "enter the raffles",
     cta2: "how it works",
     rec: "rec",
     tc: "tc 00:00:00",
@@ -57,25 +56,20 @@ const en = {
   how: {
     kicker: "the loop",
     title: "watch. call. get paid.",
-    s1t: "watch the mosaic",
-    s1d: "Four mood channels of machine dreams and real footage, mixed so you never know which is which. Hover to peek, open to play.",
+    s1t: "watch the feed",
+    s1d: "An endless stream of machine dreams and terrifyingly real footage, mixed so you never know which is which. Full-screen, one swipe at a time.",
     s2t: "call REAL or SYNTH",
     s2d: "Open a clip, feel the seam, put $1–5 on the side you trust. No wallet needed to watch — the bet opens the round.",
     s3t: "the bank resolves",
     s3d: "The curator’s verdict settles the pool in under a minute. Winners split it pari-mutuel — and every loss is a prompt-upsell away from revenge.",
   },
   blind: {
-    kicker: "blind court",
+    kicker: "the raffles",
     title: "no hints. no titles. pure eye.",
-    body: "Flip the mosaic into blind court: titles, authors and mood stickers disappear. You judge the footage itself — the way it should be judged. Your win rate becomes your reputation.",
-    toggle: "blind court",
+    body: "The raffle feed strips every clip of titles, authors and stickers: you judge the footage itself — the way it should be judged. Your win rate becomes your reputation.",
+    toggle: "the raffles",
     on: "blind ON",
     off: "blind OFF",
-  },
-  moods: {
-    kicker: "channels",
-    title: "four moods of the seam",
-    explore: "open channel",
   },
   ref: {
     kicker: "viral loop",
@@ -88,24 +82,24 @@ const en = {
     title: "questions the court asked",
   },
   feed: {
-    title: "the mosaic",
-    sub: "machine dreams & real footage, shuffled",
+    title: "the feed",
+    sub: "an endless stream of AI videos",
     all: "all",
     bettable: "real or synth?",
     open: "open court",
     share: "share this clip",
-    empty: "the mosaic is empty",
+    empty: "the feed is empty",
     emptyHint: "clips appear here as the crew curates them",
-    blindHint: "blind court: metadata hidden — judge the footage itself",
-    meta: "court",
+    blindHint: "no hints — judge the footage itself",
+    meta: "raffle",
   },
   theater: {
-    more: "more from the mosaic",
-    back: "back to the mosaic",
+    more: "more from the feed",
+    back: "back to the feed",
   },
   footer: {
     tagline: "watch what shouldn’t exist. call it. win the pool.",
-    rights: "an interactive hub of AI content & predictions",
+    rights: "AI video feed & real-or-synth raffles",
     lang: "language",
   },
   ticker: [
@@ -113,13 +107,13 @@ const en = {
     "real or synth?",
     "bet the seam — $1–5",
     "the bank resolves in under a minute",
-    "blind court: no hints, pure eye",
+    "the raffles: no hints, pure eye",
     "bring an eye — 20% of the rake is yours",
   ],
   common: {
     real: "REAL",
     synth: "SYNTH",
-    open: "open the mosaic",
+    open: "open the raffles",
   },
 };
 
@@ -130,10 +124,9 @@ const ru: Dict = {
   langLabel: "RU",
   otherLang: "EN",
   nav: {
-    mosaic: "мозаика",
+    feed: "лента",
+    bet: "рафлы",
     how: "как это работает",
-    moods: "настроения",
-    blind: "слепой суд",
     ref: "приведи глаз",
     faq: "вопросы",
     predictions: "предсказания",
@@ -142,12 +135,12 @@ const ru: Dict = {
     menu: "меню",
   },
   hero: {
-    kicker: "интерактивный хаб AI-контента и предсказаний",
+    kicker: "AI-видео лента и рафлы реал или синтик",
     title1: "смотри то, что",
     title2: "не должно существовать.",
     title3: "вынеси вердикт.",
-    sub: "Мозаика синтетического синема. Каждый клип — либо реальная съёмка, либо машинный сон: смотри, выноси вердикт, ставь $1–5 — банк закрывается меньше чем за минуту.",
-    cta: "войти в мозаику",
+    sub: "Две ленты: бесконечный поток AI-синема и слепые рафлы, где каждый клип — либо реальная съёмка, либо машинный сон. Вынеси вердикт, ставь $1–5 — банк закрывается меньше чем за минуту.",
+    cta: "войти в рафлы",
     cta2: "как это работает",
     rec: "зап",
     tc: "тс 00:00:00",
@@ -161,25 +154,20 @@ const ru: Dict = {
   how: {
     kicker: "цикл",
     title: "смотри. суди. забирай.",
-    s1t: "смотри мозаику",
-    s1d: "Четыре канала-настроения: машинные сны и реальная съёмка вперемешку — никогда не знаешь, что из этого кто. Наведение — предпросмотр, клик — полный экран.",
+    s1t: "смотри ленту",
+    s1d: "Бесконечный поток машинных снов и пугающе реальной съёмки вперемешку — никогда не знаешь, что из этого кто. Полный экран, один свайп за раз.",
     s2t: "вердикт: реал или синтик",
     s2d: "Открой клип, почувствуй шов, поставь $1–5 на сторону, которой веришь. Кошелёк не нужен, чтобы смотреть — раунд открывает ставка.",
     s3t: "банк закрывается",
     s3d: "Кураторский вердикт закрывает пул меньше чем за минуту. Победители делят банк пари-мьютюэль — а проигрыш в один тап превращается в промпт-апселл и реванш.",
   },
   blind: {
-    kicker: "слепой суд",
+    kicker: "рафлы",
     title: "без подсказок. без заголовков. чистый глаз.",
-    body: "Переключи мозаику в слепой суд: заголовки, авторы и стикеры исчезают. Ты судишь само изображение — так, как оно и должно судиться. Твой винрейт становится твоей репутацией.",
-    toggle: "слепой суд",
+    body: "Рафлы вычищают у клипа всё: заголовки, авторов, стикеры. Ты судишь само изображение — так, как оно и должно судиться. Твой винрейт становится твоей репутацией.",
+    toggle: "рафлы",
     on: "слепой вкл",
     off: "слепой выкл",
-  },
-  moods: {
-    kicker: "каналы",
-    title: "четыре настроения шва",
-    explore: "открыть канал",
   },
   ref: {
     kicker: "вирусный цикл",
@@ -192,24 +180,24 @@ const ru: Dict = {
     title: "то, о чём спрашивал суд",
   },
   feed: {
-    title: "мозаика",
-    sub: "машинные сны и реальная съёмка вперемешку",
+    title: "лента",
+    sub: "бесконечный поток AI-видео",
     all: "все",
     bettable: "реал или синтик?",
     open: "открыть суд",
     share: "поделиться клипом",
-    empty: "мозаика пуста",
+    empty: "лента пуста",
     emptyHint: "клипы появятся, когда куратор разметит ленту",
-    blindHint: "слепой суд: метаданные скрыты — суди изображение само по себе",
-    meta: "суд",
+    blindHint: "без подсказок — суди изображение само по себе",
+    meta: "рафл",
   },
   theater: {
-    more: "ещё из мозаики",
-    back: "назад в мозаику",
+    more: "ещё из ленты",
+    back: "назад в ленту",
   },
   footer: {
     tagline: "смотри то, что не должно существовать. выноси вердикт. забирай банк.",
-    rights: "интерактивный хаб AI-контента и предсказаний",
+    rights: "AI-видео лента и рафлы реал или синтик",
     lang: "язык",
   },
   ticker: [
@@ -217,13 +205,13 @@ const ru: Dict = {
     "реал или синтик?",
     "ставка на шов — $1–5",
     "банк закрывается меньше чем за минуту",
-    "слепой суд: без подсказок, чистый глаз",
+    "рафлы: без подсказок, чистый глаз",
     "приведи глаз — 20% рейка твои",
   ],
   common: {
     real: "РЕАЛ",
     synth: "СИНТИК",
-    open: "открыть мозаику",
+    open: "открыть рафлы",
   },
 };
 
@@ -293,7 +281,7 @@ export function useLang() {
   return useContext(Ctx);
 }
 
-/** Кнопка-переключатель языка в духе VHS-zine: [RU|EN] на плёнке */
+/** Кнопка-переключатель языка: тёмная пилюля [RU|EN] (blood-carnival) */
 export function LangSwitch({ className = "" }: { className?: string }) {
   const { lang, setLang, t } = useLang();
   const other: Lang = lang === "en" ? "ru" : "en";
@@ -303,11 +291,11 @@ export function LangSwitch({ className = "" }: { className?: string }) {
       onClick={() => setLang(other)}
       aria-label={t.footer.lang}
       title={t.footer.lang}
-      className={`vhz-lang-switch ${className}`}
+      className={`inline-flex h-9 items-center gap-1 rounded-full border border-white/12 bg-[rgba(16,13,22,0.72)] px-2.5 text-[0.66rem] font-extrabold tracking-[0.08em] text-white/45 backdrop-blur-md transition-colors hover:text-white ${className}`}
     >
-      <span className={lang === "ru" ? "is-on" : ""}>ru</span>
-      <span aria-hidden>/</span>
-      <span className={lang === "en" ? "is-on" : ""}>en</span>
+      <span className={lang === "ru" ? "text-white" : ""}>ru</span>
+      <span aria-hidden className="text-white/25">/</span>
+      <span className={lang === "en" ? "text-white" : ""}>en</span>
     </button>
   );
 }

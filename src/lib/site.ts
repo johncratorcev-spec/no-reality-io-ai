@@ -8,18 +8,18 @@
 export const SITE = {
   name: "no reality.",
   url: "https://no-reality.fun",
-  /** v3 hub: позиционирование — интерактивный хаб AI-контента и предсказаний */
+  /** v4: две ленты — бесконечный фид ИИ-видео + рафлы REAL/SYNTH */
   tagline: "watch what shouldn’t exist. call it. win the pool.",
-  title: "no reality. — interactive hub of AI content & predictions",
+  title: "no reality. — AI video feed & REAL or SYNTH raffles",
   description:
-    "no reality. is the interactive hub of AI content & predictions: a mosaic of synthetic cinema where every clip is either REAL footage or a machine dream. Watch, call REAL or SYNTH, stake $1–5 on the seam and the bank resolves in under a minute. Blind court mode, four mood channels, shareable deep links — and 20% of the rake is yours when you bring an eye.",
+    "no reality. runs two feeds: an endless stream of curated AI video you can just watch, and blind raffles where every clip is either REAL footage or a machine dream. Call REAL or SYNTH, stake $1–5 on the seam and the bank resolves in under a minute. Shareable deep links — and 20% of the rake is yours when you bring an eye.",
   /** короткие слоганы для тикеров и OG */
   tickerLines: [
     "watch what shouldn’t exist",
     "real or synth?",
     "bet the seam — $1–5",
     "the bank resolves in under a minute",
-    "blind court: no hints, pure eye",
+    "the raffles: no hints, pure eye",
     "bring an eye — 20% of the rake is yours",
   ],
 } as const;

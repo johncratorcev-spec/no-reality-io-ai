@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import Hub from "@/components/vhz/Hub";
+import Landing from "@/components/landing/Landing";
 import { HUB_FAQ } from "@/lib/hubFaq";
-import { MOODS } from "@/lib/moods";
 import { SITE, SOCIALS } from "@/lib/site";
 
 /**
- * Главная = хаб-лендинг (v3, статика — идеальна для SEO/GEO).
- * Мозаика живёт на /feed, deep-link'и — /v/[code], театр = один клип.
+ * Главная = кровавый карнавал-лендинг (v4, статика — идеальна для SEO/GEO).
+ * Две ленты сайта: /feed — бесконечные ИИ-видео, /bet — рафлы
+ * «угадай, ИИ или нет». Deep-link'и — /v/[code].
  *
  * JSON-LD: WebSite + Organization + FAQPage (EN) — Google Rich Results
  * и генеративные движки (AI Overviews, Perplexity, ChatGPT search)
- * вытаскивают факты хаба из структурированных данных.
+ * вытаскивают факты проекта из структурированных данных.
  */
 
 export const metadata: Metadata = {
@@ -25,14 +25,14 @@ export const metadata: Metadata = {
     "synthetic media game",
     "spot AI video",
     "AI video feed",
-    "prediction game",
+    "prediction raffle",
     "pari-mutuel betting",
     "crypto predictions",
     "prompt market",
     "Veo prompts",
     "интерактивный хаб",
     "AI-контент",
-    "предсказания реал или синтик",
+    "реал или синтик",
   ],
   alternates: {
     canonical: "/",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
         url: "/images/og-vhs.png",
         width: 1200,
         height: 630,
-        alt: "no reality. — interactive hub of AI content & predictions",
+        alt: "no reality. — watch what shouldn’t exist. bet the seam.",
       },
     ],
   },
@@ -91,20 +91,8 @@ const jsonLd = {
       url: SITE.url,
       slogan: SITE.tagline,
       description:
-        "Interactive hub of AI content & predictions: a mosaic of synthetic cinema where every clip is either real footage or a machine dream — watch, call REAL or SYNTH, win the pool.",
+        "no reality. runs two feeds: an endless stream of curated AI video, and blind raffles where every clip is either REAL footage or a machine dream — call it, stake $1–5, win the pool.",
       sameAs: SOCIALS.map((s) => s.url),
-    },
-    {
-      "@type": "ItemList",
-      "@id": `${SITE.url}/#moods`,
-      name: "Mood channels of the hub",
-      itemListElement: MOODS.map((m, i) => ({
-        "@type": "ListItem",
-        position: i + 1,
-        name: m.en.label,
-        description: m.en.blurb,
-        url: `${SITE.url}/moods/${m.key}`,
-      })),
     },
     {
       "@type": "FAQPage",
@@ -125,7 +113,7 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <Hub />
+      <Landing />
     </>
   );
 }

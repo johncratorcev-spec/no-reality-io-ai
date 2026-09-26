@@ -33,7 +33,7 @@ const LIVE = [
   {
     tag: "live",
     t: "the feed",
-    d: "a curated feed of AI video from Threads, four moods, deep links, attention-based ranking.",
+    d: "an endless feed of AI video from Threads and Instagram, deep links, attention-based ranking.",
   },
   {
     tag: "live",

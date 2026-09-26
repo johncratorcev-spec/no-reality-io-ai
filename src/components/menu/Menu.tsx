@@ -19,12 +19,13 @@ import WalletButton from "@/components/wallet/WalletButton";
    ================================================================ */
 
 const ITEMS = [
-  { href: "/feed", icon: "▸", label: "mosaic", desc: "watch & call real or synth" },
-  { href: "/real-or-synth", icon: "◈", label: "what is the hub", desc: "AI content & predictions explained" },
+  { href: "/feed", icon: "▸", label: "the feed", desc: "endless AI videos — just watch" },
+  { href: "/bet", icon: "◈", label: "the raffles", desc: "call REAL or SYNTH — split the bank" },
+  { href: "/real-or-synth", icon: "✦", label: "what is this", desc: "the game explained" },
   { href: "/predict", icon: "❄", label: "predictions", desc: "call the ending — any USDC stake" },
   { href: "/pnl", icon: "◑", label: "my positions", desc: "bets, payouts, cashout" },
   { href: "/market", icon: "◆", label: "prompt market", desc: "prompts behind the clips" },
-  { href: "/future", icon: "✦", label: "in future", desc: "roadmap — ending predictions" },
+  { href: "/future", icon: "✧", label: "in future", desc: "roadmap — ending predictions" },
 ] as const;
 
 export default function Menu({ variant = "light" }: { variant?: "light" | "dark" }) {
@@ -60,7 +61,7 @@ export default function Menu({ variant = "light" }: { variant?: "light" | "dark"
   const isActive = (href: string) =>
     pathname === href ||
     pathname.startsWith(`${href}/`) ||
-    (href === "/feed" && pathname.startsWith("/v/"));
+    ((href === "/feed" || href === "/bet") && pathname.startsWith("/v/"));
 
   return (
     <div ref={rootRef} className="relative">

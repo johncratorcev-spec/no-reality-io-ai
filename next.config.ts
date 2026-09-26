@@ -39,6 +39,15 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
 
+  /* v4: mood-каналы убраны (фильтров на тэги больше нет) —
+     старые ссылки /moods/* ведут в бесконечный фид. */
+  async redirects() {
+    return [
+      { source: "/moods", destination: "/feed", permanent: true },
+      { source: "/moods/:mood", destination: "/feed", permanent: true },
+    ];
+  },
+
   /* Task 44 (Cloudflare free, §1): origin-заголовки, которыми CF (и любые
      CDN/браузеры) руководствуются автоматически:
        - /_next/static — хэшированный бандл: immutable, год;

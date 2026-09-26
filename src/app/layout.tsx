@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { IBM_Plex_Mono, Manrope, Unbounded } from "next/font/google";
+import { Manrope } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import RefCapture from "@/components/wallet/RefCapture";
 import TrackVisit from "@/components/track/TrackVisit";
@@ -8,29 +8,15 @@ import { LangProvider } from "@/lib/i18n";
 import { FEATURES } from "@/lib/features";
 import { SITE } from "@/lib/site";
 import "./globals.css";
-// кровавый карнавал (nrld-*) — шим легаси-страниц; vhz-* (VHS-zine) —
-// дизайн-система v3, грузится последней и перекрывает палитру
+// кровавый карнавал (nrld-*) — лендинг + шим легаси-страниц
 import "@/components/landing/landing.css";
-import "@/components/vhz/vhz.css";
 
-/* v3 VHS-zine: Manrope — тело (теперь с кириллицей), Unbounded —
-   дисплейные заголовки, IBM Plex Mono — таймкоды/стампы/капшены */
+/* v4 blood-carnival: Manrope — единственный шрифт (тело и дисплей,
+   кириллица включена). Лёгкий набор — один файл, меньше запросов. */
 const manrope = Manrope({
   variable: "--font-manrope",
   subsets: ["latin", "cyrillic"],
   weight: ["400", "600", "700", "800"],
-  display: "swap",
-});
-const unbounded = Unbounded({
-  variable: "--font-unbounded",
-  subsets: ["latin", "cyrillic"],
-  weight: ["500", "700", "900"],
-  display: "swap",
-});
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-plex-mono",
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "600"],
   display: "swap",
 });
 
@@ -82,7 +68,7 @@ export const metadata: Metadata = {
         url: "/images/og-vhs.png",
         width: 1200,
         height: 630,
-        alt: "no reality. — interactive hub of AI content & predictions",
+        alt: "no reality. — AI video feed & REAL or SYNTH raffles",
       },
     ],
   },
@@ -101,7 +87,7 @@ export const metadata: Metadata = {
     icon:
       "data:image/svg+xml," +
       encodeURIComponent(
-        `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='#0b0b10'/><text x='16' y='22' font-family='Arial' font-size='16' font-weight='bold' fill='#FFD400' text-anchor='middle'>nr</text></svg>`
+        `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='#08070b'/><text x='16' y='22' font-family='Arial' font-size='16' font-weight='bold' fill='#FF003C' text-anchor='middle'>nr</text></svg>`
       ),
   },
   other: {
@@ -118,7 +104,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#0b0b10",
+  themeColor: "#08070b",
   colorScheme: "dark",
 };
 
@@ -130,7 +116,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${manrope.variable} ${unbounded.variable} ${plexMono.variable} vhz-root antialiased bg-[#0b0b10] text-[#f4f2ec] font-[family-name:var(--font-manrope)]`}
+        className={`${manrope.variable} antialiased bg-[#08070b] text-white font-[family-name:var(--font-manrope)]`}
       >
         <LangProvider>
           {/* ловец ?ref= — реферальная атрибуция на любой странице */}
