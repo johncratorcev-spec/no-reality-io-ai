@@ -7,10 +7,9 @@
    покидают сервер только после подтверждённой оплаты — см.
    src/lib/prompts/paid.ts getPromptFull().
 
-   Товары помечены badge "test drop": это тестовые продажи с
-   Stripe-интеграцией в test mode (ключи sk_test_…). Для боевого
-   дропа достаточно: убрать badge, положить текст в data/prompts.csv
-   и переключить ключи на sk_live_… — код менять не нужно.
+   v5: оплата ТОЛЬКО крипто через 2328.io (USDT). Stripe выпилен.
+   Для боевого дропа достаточно: положить текст в data/prompts.csv
+   (utm_code = code товара) — код менять не нужно.
    ================================================================ */
 
 export interface MarketItem {
@@ -45,7 +44,6 @@ export const MARKET_ITEMS: MarketItem[] = [
     engines: ["veo 3", "kling 2.5", "runway gen-4"],
     cover: "/images/market/neon-rain.png",
     gradient: ["#2b1a5e", "#8a68e8", "#3ec6d8"],
-    badge: "test drop",
   },
   {
     code: "liquid-chrome",
@@ -58,7 +56,6 @@ export const MARKET_ITEMS: MarketItem[] = [
     engines: ["kling 2.1", "veo 3", "minimax hailuo"],
     cover: "/images/market/liquid-chrome.png",
     gradient: ["#1c1f26", "#b9c0cc", "#e9e4f4"],
-    badge: "test drop",
   },
   {
     code: "paper-fold",
@@ -71,7 +68,6 @@ export const MARKET_ITEMS: MarketItem[] = [
     engines: ["veo 3", "pika 2.2"],
     cover: "/images/market/paper-fold.png",
     gradient: ["#f3ead9", "#b9cfae", "#eec3c3"],
-    badge: "test drop",
   },
 ];
 

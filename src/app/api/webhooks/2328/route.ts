@@ -9,6 +9,9 @@ import {
 import { is2328PayoutConfigured } from "@/lib/2328/payout";
 import { runSinglePayout } from "@/lib/payouts";
 import { confirmBetPayment, failBetPayment } from "@/lib/bet/core";
+import { trackEvent } from "@/lib/bet/events";
+import { recordReferralEvent } from "@/lib/referral";
+import { confirmBoostPayment, failBoostPayment } from "@/lib/boost-order";
 import { unclaimBetPayout } from "@/lib/bet/cashout";
 
 export const dynamic = "force-dynamic";
@@ -72,8 +75,31 @@ async function handlePayment(p: {
   txid: string | null;
   payerAmount: string | null;
 }) {
+  /* ---- v5: бусты клипов (orderId bs-…) идут в свой контур ---- */
+  if (p.orderId.startsWith("bs-")) {
+    if (isPaidStatus(p.paymentStatus)) {
+      const order = await confirmBoostPayment(p.uuid, p.orderId, p.txid);
+      log(order ? "boost_payment_confirmed" : "boost_payment_unknown", {
+        orderId: p.orderId,
+        uuid: p.uuid,
+      });
+      if (order) {
+        void trackEvent("boost_purchase", {
+          clipCode: order.clipCode,
+          meta: { orderId: p.orderId, amountUsdt: order.amountUsdt, days: order.days },
+        });
+      }
+    } else if (p.paymentStatus === "cancel" || p.paymentStatus === "underpaid") {
+      await failBoostPayment(p.uuid, p.orderId);
+      log("boost_payment_failed_final", { orderId: p.orderId, status: p.paymentStatus });
+    } else {
+      log("boost_payment_intermediate", { orderId: p.orderId, status: p.paymentStatus });
+    }
+    return;
+  }
+
   /* ---- v2: ставки REAL/SYNTH (orderId rb-…) идут в свой контур ----
-      Покупки промптов (pd-…) обрабатываются ниже; rb-* сюда не заходит,
+      Покупки промптов (pd-…, nr-…) обрабатываются ниже; rb-* сюда не заходит,
       чтобы Bet не находил Purchase и наоборот. */
   if (p.orderId.startsWith("rb-")) {
     if (isPaidStatus(p.paymentStatus)) {
@@ -124,6 +150,28 @@ async function handlePayment(p: {
       seller: purchase.sellerAmount,
       fee: purchase.platformFee,
     });
+
+    // v5 аналитика: промпт разблокирован (prompt_unlock)
+    void trackEvent("prompt_unlock", {
+      clipCode: purchase.utmCode,
+      meta: { orderId: purchase.orderId, amountUsdt: purchase.amountUsdt },
+    });
+
+    // v5 рефералка крипто-покупок: код вшит в orderId (nr-<id>-<ref>);
+    // 20% суммы инвойса — рефереру, единый реестр с продажами
+    const refMatch = /^nr-[0-9a-f-]{36}-(r[a-z0-9]{5,11})$/i.exec(purchase.orderId);
+    if (refMatch) {
+      await recordReferralEvent({
+        orderId: purchase.orderId,
+        refCode: refMatch[1].toLowerCase(),
+        kind: "paid",
+        amountUsdt: purchase.amountUsdt,
+      }).catch(() => {});
+      void trackEvent("referral_earn", {
+        clipCode: purchase.utmCode,
+        meta: { ref: refMatch[1], orderId: purchase.orderId, amountUsdt: purchase.amountUsdt },
+      });
+    }
 
     // переводим в очередь выплат; авто-режим платит сразу
     await db.purchase.updateMany({

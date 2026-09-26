@@ -3137,6 +3137,22 @@ section:hover .nr-mc-arrow,
   100% { opacity: 0; transform: rotate(6deg) scale(1.04); }
 }
 
+/* pool-pop (v5): «ТЫ В ПУЛЕ» — мгновенный фидбек, 420ms */
+.nb-pool-pop {
+  animation: nb-pool-pop 420ms cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes nb-pool-pop {
+  0%   { opacity: 0; transform: scale(.8); }
+  60%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* rise-in (v5): шаг онбординга въезжает снизу, 320ms */
+@keyframes nb-rise-in {
+  0%   { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
 /* seam-tear: верх клипа «сдирается» как бумага, 300ms */
 .nb-tear-veil {
   position: absolute;
@@ -3242,7 +3258,8 @@ section:hover .nr-mc-arrow,
   .nb-blood-flash,
   .nb-discharge,
   .nb-scratch,
-  .nb-joker-blink {
+  .nb-joker-blink,
+  .nb-pool-pop {
     display: none !important;
   }
   .nb-pulse-lime,

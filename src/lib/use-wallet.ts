@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { REFERRAL } from "@/lib/site";
 import { myShareRef, storeMyRef } from "@/lib/shareRef";
+import { track } from "@/lib/bet/trackClient";
 import { signInWithPhantom, phantomProvider } from "@/lib/cryo/wallet";
 
 /* ================================================================
@@ -52,6 +53,15 @@ const initialState: WalletSession = {
   connecting: false,
   error: null,
 };
+
+/** доатрибуция анонимных ставок кошельку (Best Eyes Leaderboard) */
+async function attachBets(): Promise<void> {
+  try {
+    await fetch("/api/me/attach-bets", { method: "POST" });
+  } catch {
+    /* best-effort */
+  }
+}
 
 export function useWalletSession() {
   const [state, setState] = useState<WalletSession>(initialState);
@@ -116,6 +126,8 @@ export function useWalletSession() {
           provider: "phantom",
           connecting: false,
         }));
+        track("wallet_connect", undefined, { provider: "phantom" });
+        void attachBets();
         return;
       } catch (e) {
         setState((s) => ({
@@ -161,6 +173,8 @@ export function useWalletSession() {
         inviteUrl: d.inviteUrl ?? null,
         connecting: false,
       }));
+      track("wallet_connect", undefined, { provider: "metamask" });
+      void attachBets();
     } catch (e) {
       setState((s) => ({
         ...s,

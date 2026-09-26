@@ -1,9 +1,10 @@
 import { db } from "@/lib/db";
 import { getPostsFromCSV, toClientPosts, type ClientPost, type FeedPost } from "@/lib/csv";
 import { isBoosted } from "@/lib/boost";
+import { activeBoostedCodes } from "@/lib/boost-order";
 
-export type RankedPost = FeedPost & { score: number };
-export type ClientRankedPost = ClientPost & { score: number };
+export type RankedPost = FeedPost & { score: number; featured?: boolean };
+export type ClientRankedPost = ClientPost & { score: number; featured?: boolean };
 
 /**
  * Единственная реализация "ленты с рейтингом":
@@ -53,8 +54,16 @@ export async function getRankedPosts(): Promise<RankedPost[]> {
     );
   }
 
+  /* v5: платные бусты (BoostOrder, крипто-инвойс 2328) — та же механика,
+     что и CSV-буст: активные paidUntil поднимают клип наверх */
+  const dbBoosted = await activeBoostedCodes();
+
   return unique
-    .map((p) => ({ ...p, score: scoreMap.get(p.utmCode) ?? 0 }))
+    .map((p) => ({
+      ...p,
+      score: scoreMap.get(p.utmCode) ?? 0,
+      featured: isBoosted(p) || dbBoosted.has(p.utmCode) || undefined,
+    }))
     .sort((a, b) => {
       // запиненные (колонка pin) — абсолютные слоты поверх всего остального
       const pa = a.pin ?? 0;
@@ -63,8 +72,8 @@ export async function getRankedPosts(): Promise<RankedPost[]> {
         if (pa && pb) return pa - pb; // оба запинены — по номеру слота
         return pa ? -1 : 1;
       }
-      const ba = isBoosted(a) ? 1 : 0;
-      const bb = isBoosted(b) ? 1 : 0;
+      const ba = isBoosted(a) || dbBoosted.has(a.utmCode) ? 1 : 0;
+      const bb = isBoosted(b) || dbBoosted.has(b.utmCode) ? 1 : 0;
       if (ba !== bb) return bb - ba; // бустнутые — наверх
       if (ba && bb) {
         // оба в бусте: свежий буст выше

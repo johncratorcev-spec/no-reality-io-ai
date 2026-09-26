@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
-import { getPostByCode } from "@/lib/csv";
 import { db } from "@/lib/db";
 import { readBuyer, jsonResponse } from "@/lib/buyer";
 import { calcSplit } from "@/lib/prompts/paid";
+import { getSellablePrompt } from "@/lib/market/sell";
+import { normalizeRefCode, recordReferralEvent } from "@/lib/referral";
 import {
   create2328Payment,
   get2328PaymentInfo,
@@ -15,17 +16,18 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/prompts/[code]/checkout — создать платёж за промпт.
+ * POST /api/prompts/[code]/checkout — создать КРИПТО-платёж за промпт
+ * (v5: единственный канал — 2328.io, карты/Stripe выпилены).
  *
- * Флоу: buyer-cookie → пост из CSV (is_paid + цена) → ищем живую pending-
- * покупку этого покупателя (ре-клик по кнопке не плодит инвойсы) →
- * создаём платёж в 2328 (hosted checkout) → отдаём payUrl.
+ * Работает для обоих источников: платных постов posts.csv и товаров
+ * витрины MARKET_ITEMS (см. lib/market/sell.ts).
  *
- * Идемпотентность: orderId = "nr-" + purchaseId — повторный запрос с тем же
- * orderId в 2328 возвращает существующую сессию, дубля инвойса не будет.
+ * Флоу: buyer-cookie → sellable-промпт → живая pending-покупка
+ * (ре-клик не плодит инвойсы) → инвойс 2328 (hosted checkout) → payUrl.
  *
- * prompt_full здесь не участвует: до подписанного webhook'а покупатель
- * не получает ничего, кроме ссылки на оплату.
+ * Рефералка: код пригласившего вшивается в orderId (nr-<id>-<ref>) —
+ * атрибуция переживает любой сбой БД; webhook при paid запишет
+ * ReferralEvent(kind=paid) и 20% уйдут рефереру.
  */
 
 const PENDING_REUSE_MS = 30 * 60_000; // живой инвойс: TTL в 2328 = 30 мин
@@ -58,8 +60,15 @@ export async function POST(
     );
   }
 
-  const post = getPostByCode(code);
-  if (!post || !post.isPaid || !post.priceUsdt) {
+  let body: { ref?: unknown } | null = null;
+  try {
+    body = (await req.json()) as { ref?: unknown };
+  } catch {
+    body = null; // тело опционально — кнопка может прислать и пустой POST
+  }
+
+  const sellable = getSellablePrompt(code);
+  if (!sellable) {
     return jsonResponse(
       buyer,
       { error: "This prompt is not for sale" },
@@ -73,6 +82,16 @@ export async function POST(
       { error: "Payments are not configured yet — try again later" },
       503
     );
+  }
+
+  // --- реферальная атрибуция: код вшиваем в orderId (переживёт что угодно).
+  // Само-приглашение отсекается: если покупатель сам подключал кошелёк и код
+  // совпал с его собственным — атрибуции нет. ---
+  let refCode = normalizeRefCode(body?.ref);
+  const walletCookie = req.cookies.get("nr_wallet")?.value?.toLowerCase();
+  if (refCode && walletCookie && walletCookie.match(/^0x[0-9a-f]{40}$/)) {
+    const { deriveRefCode } = await import("@/lib/referral");
+    if (deriveRefCode(walletCookie) === refCode) refCode = null;
   }
 
   // --- ре-использование живой pending-покупки (второй клик / потерянный ответ) ---
@@ -111,24 +130,29 @@ export async function POST(
       buyerHash: buyer.id,
       orderId: "", // заполним сразу после создания строки (нужен id)
       paymentId: `pending-${crypto.randomUUID()}`, // временный; заменим на uuid 2328
-      amountUsdt: post.priceUsdt,
-      ...calcSplit(post.priceUsdt),
+      amountUsdt: sellable.priceUsdt,
+      ...calcSplit(sellable.priceUsdt),
     },
   });
 
-  const orderId = `nr-${purchase.id}`;
+  const orderId = refCode
+    ? `nr-${purchase.id}-${refCode}`
+    : `nr-${purchase.id}`;
   await db.purchase.update({
     where: { id: purchase.id },
     data: { orderId },
   });
+  if (refCode) {
+    await recordReferralEvent({ orderId, refCode, kind: "checkout" });
+  }
 
   try {
     const payment = await create2328Payment({
-      amountUsdt: post.priceUsdt,
+      amountUsdt: sellable.priceUsdt,
       orderId,
       urlCallback: `${publicBase(req)}/api/webhooks/2328`,
-      urlReturn: `${publicBase(req)}/v/${code}`,
-      description: `no reality. prompt — ${post.title || post.utmCode}`,
+      urlReturn: `${publicBase(req)}/market/thanks?code=${encodeURIComponent(code)}`,
+      description: `no reality. prompt — ${sellable.title}`,
     });
 
     await db.purchase.update({
@@ -140,7 +164,7 @@ export async function POST(
       ok: true,
       payUrl: payment.payUrl,
       purchaseId: purchase.id,
-      amountUsdt: post.priceUsdt,
+      amountUsdt: sellable.priceUsdt,
     });
   } catch (e) {
     // покупку помечаем failed: её orderId больше не используется,

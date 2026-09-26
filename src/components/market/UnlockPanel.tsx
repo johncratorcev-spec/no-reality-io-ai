@@ -1,33 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy, Loader2, LockOpen, TriangleAlert } from "lucide-react";
-import { formatUsd } from "@/lib/market/catalog";
+import { Check, Copy, ExternalLink, Loader2, LockOpen, TriangleAlert } from "lucide-react";
+import { track } from "@/lib/bet/trackClient";
+import { withRef } from "@/lib/shareRef";
 
 /* ================================================================
-   UnlockPanel — /market/thanks?session_id=cs_…
+   UnlockPanel — /market/thanks?code=<product>
 
-   Поллит /api/market/session-status (только СВОЙ заказ: cookie
+   Поллит /api/prompts/[code]/status (только СВОЙ заказ: cookie
    nr_buyer проверяется на сервере). Полный текст промпта показываем
-   исключительно при paid. Реконсиляция на сервере догоняет оплату,
-   даже если webhook запаздывал — обычно статус приходит мгновенно,
-   поллинг оставлен как UX-страховка.
+   исключительно при unlocked. Webhook 2328 подтверждает оплату —
+   поллинг остаётся как UX-страховка (обычно статус приходит мгновенно).
    ================================================================ */
 
 interface StatusData {
-  status: string;
-  paid: boolean;
-  item?: { code: string; title: string; category: string; priceCents: number };
+  unlocked: boolean;
+  paid?: boolean;
   prompt?: string | null;
+  preview?: string | null;
+  title?: string | null;
+  priceUsdt?: string | null;
 }
 
 const POLL_MS = 2500;
-const MAX_ATTEMPTS = 60; // ~2.5 мин, дальше — честная ошибка с ретраем
+const MAX_ATTEMPTS = 80; // ~3.3 мин, дальше — честная ошибка
 
-export default function UnlockPanel({ sessionId }: { sessionId: string }) {
+export default function UnlockPanel({ code }: { code: string }) {
   const [state, setState] = useState<
-    "loading" | "pending" | "paid" | "notfound" | "error"
-  >(sessionId ? "loading" : "notfound");
+    "loading" | "pending" | "unlocked" | "notfound" | "error"
+  >(code ? "loading" : "notfound");
   const [data, setData] = useState<StatusData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -37,10 +39,9 @@ export default function UnlockPanel({ sessionId }: { sessionId: string }) {
   const poll = useCallback(async () => {
     attempts.current += 1;
     try {
-      const r = await fetch(
-        `/api/market/session-status?id=${encodeURIComponent(sessionId)}`,
-        { cache: "no-store" }
-      );
+      const r = await fetch(`/api/prompts/${encodeURIComponent(code)}/status`, {
+        cache: "no-store",
+      });
       const d = (await r.json()) as StatusData & { error?: string };
       if (r.status === 404) {
         setState("notfound");
@@ -48,29 +49,32 @@ export default function UnlockPanel({ sessionId }: { sessionId: string }) {
       }
       if (!r.ok) throw new Error(d.error || `status ${r.status}`);
       setData(d);
-      if (d.paid) {
-        setState("paid");
-        return;
+      if (d.unlocked) {
+        setState("unlocked");
+        return; // стоп поллинга — промпт раскрыт
       }
       setState("pending");
-    } catch {
+    } catch (e) {
       /* одиночный сетевой сбой терпим — добираем до MAX_ATTEMPTS */
+      if (attempts.current >= MAX_ATTEMPTS) {
+        setError(e instanceof Error ? e.message : "status failed");
+        setState("error");
+        return;
+      }
     }
     if (attempts.current < MAX_ATTEMPTS) {
       timer.current = setTimeout(poll, POLL_MS);
     } else {
-      setError("Still waiting for confirmation — try again in a minute");
-      setState("error");
+      setState((s) => (s === "unlocked" ? s : "error"));
     }
-  }, [sessionId]);
+  }, [code]);
 
   useEffect(() => {
-    if (!sessionId) return;
-    poll();
+    void poll();
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [sessionId, poll]);
+  }, [poll]);
 
   const copyPrompt = async () => {
     if (!data?.prompt) return;
@@ -79,144 +83,144 @@ export default function UnlockPanel({ sessionId }: { sessionId: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      /* clipboard запрещён — текст выделяется вручную */
+      /* clipboard запрещён */
     }
   };
 
-  /* ---------------- рендер ---------------- */
+  const share = useCallback(async () => {
+    const url = withRef(`${window.location.origin}/market?unlock=${encodeURIComponent(code)}`);
+    track("share_result", code, { source: "unlock" });
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "no reality.",
+          text: "я забрал промпт с no reality. — забирай свой:",
+          url,
+        });
+      } else {
+        await navigator.clipboard.writeText(url);
+      }
+    } catch {
+      /* отмена — не беда */
+    }
+  }, [code]);
 
-  if (!sessionId) {
-    return (
-      <Shell>
-        <p className="text-[0.86rem] font-semibold text-[#10161d]/60">
-          no session id in the link — open your checkout again from the{" "}
-          <a href="/market" className="underline underline-offset-4">
-            prompt market
-          </a>
-          .
-        </p>
-      </Shell>
-    );
-  }
-
-  if (state === "paid" && data?.item) {
-    return (
-      <Shell>
-        <span className="inline-flex items-center gap-2 rounded-full bg-[#2fa46a]/12 px-4 py-1.5 text-[0.66rem] font-extrabold uppercase tracking-[0.2em] text-[#2fa46a]">
-          <LockOpen className="h-3.5 w-3.5" aria-hidden />
-          payment confirmed
-        </span>
-        <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-[#10161d] sm:text-4xl">
-          {data.item.title}
-        </h2>
-        <p className="mt-1 text-[0.72rem] font-bold uppercase tracking-[0.18em] text-[#6d4fc2]">
-          {data.item.category} · {formatUsd(data.item.priceCents)}
-        </p>
-
-        <div className="mt-6 rounded-2xl bg-[#f7f5fb] p-4 ring-1 ring-[#6d4fc2]/20 sm:p-5">
-          <p className="mb-2 text-[0.62rem] font-extrabold uppercase tracking-[0.24em] text-[#10161d]/40">
-            the full prompt
+  return (
+    <div className="rounded-3xl border border-white/10 bg-[rgba(16,13,22,0.72)] p-6 backdrop-blur-md sm:p-10">
+      {state === "loading" && (
+        <div className="flex flex-col items-center gap-4 py-10 text-center">
+          <Loader2 className="h-7 w-7 animate-spin text-white/70" aria-hidden />
+          <p className="text-[0.85rem] font-bold text-white/70">
+            ждём подтверждения оплаты…
           </p>
-          <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap break-words font-mono text-[0.78rem] leading-relaxed text-[#10161d]/85">
-            {data.prompt || "…"}
-          </pre>
+          <p className="max-w-sm text-[0.68rem] font-semibold leading-relaxed text-white/40">
+            крипто-инвойс 2328.io подтверждается подписанным webhook&apos;ом —
+            обычно это секунды, страница откроется сама
+          </p>
         </div>
+      )}
 
-        <button
-          onClick={copyPrompt}
-          className="nr-pd-cta mt-5 inline-flex items-center gap-2 rounded-full bg-[#8a68e8] px-7 py-3.5 text-[0.82rem] font-extrabold text-white transition-transform duration-300 hover:scale-[1.04] active:scale-95"
-        >
-          {copied ? (
-            <Check className="h-4 w-4" aria-hidden />
-          ) : (
-            <Copy className="h-4 w-4" aria-hidden />
-          )}
-          {copied ? "copied — go make it real" : "copy the prompt"}
-        </button>
+      {state === "pending" && (
+        <div className="flex flex-col items-center gap-4 py-10 text-center">
+          <Loader2 className="h-7 w-7 animate-spin text-[#FF5C7A]" aria-hidden />
+          <p className="text-[0.95rem] font-extrabold text-white">
+            платёж в работе — проверяем каждые 2.5с
+          </p>
+          <p className="max-w-sm text-[0.72rem] font-semibold leading-relaxed text-white/50">
+            не закрывай страницу: как только инвойс подтвердится, промпт
+            раскроется здесь же. если закрыл — вернись на{" "}
+            <code className="font-mono text-white/70">/market?unlock={code}</code>
+          </p>
+          <button
+            onClick={() => {
+              attempts.current = 0;
+              setState("loading");
+              void poll();
+            }}
+            className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.7rem] font-bold text-white/80 transition-colors hover:bg-white/10"
+          >
+            проверить снова
+          </button>
+        </div>
+      )}
 
-        <p className="mt-4 text-[0.68rem] font-semibold leading-snug text-[#10161d]/45">
-          unlocked for this browser — keep this tab or copy it now. questions?{" "}
-          <a href="/feed" className="underline underline-offset-4">
-            find us in the feed
+      {state === "unlocked" && (
+        <div>
+          <p className="inline-flex items-center gap-2 text-[0.64rem] font-extrabold uppercase tracking-[0.24em] text-[#C8FF00]">
+            <LockOpen className="h-3.5 w-3.5" aria-hidden />
+            paid &amp; unlocked — {data?.title || code}
+          </p>
+          <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+            промпт твой. один взгляд — и он твой навсегда.
+          </h2>
+          <div className="mt-5 max-h-[46vh] overflow-y-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-[rgba(10,10,15,0.6)] p-4 font-mono text-[0.72rem] leading-relaxed text-white/90 [scrollbar-width:thin]">
+            {data?.prompt}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              onClick={copyPrompt}
+              className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-[0.78rem] font-extrabold text-[#0A0A0F] transition-transform duration-300 hover:scale-[1.04] active:scale-95"
+            >
+              {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+              {copied ? "скопировано — иди делать" : "copy prompt"}
+            </button>
+            <button
+              onClick={() => void share()}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-3 text-[0.74rem] font-bold text-white/85 transition-colors hover:bg-white/10"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              share
+            </button>
+            <a
+              href="/market"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 px-5 py-3 text-[0.74rem] font-bold text-white/60 transition-colors hover:text-white"
+            >
+              в витрину
+            </a>
+          </div>
+        </div>
+      )}
+
+      {state === "notfound" && (
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <TriangleAlert className="h-6 w-6 text-[#FF5C7A]" aria-hidden />
+          <p className="text-[0.9rem] font-extrabold text-white">промпт не найден</p>
+          <p className="max-w-sm text-[0.72rem] font-semibold text-white/50">
+            ссылка повреждена — открой витрину и забери дроп оттуда
+          </p>
+          <a
+            href="/market"
+            className="rounded-full bg-white px-5 py-2.5 text-[0.74rem] font-extrabold text-[#0A0A0F]"
+          >
+            в витрину
           </a>
-          .
-        </p>
-      </Shell>
-    );
-  }
+        </div>
+      )}
 
-  if (state === "notfound") {
-    return (
-      <Shell>
-        <span className="inline-flex items-center gap-2 rounded-full bg-[#ff5470]/12 px-4 py-1.5 text-[0.66rem] font-extrabold uppercase tracking-[0.2em] text-[#d63d5e]">
-          <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
-          order not found
-        </span>
-        <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-[#10161d]">
-          this checkout belongs to another browser
-        </h2>
-        <p className="mt-2 text-[0.82rem] font-semibold leading-relaxed text-[#10161d]/55">
-          the unlock is bound to the browser cookie that started the payment.
-          open this page in the original browser, or start a new checkout —
-          unpaid sessions are never charged.
-        </p>
-        <a
-          href="/market"
-          className="nr-pd-cta mt-5 inline-flex items-center gap-2 rounded-full bg-[#10161d] px-6 py-3 text-[0.78rem] font-extrabold text-white transition-transform duration-300 hover:scale-[1.04]"
-        >
-          back to the market
-        </a>
-      </Shell>
-    );
-  }
-
-  if (state === "error") {
-    return (
-      <Shell>
-        <span className="inline-flex items-center gap-2 rounded-full bg-[#ff5470]/12 px-4 py-1.5 text-[0.66rem] font-extrabold uppercase tracking-[0.2em] text-[#d63d5e]">
-          <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
-          status check failed
-        </span>
-        <p className="mt-4 text-[0.82rem] font-semibold leading-relaxed text-[#10161d]/55">
-          {error} — your card was charged only if the payment completed; the
-          unlock survives page reloads.
-        </p>
-        <button
-          onClick={() => {
-            attempts.current = 0;
-            setError(null);
-            setState("loading");
-            poll();
-          }}
-          className="nr-pd-cta mt-5 inline-flex items-center gap-2 rounded-full bg-[#10161d] px-6 py-3 text-[0.78rem] font-extrabold text-white transition-transform duration-300 hover:scale-[1.04]"
-        >
-          try again
-        </button>
-      </Shell>
-    );
-  }
-
-  return (
-    <Shell>
-      <span className="inline-flex items-center gap-2 rounded-full bg-[#6d4fc2]/12 px-4 py-1.5 text-[0.66rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-        {state === "loading" ? "checking payment…" : "waiting for confirmation…"}
-      </span>
-      <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-[#10161d]">
-        unlocking your prompt
-      </h2>
-      <p className="mt-2 text-[0.82rem] font-semibold leading-relaxed text-[#10161d]/55">
-        keep this tab open — the prompt appears the second the card payment is
-        confirmed (usually instantly).
-      </p>
-    </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="nr-pd-shell mx-auto mt-10 max-w-2xl rounded-[2.5rem] border border-[#d9cdf5] bg-gradient-to-br from-[#f6f2fd] via-white to-[#f9f5ff] p-6 text-center shadow-[0_24px_70px_rgba(122,92,224,0.14)] sm:p-10">
-      {children}
+      {state === "error" && (
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <TriangleAlert className="h-6 w-6 text-[#FF5C7A]" aria-hidden />
+          <p className="text-[0.9rem] font-extrabold text-white">
+            {error || "не дождались подтверждения"}
+          </p>
+          <p className="max-w-sm text-[0.72rem] font-semibold leading-relaxed text-white/50">
+            если инвойс был оплачен — промпт не потерян: cookie покупателя
+            сохранена, вернись через минуту или открой{" "}
+            <code className="font-mono text-white/70">/market?unlock={code}</code>
+          </p>
+          <button
+            onClick={() => {
+              attempts.current = 0;
+              setError(null);
+              setState("loading");
+              void poll();
+            }}
+            className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[0.7rem] font-bold text-white/80 transition-colors hover:bg-white/10"
+          >
+            проверить снова
+          </button>
+        </div>
+      )}
     </div>
   );
 }

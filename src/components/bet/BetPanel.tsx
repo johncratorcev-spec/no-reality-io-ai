@@ -1,22 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Share2, Wallet } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
+import { useWalletSession } from "@/lib/use-wallet";
 import ShareSeam from "./ShareSeam";
 
 /**
- * BetPanel — спор на клип (ТЗ v2 §1, §3.1): REAL / SYNTH + банк + таймер.
+ * BetPanel v5 — панель предикшен-ленты (REAL / SYNTH + банк + таймер).
  *
- * Поток: свайп → клип открыт → GET /api/round?clip= (лениво открывает раунд)
- * → тап REAL/SYNTH → сумма $1/$3/$5 → chip-drop в банк → поллинг /api/round/:id
- * каждые ~1.5с → резолв (bone-reveal / crow-scratch + discharge/crush)
- * → «ещё шов» | «приведи глаз — 20%» | «промпт этого кадра» (апселл только
- * после проигрыша — §1).
+ * Поток: свайп → клип активен → GET /api/round?clip= (лениво открывает раунд)
+ * → тап REAL/SYNTH → сумма $1/$3/$5 → если кошелёк не подключён — сразу
+ * connect (затем ставка продолжается сама) → «ТЫ В ПУЛЕ» → поллинг
+ * /api/round/:id каждые ~1.5с → резолв → РЕЗУЛЬТАТ-КАРТА (вердикт + сумма +
+ * deep link + «поделиться результатом» + «следующий»).
  *
- * Copy — руби, без объяснений (§7): «ты моргнул», «шов есть», «серия ×4».
- * Анимации: по одной за раз, 200–400ms, только transform/opacity/clip-path.
+ * Аналитика воронки: prediction_view / wallet_connect (в use-wallet) /
+ * bet_placed (сервер) / share_result.
  */
 
 type Side = "real" | "synth";
@@ -42,6 +44,8 @@ interface BetPanelProps {
   isActive: boolean;
   /** deep-link вход (/v/CODE) — land-hard */
   landHard?: boolean;
+  /** «следующий» после резолва — лента сама знает куда скроллить */
+  onNext?: () => void;
 }
 
 const STREAK_KEY = "nr-streak";
@@ -62,8 +66,6 @@ function writeStreak(v: number) {
   }
 }
 
-/** клиентский трекинг вынесен в lib/bet/trackClient (без циклов) */
-
 /** весь кадр: crush / glitch-eye (слушает VideoCard на корневой секции) */
 function crashFrame(clip: string, kind: "nb-crush" | "nb-glitch") {
   try {
@@ -73,10 +75,14 @@ function crashFrame(clip: string, kind: "nb-crush" | "nb-glitch") {
   }
 }
 
-export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps) {
+export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPanelProps) {
+  const { wallet, ready: walletReady, connecting: walletConnecting, error: walletError, connect } =
+    useWalletSession();
+
   const [round, setRound] = useState<RoundView | null>(null);
-  const [phase, setPhase] = useState<"idle" | "amount" | "pending">("idle");
+  const [phase, setPhase] = useState<"idle" | "amount" | "connect" | "pending">("idle");
   const [chosenSide, setChosenSide] = useState<Side | null>(null);
+  const [pendingAmount, setPendingAmount] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [payUrl, setPayUrl] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
@@ -85,10 +91,12 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
   const [bankKey, setBankKey] = useState(0);
   const [shake, setShake] = useState(0);
   const [chipIn, setChipIn] = useState(0);
+  const [inPool, setInPool] = useState(0);
   const [activations, setActivations] = useState(0);
   const [wasActive, setWasActive] = useState(false);
   const [showTear, setShowTear] = useState(false);
   const [resultPop, setResultPop] = useState(0);
+  const [shared, setShared] = useState(false);
 
   const skewRef = useRef(0);
   const settledRef = useRef(false);
@@ -129,6 +137,8 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
       }
     })();
 
+    /* воронка v5: prediction_view (предикшен-лента) + legacy clip_view */
+    track("prediction_view", clipCode);
     track("clip_view", clipCode);
     return () => {
       alive = false;
@@ -198,7 +208,7 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
     };
   }, [isActive, round?.id, round?.status, round?.poolTotalCents, onSettled]);
 
-  /* ---- ставка ---- */
+  /* ---- ставка (кошелёк уже подключён или не нужен) ---- */
   const placeBet = async (amountCents: number) => {
     if (!round || !chosenSide) return;
     setError("");
@@ -247,11 +257,27 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
         }
       }
       setPhase("pending");
+      /* мгновенный фидбек «ТЫ В ПУЛЕ» — демо-ставка в пуле сразу */
+      if (d.status === "active") {
+        setInPool((v) => v + 1);
+        setTimeout(() => setInPool(0), 1700);
+      }
     } catch {
       setError("сеть дрогнула");
       setShake((s) => s + 1);
     }
   };
+
+  /* ---- кошелёк подключился, пока ждали его перед ставкой — дожимаем ---- */
+  useEffect(() => {
+    if (!wallet || pendingAmount == null || !chosenSide) return;
+    const amount = pendingAmount;
+    const t = setTimeout(() => {
+      setPendingAmount(null);
+      void placeBet(amount);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [wallet, pendingAmount, chosenSide, placeBet]);
 
   const pickSide = (side: Side) => {
     setError("");
@@ -259,6 +285,17 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
     setPhase("amount");
     if (side === "real") setFlashLime((f) => f + 1);
     else setFlashBlood((f) => f + 1);
+  };
+
+  /** выбор суммы: если кошелёк не подключён — сначала connect, ставка дожмётся сама */
+  const chooseAmount = (amountCents: number) => {
+    if (!wallet && walletReady) {
+      setPendingAmount(amountCents);
+      setPhase("connect");
+      void connect();
+      return;
+    }
+    void placeBet(amountCents);
   };
 
   const again = () => {
@@ -285,6 +322,28 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
       }
     })();
   };
+
+  /* ---- Result / Share Card (v5): вердикт + сумма + deep link ---- */
+  const shareResult = useCallback(async () => {
+    const won = round?.myResult === "won";
+    const asReal = round?.resolvedAs === "real";
+    const url = withRef(`${window.location.origin}/v/${clipRef.current}`);
+    const text = won
+      ? `я угадал: это ${asReal ? "REAL" : "SYNTH"} · банк отдал мне ${fmtUsd(round?.myPayoutCents ?? 0)} — проверь свой глаз:`
+      : `моя ставка не сыграла: это было ${asReal ? "REAL" : "SYNTH"}. угадай лучше меня:`;
+    track("share_result", clipRef.current, { won, as: round?.resolvedAs });
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "no reality.", text, url });
+      } else {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+      }
+      setShared(true);
+      setTimeout(() => setShared(false), 1800);
+    } catch {
+      /* отмена — не беда */
+    }
+  }, [round?.myResult, round?.resolvedAs, round?.myPayoutCents]);
 
   if (!isActive && !showTear) return null;
 
@@ -331,72 +390,75 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
         <div key={`blood-${flashBlood}`} aria-hidden className="nb-blood-flash" />
       )}
 
-      {/* ---------- ВЕРДИКТ (резолв) ---------- */}
+      {/* ---------- «ТЫ В ПУЛЕ» — мгновенный фидбек (v5) ---------- */}
+      {inPool > 0 && (
+        <div
+          key={`pool-${inPool}`}
+          className="nb-pool-pop pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
+        >
+          <span
+            className="rounded-2xl px-6 py-4 text-[1.25rem] font-black tracking-[0.06em]"
+            style={{
+              background: "rgba(8,7,11,0.88)",
+              border: "1px solid rgba(200,255,0,.5)",
+              color: "var(--nb-poison)",
+              boxShadow: "0 0 44px rgba(200,255,0,.25)",
+            }}
+          >
+            ТЫ В ПУЛЕ · {fmtUsd(round?.myBet?.amountCents ?? 0)}{" "}
+            {round?.myBet?.side.toUpperCase() === "REAL" ? "REAL" : "SYNTH"}
+          </span>
+        </div>
+      )}
+
+      {/* ---------- РЕЗУЛЬТАТ / SHARE CARD (резолв) ---------- */}
       {result && (
         <div
           key={`verdict-${resultPop}`}
-          className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
+          className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-4"
         >
-          <div className="pointer-events-auto flex flex-col items-center gap-4 px-6 text-center">
+          <div className="pointer-events-auto flex w-full max-w-sm flex-col items-center gap-3 text-center">
+            {/* сама карта результата */}
             <div
-              className={`nb-panel rounded-2xl px-8 py-6 ${shake ? "" : ""} ${
-                result.mine === "lost" ? "nb-crush" : ""
-              }`}
+              className={`nb-panel w-full rounded-3xl px-6 py-6 ${result.mine === "lost" ? "nb-crush" : ""}`}
             >
               <p
-                className={`text-[1.7rem] font-black leading-none ${
-                  result.mine === "won" ? "nb-bone-reveal" : "nb-bone-reveal"
-                }`}
-                style={{
-                  color:
-                    result.mine === "won"
-                      ? "var(--nb-poison)"
-                      : result.mine === "lost"
-                        ? "var(--nb-blood)"
-                        : "var(--nb-bone)",
-                }}
+                className="text-[0.6rem] font-black uppercase tracking-[0.3em]"
+                style={{ color: "rgba(242,237,228,.45)" }}
               >
-                {result.mine === "won"
-                  ? result.as === "real"
-                    ? "это было живое."
-                    : "шов есть"
-                  : result.mine === "lost"
-                    ? result.as === "real"
-                      ? "это было живое. неприятно?"
-                      : "ты моргнул"
-                    : result.as === "real"
-                      ? "это было живое"
-                      : "синтетика"}
+                verdict
+              </p>
+              <p
+                className="nb-bone-reveal mt-2 text-[2rem] font-black leading-none"
+                style={{ color: result.as === "real" ? "var(--nb-bone)" : "var(--nb-blood)" }}
+              >
+                {result.as === "real" ? "ЭТО БЫЛО ЖИВОЕ" : "ЭТО СИНТЕТИКА"}
               </p>
 
+              <div
+                className="mx-auto mt-4 h-px w-16"
+                style={{ background: "rgba(242,237,228,.18)" }}
+              />
+
               {result.mine === "won" && (
-                <>
-                  <p className="mt-2 text-[0.95rem] font-extrabold" style={{ color: "var(--nb-poison)" }}>
-                    банк уже твой · +{fmtUsd(result.payout)}
-                  </p>
-                  <a
-                    href="/pnl"
-                    className="mt-1 inline-block text-[0.66rem] font-bold underline decoration-dotted underline-offset-4"
-                    style={{ color: "rgba(242,237,228,.5)" }}
-                  >
-                    кэшаут — в pnl
-                  </a>
-                </>
+                <p className="mt-4 text-[1.05rem] font-black" style={{ color: "var(--nb-poison)" }}>
+                  твой глаз сработал · +{fmtUsd(result.payout)}
+                </p>
               )}
               {result.mine === "lost" && (
-                <p className="mt-2 text-[0.78rem] font-bold" style={{ color: "rgba(242,237,228,.6)" }}>
+                <p className="mt-4 text-[0.95rem] font-extrabold" style={{ color: "rgba(242,237,228,.72)" }}>
                   {fmtUsd(round?.myBet?.amountCents ?? 0)} ушли в банк
                 </p>
               )}
               {!result.mine && (
-                <p className="mt-2 text-[0.75rem] font-bold" style={{ color: "rgba(242,237,228,.55)" }}>
-                  ты не ставил
+                <p className="mt-4 text-[0.85rem] font-bold" style={{ color: "rgba(242,237,228,.55)" }}>
+                  ты не ставил — заходи в следующий шов
                 </p>
               )}
 
               {streak >= 2 && result.mine === "won" && (
                 <p
-                  className="mt-2 inline-flex items-center rounded-full px-3 py-1 text-[0.7rem] font-black tracking-[0.14em]"
+                  className="mt-3 inline-flex items-center rounded-full px-3 py-1 text-[0.7rem] font-black tracking-[0.14em]"
                   style={{
                     background: "rgba(200,255,0,.12)",
                     color: "var(--nb-poison)",
@@ -435,26 +497,42 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
               </svg>
             )}
 
-            {/* CTA после резолва (§5): ещё шов | шарить | приведи глаз | промпт после проигрыша */}
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <button
-                onClick={again}
-                className="nb-btn rounded-full px-5 py-2.5 text-[0.78rem] font-black"
-                style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
-              >
-                ещё шов
-              </button>
-              {result.mine === "lost" && (
-                <a
-                  href={withRef("/market")}
-                  onClick={() => track("prompt_upsell_click", clipRef.current)}
-                  className="nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.72rem] font-bold"
+            {/* CTA (v5): следующий + поделиться результатом + ещё шов */}
+            <div className="flex w-full flex-col items-stretch gap-2">
+              {onNext && (
+                <button
+                  onClick={onNext}
+                  className="nb-btn w-full rounded-full px-5 py-3 text-[0.85rem] font-black"
+                  style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
                 >
-                  промпт этого кадра
-                </a>
+                  следующий →
+                </button>
               )}
-              <ShareSeam mode="clip" clip={clipRef.current} className="nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.72rem] font-bold" label="шарить кадр" />
-              <ShareSeam mode="invite" className="nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.72rem] font-bold" />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => void shareResult()}
+                  className="nb-btn nb-btn-real inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-[0.74rem] font-bold"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                  {shared ? "ссылка скопирована" : "поделиться результатом"}
+                </button>
+                <button
+                  onClick={again}
+                  className="nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.74rem] font-bold"
+                >
+                  ещё шов
+                </button>
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                <ShareSeam mode="invite" className="nb-btn nb-btn-real rounded-full px-4 py-2 text-[0.68rem] font-bold" />
+                <a
+                  href="/pnl"
+                  className="text-[0.64rem] font-bold underline decoration-dotted underline-offset-4"
+                  style={{ color: "rgba(242,237,228,.5)" }}
+                >
+                  кэшаут — в pnl
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -546,13 +624,13 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
               </p>
             )}
 
-            {/* ---- idle: две кнопки ---- */}
+            {/* ---- idle: две крупные кнопки ---- */}
             {phase === "idle" && (
               <div className="mt-2.5 grid grid-cols-2 gap-2">
                 <button
                   key={`lime-${flashLime}`}
                   onClick={() => pickSide("real")}
-                  className={`nb-btn nb-btn-real rounded-xl px-3 py-3 text-[0.92rem] font-black tracking-[0.12em] ${
+                  className={`nb-btn nb-btn-real rounded-xl px-3 py-3.5 text-[1rem] font-black tracking-[0.12em] ${
                     flashLime > 0 ? "nb-pulse-lime" : ""
                   }`}
                 >
@@ -560,21 +638,21 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
                 </button>
                 <button
                   onClick={() => pickSide("synth")}
-                  className="nb-btn nb-btn-synth rounded-xl px-3 py-3 text-[0.92rem] font-black tracking-[0.12em]"
+                  className="nb-btn nb-btn-synth rounded-xl px-3 py-3.5 text-[1rem] font-black tracking-[0.12em]"
                 >
                   SYNTH
                 </button>
               </div>
             )}
 
-            {/* ---- amount: сумма ---- */}
+            {/* ---- amount: пресеты суммы $1/$3/$5 ---- */}
             {phase === "amount" && chosenSide && (
               <div className="mt-2.5">
                 <div className="flex items-center gap-1.5">
                   {BET.betPresetsCents.map((c) => (
                     <button
                       key={c}
-                      onClick={() => void placeBet(c)}
+                      onClick={() => chooseAmount(c)}
                       className="nb-btn nb-chip flex-1 rounded-xl border px-2 py-2.5 text-[0.85rem] font-black"
                       style={{
                         borderColor: "rgba(242,237,228,.22)",
@@ -595,8 +673,44 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
                   </button>
                 </div>
                 <p className="mt-1.5 text-center text-[0.62rem] font-bold" style={{ color: "rgba(242,237,228,.4)" }}>
-                  на {chosenSide === "real" ? "REAL" : "SYNTH"} · без регистрации
+                  на {chosenSide === "real" ? "REAL" : "SYNTH"} · крипто-инвойс 2328
                 </p>
+              </div>
+            )}
+
+            {/* ---- connect: ждём подключение кошелька (v5) ---- */}
+            {phase === "connect" && (
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <span
+                  className="inline-flex items-center gap-2 text-[0.72rem] font-bold"
+                  style={{ color: "rgba(242,237,228,.75)" }}
+                >
+                  {walletConnecting ? (
+                    <>
+                      <Wallet className="h-3.5 w-3.5 animate-pulse" />
+                      подключаем кошелёк…
+                    </>
+                  ) : walletError ? (
+                    walletError
+                  ) : (
+                    <>
+                      <Wallet className="h-3.5 w-3.5" />
+                      подключи кошелёк — ставка дожмётся сама
+                    </>
+                  )}
+                </span>
+                {walletError && (
+                  <button
+                    onClick={() => {
+                      setPendingAmount(null);
+                      setPhase("amount");
+                    }}
+                    className="nb-btn rounded-full px-3 py-1.5 text-[0.66rem] font-bold"
+                    style={{ color: "rgba(242,237,228,.6)" }}
+                  >
+                    назад
+                  </button>
+                )}
               </div>
             )}
 
@@ -626,7 +740,7 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
                   </a>
                 ) : (
                   <span className="text-[0.68rem] font-bold" style={{ color: "rgba(242,237,228,.5)" }}>
-                    ждём шов…
+                    {hasMyBet && round.myBet.status === "active" ? "ты в пуле" : "ждём шов…"}
                   </span>
                 )}
               </div>

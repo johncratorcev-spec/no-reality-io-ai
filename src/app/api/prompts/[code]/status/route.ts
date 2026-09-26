@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
-import { getPostByCode } from "@/lib/csv";
 import { db } from "@/lib/db";
 import { readBuyer, jsonResponse } from "@/lib/buyer";
 import { getPromptFull, commissionRate } from "@/lib/prompts/paid";
+import { getSellablePrompt } from "@/lib/market/sell";
 import { is2328PaymentConfigured } from "@/lib/2328/payment";
 import { is2328PayoutConfigured } from "@/lib/2328/payout";
 
@@ -11,14 +11,15 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/prompts/[code]/status — публичные данные платного промпта
- * и (только после подтверждённой оплаты) полный текст.
+ * и (только после подтверждённой оплаты) полный текст. v5: crypto-only.
  *
  * ЕДИНСТВЕННОЕ место, где prompt_full покидает сервер. Условие выдачи
  * строгое: существует Purchase этого покупателя (buyer-cookie) с utmCode,
  * у которого status = paid | ready_for_payout | payout_sent. Всё остальное
  * (pending / failed / aml_hold / чужая покупка) — только метаданные.
  *
- * commissionRate отдаём для прозрачного UI («автору 75%, платформе 25%»).
+ * Работает для платных постов posts.csv И товаров витрины MARKET_ITEMS.
+ * soldTotal — честный счётчик оплаченных покупок (scarcity в UI витрины).
  */
 export async function GET(
   req: NextRequest,
@@ -33,14 +34,15 @@ export async function GET(
     return jsonResponse(buyer, { error: "Too many requests" }, 429);
   }
 
-  const post = getPostByCode(code);
-  if (!post) {
+  const sellable = getSellablePrompt(code);
+  if (!sellable) {
     return jsonResponse(buyer, { error: "Not found" }, 404);
   }
 
   // разблокировка только по своей оплаченной покупке
   let unlocked = false;
   let purchaseId: string | null = null;
+  let soldTotal = 0;
   try {
     const paid = await db.purchase.findFirst({
       where: {
@@ -53,6 +55,10 @@ export async function GET(
     });
     unlocked = Boolean(paid);
     purchaseId = paid?.id ?? null;
+
+    soldTotal = await db.purchase.count({
+      where: { utmCode: code, status: { in: ["paid", "ready_for_payout", "payout_sent"] } },
+    });
   } catch (e) {
     // БД недоступна (serverless cold start) — считаем разблокировки потерянными,
     // но не роняем страницу: промпт просто останется закрытым
@@ -65,9 +71,11 @@ export async function GET(
   const promptFull = unlocked ? getPromptFull(code) : null;
 
   return jsonResponse(buyer, {
-    isPaid: Boolean(post.isPaid),
-    priceUsdt: post.priceUsdt ?? null,
-    preview: post.promptPreview ?? null,
+    isPaid: true,
+    priceUsdt: sellable.priceUsdt,
+    title: sellable.title,
+    preview: sellable.preview,
+    soldTotal,
     commissionRate: commissionRate(),
     unlocked,
     purchaseId,

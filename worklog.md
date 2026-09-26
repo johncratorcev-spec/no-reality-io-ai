@@ -998,3 +998,28 @@ Stage Summary:
 - Сайт v4: лендинг blood-carnival с джокерами + две ленты (/feed смотреть, /bet рафлы)
 - Денежная цепочка (2328.io) не тронута, все бэк-тесты зелёные
 - Коммит готов к пушу
+
+---
+Task ID: v5-prediction-feed-crypto
+Agent: Super Z (main agent)
+Task: v5 — все улучшения только на предикшен-ленте; крипто-only (Stripe выпилен); Result Card; онбординг; moods/Hard Mode/live; Boost; Leaderboard; аналитика воронки; полный прогон тестов; пуш
+
+Work Log:
+- STRIPE ВЫПИЛЕН: удалены src/lib/stripe, /api/webhooks/stripe, /api/market/checkout, /api/market/session-status, stripe_selftest; StripeOrder убран из схемы (db push); FEATURES.stripeMarket удалён; npm-скрипт test:stripe снят.
+- МАРКЕТ → КРИПТО: lib/market/sell.ts (платный пост CSV ИЛИ товар витрины); /api/prompts/[code]/checkout принимает каталог + реф в orderId (nr-<id>-<ref>, само-приглашение отсечено) + ReferralEvent(checkout); /api/prompts/[code]/status отдаёт catalog-мету + soldTotal (scarcity); PromptCard переписан: тёмная карта, USDT, «buy · crypto», разблокировка в карточке, счётчик покупок; /market тёмная, «crypto only»; /market/thanks?code= + UnlockPanel переписаны на крипто-поллинг статуса (webhook-подтверждение, покупка не теряется).
+- WEBHOOK 2328: ветка bs-* (бусты) через lib/boost-order.ts (confirm/fail, paidUntil, [money-op]); для nr-* покупок: trackEvent prompt_unlock + ReferralEvent(kind=paid, 20% по splitOrderId) + referral_earn.
+- ПРЕДИКШЕН-ЛЕНТА /bet: moods-свитчер (ALL/SWAG/FUTURE/CREEPY/UFO — клиент-фильтр по mood); Daily Hard Mode (GET /api/bet/hard — accuracy по резолвам за 48ч, минимум 6 ставок; чип HARD с пустым стейтом); live-индикатор (/api/bet/live — уникальные bettorId за 10 мин, поллинг 15с); Best Eyes Leaderboard (/api/bet/leaderboard — окно 7 дней, wallet-bound, минимум 5 ставок, «mine»; панель по кнопке EYES); онбординг-оверлей 4 шага с пропуском (localStorage nr-onboarded, ?noboard=1, события onboarding_done/skip).
+- BETPANEL v5: connect-гейт (ставка без кошелька → connect → ставка дожимается сама, ошибки кошелька обрабатываются); «ТЫ В ПУЛЕ» мгновенный оверлей для demo-активных ставок; Result/Share Card после резолва: вердикт (ЭТО БЫЛО ЖИВОЕ/ЭТО СИНТЕТИКА), «твой глаз сработал · +$X» / «$X ушли в банк», серия, кнопки «следующий →» (прокрутка ленты), «поделиться результатом» (navigator.share + deep link ?ref=, трек share_result), «ещё шов», invite, «кэшаут — в pnl»; prediction_view в воронку; пресеты $1/$3/$5.
+- КОШЕЛЁК В СТАВКАХ: placeBet пишет wallet из cookie-сессии; /api/me/attach-bets доатрибутирует старые ставки bettorId→wallet (вызывается из use-wallet после connect); wallet_connect трекается в use-wallet (phantom/metamask).
+- БУСТ: модель BoostOrder; /api/boost/checkout ($3/день × 1/3/7, bs-<id>, ре-использование pending-инвойса); /api/boost/status; /boost страница (код клипа + срок + included + чекаут-редирект 2328 + поллинг статуса); getRankedPosts поднимает активные бусты + featured-флаг → чип FEATURED на ClipCard; boost_purchase трекается.
+- АНАЛИТИКА: whitelist расширен (prediction_view, wallet_connect, share_result, prompt_unlock, referral_click, referral_earn, boost_purchase, onboarding_*, hard_mode_open, prediction_upsell); referral_click пишется в RefCapture.
+- ОБЫЧНАЯ ЛЕНТА НЕ ТРОНУТА: единственное добавление — малый чип «перейти в предикшены» на watch-карточках (prediction_upsell).
+- ТЕСТЫ: bet_selftest 30/30 (дважды — до и после крипто-фазы); cashout_selftest 37/37 (тестовые ключи 2328 + мок, .env восстановлен); НОВЫЙ market_boost_selftest 37/37 (крипто-покупка: инвойс→webhook 401→paid→unlocked+prompt+soldTotal; реф 20% = 2.40; prompt_unlock/referral_earn; буст: $9/3д→paidUntil→active→идемпотентность→cancel→failed; live/hard/leaderboard/attach-bets). lint 0 ошибок, tsc чисто.
+- БРАУЗЕР (agent-browser): /bet desktop+iPhone 14 — онбординг, контролы (moods/HARD/EYES/live=1 после ставки), ставка REAL→$1→«ТЫ В ПУЛЕ · $1 REAL»→резолв→Result Card («ЭТО БЫЛО ЖИВОЕ», +$0.90 пари-мьютюэль), leaderboard empty-state, CREEPY-фильтр (18 клипов); /market тёмный крипто (скриншоты v5_*.png в download/); /boost форма; /feed живой + чип «перейти в предикшены».
+- КВИРК (не регресс): видео-запрос pinned-клипа 71vsIPUu в headless CDN редиректит на threads.com и уносит вкладку — подтверждено изоляцией (блок точечного URL лечит); API-ставка через curl проходит 200; в реальных браузерах media-редирект не уводит вкладку; чекер check_urls.py: 45/45 ссылок живы (206).
+- Тестовые данные БД вычищены (bets/rounds/tracks/referrals за окно прогонов).
+
+Stage Summary:
+- v5: предикшен-лента (/bet) — полноценный продуктовый экран (онбординг → ставка с кошельком → «Ты в пуле» → Result Card → шеринг/следующий), фичи трафика (Hard Mode, Leaderboard, moods, live), спецразмещения (Boost/FEATURED), реферальный прогресс; маркет и всё остальное — строго крипто 2328.io, Stripe удалён полностью; обычная лента не тронута.
+- Денежная цепочка: bet 30/30, cashout 37/37, market+boost 37/37 — все на подписанных webhook'ах, идемпотентно, с [money-op]-логами.
+- Юзеру: 1) прод-env: BOOST_PRICE_USDT (дефолт $3/день), REFERRAL_RATE_PCT (дефолт 20%); 2) прод-ключи 2328 (TWOTHOUSAND328_*) включат крипто-режим ставок и кэшаут автоматически; 3) прод-пуш по команде; 4) скриншоты предикшен-ленты — download/v5_*.png.

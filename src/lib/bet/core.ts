@@ -165,6 +165,9 @@ export interface PlaceBetInput {
   bettorId: string;
   fingerprint: string;
   refCode?: string | null;
+  /** кошелёк из сессии (v5): заполняется всегда, когда игрок подключён —
+     нужна Best Eyes Leaderboard и кэшауту */
+  wallet?: string | null;
 }
 
 export interface PlaceBetResult {
@@ -227,6 +230,10 @@ export async function placeBet(input: PlaceBetInput): Promise<PlaceBetResult> {
 
   const cryptoReady = is2328PaymentConfigured();
   const useCrypto = cryptoReady && !betDemoEnabled();
+  const wallet =
+    typeof input.wallet === "string" && input.wallet.length >= 20
+      ? input.wallet.toLowerCase().slice(0, 64)
+      : null;
 
   if (!useCrypto) {
     /* ---- demo: сразу активна, пул растёт транзакционно ---- */
@@ -240,6 +247,7 @@ export async function placeBet(input: PlaceBetInput): Promise<PlaceBetResult> {
           bettorId: input.bettorId,
           fingerprint: input.fingerprint,
           refCode: input.refCode ?? null,
+          wallet,
           mode: "demo",
           status: "active",
         },
@@ -286,6 +294,7 @@ export async function placeBet(input: PlaceBetInput): Promise<PlaceBetResult> {
       bettorId: input.bettorId,
       fingerprint: input.fingerprint,
       refCode: input.refCode ?? null,
+      wallet,
       mode: "crypto",
       status: "pending",
     },

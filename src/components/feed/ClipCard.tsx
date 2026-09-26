@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Play, Share2, Volume2, VolumeX, WifiOff } from "lucide-react";
+import { Check, Play, Share2, Sparkles, Volume2, VolumeX, WifiOff } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
@@ -29,6 +29,8 @@ interface ClipCardProps {
   eagerPreload: boolean;
   mode: ClipMode;
   onEnded: (index: number) => void;
+  /** «следующий» из результат-карты (v5) */
+  onNext?: () => void;
 }
 
 export default function ClipCard({
@@ -40,6 +42,7 @@ export default function ClipCard({
   eagerPreload,
   mode,
   onEnded,
+  onNext,
 }: ClipCardProps) {
   const { t } = useLang();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -179,19 +182,31 @@ export default function ClipCard({
 
       {/* ---------- верхний ряд ---------- */}
       <div className="absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-2">
-        <span
-          className="rounded-full border border-white/10 bg-[rgba(16,13,22,0.72)] px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-white/75 backdrop-blur-md"
-          aria-hidden
-        >
-          {isBet ? (
-            <>
-              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#FF003C] align-middle" />
-              {t.feed.bettable}
-            </>
-          ) : (
-            `${String(index + 1).padStart(2, "0")} / ${total}`
+        <div className="flex items-center gap-1.5">
+          <span
+            className="rounded-full border border-white/10 bg-[rgba(16,13,22,0.72)] px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-white/75 backdrop-blur-md"
+            aria-hidden
+          >
+            {isBet ? (
+              <>
+                <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#FF003C] align-middle" />
+                {t.feed.bettable}
+              </>
+            ) : (
+              `${String(index + 1).padStart(2, "0")} / ${total}`
+            )}
+          </span>
+          {/* v5: платное размещение (Boosted / Featured Clip) */}
+          {post.featured && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full border border-[#C8FF00]/40 bg-[#C8FF00]/15 px-2.5 py-1.5 text-[0.58rem] font-black uppercase tracking-[0.16em] text-[#C8FF00] backdrop-blur-md"
+              title="boosted placement"
+            >
+              <Sparkles className="h-3 w-3" aria-hidden />
+              featured
+            </span>
           )}
-        </span>
+        </div>
 
         <button
           type="button"
@@ -210,15 +225,31 @@ export default function ClipCard({
             {t.feed.blindHint}
           </p>
         ) : (
-          <div className="min-w-0 rounded-2xl border border-white/10 bg-[rgba(16,13,22,0.72)] px-4 py-3 backdrop-blur-md">
-            <p className="truncate text-[0.82rem] font-extrabold tracking-tight text-white">
-              {post.author || "unknown"}
-            </p>
-            {post.title && (
-              <p className="mt-0.5 line-clamp-2 text-[0.74rem] font-semibold leading-snug text-white/65">
-                {post.title}
+          <div className="min-w-0">
+            <div className="rounded-2xl border border-white/10 bg-[rgba(16,13,22,0.72)] px-4 py-3 backdrop-blur-md">
+              <p className="truncate text-[0.82rem] font-extrabold tracking-tight text-white">
+                {post.author || "unknown"}
               </p>
-            )}
+              {post.title && (
+                <p className="mt-0.5 line-clamp-2 text-[0.74rem] font-semibold leading-snug text-white/65">
+                  {post.title}
+                </p>
+              )}
+            </div>
+            {/* v5: маленькая ссылка «перейти в предикшены» — единственное
+                вмешательство в обычную ленту (ТЗ v5) */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                track("prediction_upsell", post.utmCode);
+                window.location.href = "/bet";
+              }}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#FF003C]/40 bg-[rgba(255,0,60,0.14)] px-3 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.14em] text-[#FF5C7A] backdrop-blur-md transition-transform duration-300 hover:scale-[1.04] active:scale-95"
+            >
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#FF003C]" />
+              перейти в предикшены
+            </button>
           </div>
         )}
 
@@ -237,7 +268,7 @@ export default function ClipCard({
       </div>
 
       {/* ---------- рафл: панель ставки (только у активной карточки) ---------- */}
-      {isBet && <BetPanel clipCode={post.utmCode} isActive={isActive} />}
+      {isBet && <BetPanel clipCode={post.utmCode} isActive={isActive} onNext={onNext} />}
     </section>
   );
 }
