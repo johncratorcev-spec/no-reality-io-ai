@@ -867,3 +867,19 @@ Work Log:
 Stage Summary:
 - Продукт v2 жив: свайп → клип → REAL/SYNTH → $1–5 → резолв за 25–45с с анимацией → апселл/рефералка. DoD §9: п.1 (ставка без регистрации с deep link) ✓ demo-флоу, п.2 (резолв с анимацией) ✓, п.3 (сразу вторая ставка «ещё шов») ✓, п.4 (рефка атрибутит 20% рейка — ReferralEvent, единый реестр с продажами) ✓, п.6 (~30% real — разметка честная 6/45=13%, целевые 30% добираются куратором через admin-очередь Phase 2: REAL_RATIO_TARGET в конфиге) частично, п.7 (анимации лёгкие) ✓. Truth не утекает нигде до резолва. 2328/Stripe/Cryo/Favorite/CSV-потоки не тронуты (Cryo-клипы без BetPanel — два рынка на кадр не сосуществуют).
 - Юзеру: 1) прод-env: BET_WINDOW_SEC=45 (в песочнице 25), RAKE_PCT и доли по вкусу; 2) crypto-ставки включатся сами при TWOTHOUSAND328_* ключах (FEATURE_BET_DEMO=0 выключит demo); webhook rb-* уже в /api/webhooks/2328; 3) внешний cron резолва (опционально): POST https://no-reality.fun/api/round/expired/resolve?key=ADMIN_SECRET каждые 10с; 4) разметка truth/mood — правкой колонок в posts.csv (refresh-джоба теперь их сохраняет); 5) реальные соцссылки — SOCIALS в src/lib/site.ts (telegram — smartluvon_bot; уточни, если есть другие каналы); 6) Phase 2 по ТЗ: Daily 8 + админ-очередь курации, лидерборд «лучший глаз», SSE вместо поллинга.
+
+---
+Task ID: git-push
+Agent: Super Z (main agent)
+Task: Запушить накопившиеся коммиты в github.com/johncratorcev-spec/no-reality-io-ai с новым токеном.
+
+Work Log:
+- Обновил remote origin с новым GitHub PAT (старый в URL был скомпрометирован/ротирован).
+- Закоммитил 2 scheduled-обновления CDN-подписей data/posts.csv.
+- Fetch показал 5 новых scheduled-коммитов на remote; выполнил git pull --rebase.
+- Разрешил 2 конфликта в data/posts.csv (только кочующие CDN-подписи; структурные данные truth/mood сохранены).
+- Push успешен: 350857f..fb18c74 main -> main.
+
+Stage Summary:
+- Remote main = fb18c74, рабочее дерево чистое.
+- На GitHub ушли: v2-работа (Prisma-модели Round/Bet/Payout, bet-модули, BetPanel, скрипты selftest/mark_truth, скриншоты t45/v2) + t45 market-работа + обновления подписей.
