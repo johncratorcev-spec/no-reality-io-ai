@@ -107,9 +107,9 @@ const LATER = [
 
 export default function FuturePage() {
   return (
-    <main className="min-h-dvh bg-white text-[#10161d]">
+    <main className="nrld-page min-h-dvh text-white">
       {/* ---------- hero (светлый, перламутровый) ---------- */}
-      <section className="relative overflow-hidden bg-white pb-14 pt-14 sm:pb-20 sm:pt-20">
+      <section className="relative overflow-hidden pb-14 pt-14 sm:pb-20 sm:pt-20">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-70"
@@ -127,7 +127,7 @@ export default function FuturePage() {
               no reality.
             </Link>
             <div className="ml-auto">
-              <Menu />
+              <Menu variant="dark" />
             </div>
           </div>
 

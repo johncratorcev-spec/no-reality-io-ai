@@ -75,13 +75,13 @@ const HOW_TO_JSON_LD = {
 
 export default function PredictPage() {
   return (
-    <main className="min-h-dvh bg-white text-[#10161d]">
+    <main className="nrld-page min-h-dvh text-white">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(HOW_TO_JSON_LD) }}
       />
       {/* ---------- hero ---------- */}
-      <section className="relative overflow-hidden bg-white pb-12 pt-14 sm:pt-20">
+      <section className="relative overflow-hidden pb-12 pt-14 sm:pt-20">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-70"
@@ -99,7 +99,7 @@ export default function PredictPage() {
               no reality.
             </Link>
             <div className="ml-auto">
-              <Menu />
+              <Menu variant="dark" />
             </div>
           </div>
 

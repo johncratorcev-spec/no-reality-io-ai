@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BET, fmtUsd } from "@/lib/bet/config";
 import { withRef } from "@/lib/shareRef";
+import { track } from "@/lib/bet/trackClient";
+import ShareSeam from "./ShareSeam";
 
 /**
  * BetPanel — спор на клип (ТЗ v2 §1, §3.1): REAL / SYNTH + банк + таймер.
@@ -60,24 +62,7 @@ function writeStreak(v: number) {
   }
 }
 
-/** клиентский трекинг (§4.3.10) — best-effort, не ждём ответа */
-export function track(name: string, clip?: string, meta?: Record<string, unknown>) {
-  try {
-    const body = JSON.stringify({ name, clip, meta });
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon("/api/track/event", new Blob([body], { type: "application/json" }));
-    } else {
-      void fetch("/api/track/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-        keepalive: true,
-      });
-    }
-  } catch {
-    /* аналитика не критична */
-  }
-}
+/** клиентский трекинг вынесен в lib/bet/trackClient (без циклов) */
 
 /** весь кадр: crush / glitch-eye (слушает VideoCard на корневой секции) */
 function crashFrame(clip: string, kind: "nb-crush" | "nb-glitch") {
@@ -301,16 +286,6 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
     })();
   };
 
-  const copyInvite = async () => {
-    const url = withRef(`${window.location.origin}/v/${clipRef.current}`);
-    track("share_click", clipRef.current, { kind: "ref" });
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      /* ок */
-    }
-  };
-
   if (!isActive && !showTear) return null;
 
   /* ---- второй план: тики таймера ---- */
@@ -395,9 +370,18 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
               </p>
 
               {result.mine === "won" && (
-                <p className="mt-2 text-[0.95rem] font-extrabold" style={{ color: "var(--nb-poison)" }}>
-                  банк уже твой · +{fmtUsd(result.payout)}
-                </p>
+                <>
+                  <p className="mt-2 text-[0.95rem] font-extrabold" style={{ color: "var(--nb-poison)" }}>
+                    банк уже твой · +{fmtUsd(result.payout)}
+                  </p>
+                  <a
+                    href="/pnl"
+                    className="mt-1 inline-block text-[0.66rem] font-bold underline decoration-dotted underline-offset-4"
+                    style={{ color: "rgba(242,237,228,.5)" }}
+                  >
+                    кэшаут — в pnl
+                  </a>
+                </>
               )}
               {result.mine === "lost" && (
                 <p className="mt-2 text-[0.78rem] font-bold" style={{ color: "rgba(242,237,228,.6)" }}>
@@ -451,7 +435,7 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
               </svg>
             )}
 
-            {/* CTA после резолва (§5): ещё шов | приведи глаз | промпт после проигрыша */}
+            {/* CTA после резолва (§5): ещё шов | шарить | приведи глаз | промпт после проигрыша */}
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 onClick={again}
@@ -469,12 +453,8 @@ export default function BetPanel({ clipCode, isActive, landHard }: BetPanelProps
                   промпт этого кадра
                 </a>
               )}
-              <button
-                onClick={() => void copyInvite()}
-                className="nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.72rem] font-bold"
-              >
-                приведи глаз — 20%
-              </button>
+              <ShareSeam mode="clip" clip={clipRef.current} className="nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.72rem] font-bold" label="шарить кадр" />
+              <ShareSeam mode="invite" className="nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.72rem] font-bold" />
             </div>
           </div>
         </div>

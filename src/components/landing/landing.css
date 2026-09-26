@@ -440,3 +440,196 @@
     transition: none;
   }
 }
+
+/* ============================================================
+   ЕДИНЫЙ СТИЛЬ ВСЕХ СТРАНИЦ (unified dark carnival shim).
+   Легаси-страницы (market, future, pnl, predict, creators,
+   collab, terms) заворачиваются в .nrld-page — старый светлый
+   chrome перекрашивается в ночь без переписывания каждого
+   класса: строго белый текст, кровь-акцент, тёмные панели.
+   ============================================================ */
+
+.nrld-root {
+  background: var(--nrld-night);
+  color: #ffffff;
+}
+
+/* --- светлые поверхности → тёмные панели ------------------------ */
+.nrld-page .bg-white,
+.nrld-page [class*="bg-white/"],
+.nrld-page [class*="bg-[#fff"] {
+  background: var(--nrld-night) !important;
+  color: #ffffff;
+}
+
+.nrld-page [class*="from-[#fff"],
+.nrld-page [class*="via-[#fff"],
+.nrld-page [class*="to-[#fff"],
+.nrld-page [class*="from-[#f7"],
+.nrld-page [class*="via-[#f7"],
+.nrld-page [class*="from-[#f2"],
+.nrld-page [class*="via-[#f2"],
+.nrld-page [class*="to-[#f9"],
+.nrld-page [class*="to-[#ee"],
+.nrld-page [class*="to-[#dc"],
+.nrld-page [class*="to-[#ff"],
+.nrld-page [class*="to-[#e9"] {
+  --tw-gradient-from: #140f1d !important;
+  --tw-gradient-stops: var(--tw-gradient-from), #0c0912 var(--tw-gradient-via-percent, 50%), #08070b !important;
+}
+
+/* шиммер-заголовки легаси: тёмный градиент → кровь/золото по белому */
+.nrld-page .nr-collab-shimmer {
+  background: linear-gradient(92deg, #ffffff 18%, #ff4d6e 38%, #d9a441 52%, #ffffff 74%);
+  background-size: 230% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* collab-hero: персиковый рассвет → кровавая ночь */
+.nrld-page .nr-collab-hero {
+  background:
+    radial-gradient(52% 46% at 50% 0%, rgba(255, 0, 60, 0.16) 0%, transparent 70%),
+    radial-gradient(38% 34% at 12% 30%, rgba(74, 14, 28, 0.4) 0%, transparent 72%),
+    radial-gradient(36% 32% at 88% 26%, rgba(217, 164, 65, 0.08) 0%, transparent 70%),
+    var(--nrld-night);
+}
+
+.nrld-page .nr-glass,
+.nrld-page [class*="bg-[#10161d]/5"],
+.nrld-page [class*="bg-[#10161d]/6"],
+.nrld-page [class*="bg-[#10161d]/8"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px) saturate(1.3);
+  color: #ffffff;
+}
+
+.nrld-page .nr-glass-deep {
+  background: linear-gradient(165deg, rgba(24, 19, 33, 0.92) 0%, rgba(14, 11, 20, 0.92) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(22px) saturate(1.4);
+}
+
+/* --- текст: строгий белый с прозрачностными ступенями ----------- */
+.nrld-page [class*="text-[#10161d]"]:not([class*="/4"]):not([class*="/3"]):not([class*="/5"]):not([class*="/6"]),
+.nrld-page .text-\[\#0a0a0a\],
+.nrld-page [class*="text-[#6b4a33]"],
+.nrld-page [class*="text-[#3d2314]"] {
+  color: #ffffff !important;
+}
+.nrld-page [class*="text-[#10161d]/8"],
+.nrld-page [class*="text-[#10161d]/7"] {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+.nrld-page [class*="text-[#10161d]/6"],
+.nrld-page [class*="text-[#10161d]/55"],
+.nrld-page [class*="text-[#10161d]/5"] {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+.nrld-page [class*="text-[#10161d]/45"],
+.nrld-page [class*="text-[#10161d]/4"] {
+  color: rgba(255, 255, 255, 0.58) !important;
+}
+.nrld-page [class*="text-[#10161d]/35"],
+.nrld-page [class*="text-[#10161d]/3"] {
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+
+/* --- акценты: голубое/фиолетовое/оранжевое → кровь и золото ----- */
+.nrld-page [class*="text-[#3d7db8]"],
+.nrld-page [class*="text-[#2b6cb0]"],
+.nrld-page [class*="text-[#a8cfea]"] {
+  color: var(--nrld-gold) !important;
+}
+.nrld-page [class*="text-[#6d4fc2]"],
+.nrld-page [class*="text-[#8a68e8]"] {
+  color: #ff4d6e !important;
+}
+.nrld-page [class*="text-[#e4713b]"],
+.nrld-page [class*="text-[#c26d3f]"],
+.nrld-page [class*="text-[#c25a2b]"],
+.nrld-page [class*="text-[#c0392b]"] {
+  color: #ff6b47 !important;
+}
+.nrld-page [class*="text-[#e4713b]/70"] {
+  color: rgba(255, 107, 71, 0.7) !important;
+}
+.nrld-page [class*="text-[#d63d5e]"],
+.nrld-page [class*="text-[#ff4d6d]"] {
+  color: var(--nrld-blood) !important;
+}
+.nrld-page [class*="text-[#1d7a3e]"] {
+  color: #57d98a !important;
+}
+.nrld-page [class*="text-[#b8860b]"] {
+  color: var(--nrld-gold) !important;
+}
+
+/* --- акцентные поверхности → кровавый градиент ------------------ */
+.nrld-page [class*="bg-[#8a68e8]"],
+.nrld-page [class*="bg-[#e4713b]"] {
+  background: linear-gradient(135deg, #ff003c 0%, #a30026 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 26px rgba(255, 0, 60, 0.35);
+}
+
+/* --- бордеры/рингкей/тени → белая линия и кровавое свечение ----- */
+.nrld-page [class*="ring-[#10161d]"] {
+  --tw-ring-color: rgba(255, 255, 255, 0.16) !important;
+}
+.nrld-page [class*="border-[#a8cfea]"],
+.nrld-page [class*="border-[#10161d]"] {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+.nrld-page .nr-btn-glow {
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5), 0 0 24px rgba(255, 0, 60, 0.18) !important;
+}
+.nrld-page .nr-btn-glow:hover {
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.6), 0 0 34px rgba(255, 0, 60, 0.32) !important;
+}
+.nrld-page .nr-logo {
+  color: #ffffff;
+  filter: drop-shadow(0 0 18px rgba(255, 255, 255, 0.35)) drop-shadow(0 0 40px rgba(255, 0, 60, 0.3));
+}
+
+/* --- кнопки-инверсии: тёмная кнопка на светлой панели ---------- */
+.nrld-page [class*="bg-[#0a0a0a]"]:not([class*="text-"]) {
+  background: #ffffff !important;
+  color: #0a0a0a !important;
+}
+.nrld-page [class*="bg-[#0a0a0a]"] [class*="text-"] { color: inherit; }
+
+/* --- шим-анимации: лёгкое всплытие панелей ---------------------- */
+@keyframes nrld-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.nrld-rise {
+  animation: nrld-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.nrld-rise-late { animation-delay: 0.12s; }
+.nrld-rise-late2 { animation-delay: 0.24s; }
+
+/* тап-отклик на кликабельных поверхностях (transform-only) */
+.nrld-tap {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nrld-tap:active { transform: scale(0.97); }
+
+/* счётчик-акцент на тёмных панелях */
+.nrld-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nrld-rise,
+  .nrld-rise-late,
+  .nrld-rise-late2 { animation: none; }
+  .nrld-tap { transition: none; }
+  .nrld-tap:active { transform: none; }
+}

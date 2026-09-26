@@ -7,6 +7,9 @@ import TrackVisit from "@/components/track/TrackVisit";
 import { FEATURES } from "@/lib/features";
 import { SITE } from "@/lib/site";
 import "./globals.css";
+// кровавый карнавал (nrld-*) — единый стиль ВСЕХ страниц: тёмная ночь,
+// белый текст, кровь-акцент, лёгкие 3D/motion-анимации (reduced-motion учтён)
+import "@/components/landing/landing.css";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -98,8 +101,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#FFFFFF",
-  colorScheme: "light",
+  themeColor: "#08070B",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -110,7 +113,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${manrope.variable} antialiased bg-white text-[#1B1523] font-[family-name:var(--font-manrope)]`}
+        className={`${manrope.variable} nrld-root antialiased bg-[#08070B] text-white font-[family-name:var(--font-manrope)]`}
       >
         {/* ловец ?ref= — реферальная атрибуция на любой странице */}
         <RefCapture />

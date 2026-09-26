@@ -42,9 +42,9 @@ export default function MarketPage() {
   const cardPayEnabled = FEATURES.stripeMarket;
 
   return (
-    <main className="min-h-dvh bg-white">
+    <main className="nrld-page min-h-dvh">
       {/* ---------- hero (светлый, перламутровый) ---------- */}
-      <section className="relative overflow-hidden bg-white py-14 text-[#10161d] sm:py-20">
+      <section className="relative overflow-hidden py-14 text-white sm:py-20">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-70"
@@ -63,7 +63,7 @@ export default function MarketPage() {
               no reality.
             </a>
             <div className="ml-auto">
-              <Menu />
+              <Menu variant="dark" />
             </div>
           </div>
           <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#6d4fc2]">
@@ -119,7 +119,7 @@ export default function MarketPage() {
       </section>
 
       {/* ---------- featured: loki, crypto-канал 2328.io ---------- */}
-      <div className="mt-16 bg-white">
+      <div className="mt-16">
         <PromptDropCard variant="section" />
       </div>
 

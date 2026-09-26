@@ -52,6 +52,7 @@
         "embla-carousel-react": "^8.6.0",
         "input-otp": "^1.4.2",
         "lucide-react": "^0.525.0",
+        "motion": "^13.4.4",
         "nanoid": "^6.0.1",
         "next": "^16.1.1",
         "next-auth": "^4.24.11",
@@ -1163,6 +1164,8 @@
 
     "format": ["format@0.2.2", "https://registry.npmjs.com/format/-/format-0.2.2.tgz", {}, "sha512-wzsgA6WOq+09wrU1tsJ09udeR/YZRaeArL9e1wPbFg3GG2yDnC2ldKpxs4xunpFF9DgqCqOIra3bc1HWrJ37Ww=="],
 
+    "framer-motion": ["framer-motion@13.4.4", "", { "dependencies": { "motion-dom": "^13.4.4", "motion-utils": "^13.3.0", "tslib": "^2.4.0" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" }, "optionalPeers": ["react", "react-dom"] }, "sha512-lbsZO95NGbulo6apz70zEt6Vxf/anoRwQI2ECEc/EQYWO5CGbITtl7plDW8P/VXgXw6e8wrbhH4a9i+ygke0Mg=="],
+
     "function-bind": ["function-bind@1.1.2", "https://registry.npmjs.com/function-bind/-/function-bind-1.1.2.tgz", {}, "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA=="],
 
     "function.prototype.name": ["function.prototype.name@1.1.8", "https://registry.npmjs.com/function.prototype.name/-/function.prototype.name-1.1.8.tgz", { "dependencies": { "call-bind": "^1.0.8", "call-bound": "^1.0.3", "define-properties": "^1.2.1", "functions-have-names": "^1.2.3", "hasown": "^2.0.2", "is-callable": "^1.2.7" } }, "sha512-e5iwyodOHhbMr/yNrc7fDYG4qlbIvI5gajyzPnb5TCwyhjApznQh1BMFou9b30SevY43gCJKXycoCBjMbsuW0Q=="],
@@ -1520,6 +1523,12 @@
     "minimatch": ["minimatch@3.1.2", "https://registry.npmjs.com/minimatch/-/minimatch-3.1.2.tgz", { "dependencies": { "brace-expansion": "^1.1.7" } }, "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw=="],
 
     "minimist": ["minimist@1.2.8", "https://registry.npmjs.com/minimist/-/minimist-1.2.8.tgz", {}, "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA=="],
+
+    "motion": ["motion@13.4.4", "", { "dependencies": { "framer-motion": "^13.4.4", "tslib": "^2.4.0" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" }, "optionalPeers": ["react", "react-dom"] }, "sha512-lyX5kpAum2MmigecKWrFdIj3Sjn7pHek2EUrXY0WGZbOjJ1f5NfX0g4KQAb2Bp2EqL0a6dUzse11s1n7OYr5jg=="],
+
+    "motion-dom": ["motion-dom@13.4.4", "", { "dependencies": { "motion-utils": "^13.3.0" } }, "sha512-z2qN3RUABSci4G7cr5aHTFhqPNCWJsEMMfRlzxqtANQsSCIbVJmHvMV288m5x7doEQBTYbRTWbKdztmquCn4Sw=="],
+
+    "motion-utils": ["motion-utils@13.3.0", "", {}, "sha512-sgSschQp7EseHInIlR7hBbMuvet3RA0bs28KPZAXJcGKGdxHGvh1ogpYDilY3bOMtl73EqPNmp75sAKHYPU5sg=="],
 
     "mri": ["mri@1.2.0", "https://registry.npmjs.com/mri/-/mri-1.2.0.tgz", {}, "sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA=="],
 

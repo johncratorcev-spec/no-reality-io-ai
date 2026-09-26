@@ -107,3 +107,8 @@ export function verifyPayoutWebhook(
   if (!key) return false;
   return verify2328Sign(body, sign, key);
 }
+
+/** payout-webhook'и смогут верифицироваться (ключ задан). */
+export function is2328WebhookConfigured(): boolean {
+  return Boolean(process.env.TWOTHOUSAND328_PAYOUT_API_KEY);
+}

@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 
 /* ================================================================
-   PROFILE PANEL (/pnl, task 44 §4+§5): «your reach».
+   PROFILE PANEL (/pnl): «share & earn».
 
-   Читает GET /api/profile и показывает в одном блоке:
-     - бейджи (early / seer) и свободные бесплатные прогнозы;
-     - охват персональных ссылок: total / unique переходы
-       + разбивка по типам объектов (video / market / banner / prompt);
-     - реферальные начисления (checkout/paid/USDT) + invite link.
-   Мобильный-first: стек карточек, крупный шрифт цифр, без таблиц.
+   ОХВАТЫ УБРАНЫ (цифры просмотров/кликов — фейк-социальное давление).
+   Вместо них — мотивация шеринга:
+     - реферальные начисления (20% рейка приведённых глаз, 20% с продаж);
+     - приглашение + нативный share (navigator.share → буфер);
+     - бейджи и свободные бесплатные прогнозы.
+   Читает GET /api/profile. Мобильный-first, единый тёмный стиль.
    ================================================================ */
 
 interface ProfileData {
@@ -20,11 +20,6 @@ interface ProfileData {
   inviteUrl: string | null;
   bonusCredits: number;
   badges: string[];
-  reach: {
-    total: number;
-    unique: number;
-    byType: { type: string; total: number; unique: number }[];
-  };
   referral: { eventsTotal: number; paidTotal: number; accruedUsdt: string };
   bonusesEnabled: boolean;
 }
@@ -68,14 +63,23 @@ export default function ProfilePanel() {
     };
   }, []);
 
-  const copyInvite = async () => {
+  const shareInvite = async () => {
     if (!data?.inviteUrl) return;
     try {
+      const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+      if (nav.share) {
+        await nav.share({
+          title: "no reality.",
+          text: "смотри то, чего не должно быть — и спорь на шов. 20% рейка приведённых глаз — твои.",
+          url: data.inviteUrl,
+        });
+        return;
+      }
       await navigator.clipboard.writeText(data.inviteUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      /* clipboard запрещён */
+      /* clipboard запрещён / шоурил отменён */
     }
   };
 
@@ -83,13 +87,13 @@ export default function ProfilePanel() {
 
   if (state === "anon") {
     return (
-      <div className="nr-glass-deep mt-8 rounded-3xl px-6 py-8 text-center">
-        <p className="text-[0.62rem] font-extrabold uppercase tracking-[0.24em] text-[#6d4fc2]">
-          your reach
+      <div className="nrld-panel-blood mt-8 rounded-3xl px-6 py-8 text-center">
+        <p className="text-[0.62rem] font-extrabold uppercase tracking-[0.24em] text-[#ff4d6e]">
+          share &amp; earn
         </p>
-        <p className="mx-auto mt-2 max-w-sm text-[0.8rem] font-semibold leading-relaxed text-[#10161d]/55">
-          connect a wallet — personal links, click stats, free predictions
-          and badges all live here.
+        <p className="mx-auto mt-2 max-w-sm text-[0.8rem] font-semibold leading-relaxed text-white/55">
+          connect a wallet — your invite link, referral payouts and badges all
+          live here.
         </p>
       </div>
     );
@@ -99,63 +103,49 @@ export default function ProfilePanel() {
 
   return (
     <div className="mt-8">
-      <div className="mb-4 flex items-baseline gap-3">
-        <p className="text-[0.62rem] font-extrabold uppercase tracking-[0.24em] text-[#6d4fc2]">
-          your reach
+      <div className="nrld-rise mb-4 flex items-baseline gap-3">
+        <p className="text-[0.62rem] font-extrabold uppercase tracking-[0.24em] text-[#ff4d6e]">
+          share &amp; earn
         </p>
-        <span className="font-mono text-[0.6rem] font-bold text-[#10161d]/40">
+        <span className="font-mono text-[0.6rem] font-bold text-white/40">
           {data.wallet ? short(data.wallet) : data.email}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { k: "clicks total", v: String(data.reach.total), c: "#10161d" },
-          { k: "unique visitors", v: String(data.reach.unique), c: "#2b6cb0" },
-          { k: "referrals paid", v: String(data.referral.paidTotal), c: "#1d7a3e" },
-          { k: "accrued", v: `$${data.referral.accruedUsdt}`, c: "#b8860b" },
-        ].map((x) => (
-          <div
-            key={x.k}
-            className="nr-glass-deep rounded-2xl px-4 py-4 text-center"
-          >
-            <p className="text-[0.56rem] font-extrabold uppercase tracking-[0.18em] text-[#10161d]/45">
-              {x.k}
-            </p>
-            <p
-              className="mt-1.5 font-mono text-[1.05rem] font-extrabold"
-              style={{ color: x.c }}
-            >
-              {x.v}
-            </p>
-          </div>
-        ))}
+      {/* реферальные деньги — единственные цифры, которые мотивируют */}
+      <div className="nrld-rise-late grid grid-cols-2 gap-3">
+        <div className="nrld-panel-blood rounded-2xl px-4 py-4 text-center">
+          <p className="text-[0.56rem] font-extrabold uppercase tracking-[0.18em] text-white/45">
+            referrals paid
+          </p>
+          <p className="nrld-num mt-1.5 text-[1.3rem] font-extrabold text-[#57d98a]">
+            {data.referral.paidTotal}
+          </p>
+        </div>
+        <div className="nrld-panel-blood rounded-2xl px-4 py-4 text-center">
+          <p className="text-[0.56rem] font-extrabold uppercase tracking-[0.18em] text-white/45">
+            accrued
+          </p>
+          <p className="nrld-num mt-1.5 text-[1.3rem] font-extrabold text-[#d9a441]">
+            ${data.referral.accruedUsdt}
+          </p>
+        </div>
       </div>
 
-      {/* разбивка по типам объектов */}
-      {data.reach.byType.length > 0 && (
-        <div className="nr-glass-deep mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl px-5 py-3">
-          {data.reach.byType.map((t) => (
-            <span
-              key={t.type}
-              className="text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-[#10161d]/55"
-            >
-              {t.type} <b className="font-mono text-[#10161d]">{t.total}</b>
-              <span className="text-[#10161d]/40"> · {t.unique} uniq</span>
-            </span>
-          ))}
-        </div>
-      )}
+      <p className="mt-3 text-center text-[0.7rem] font-semibold leading-relaxed text-white/55">
+        20% of the rake from every eye you bring — forever. no caps, no
+        spreadsheets: the ledger keeps the score.
+      </p>
 
       {/* бейджи + бесплатные прогнозы */}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="nrld-rise-late2 mt-3 flex flex-wrap items-center justify-center gap-2">
         {data.badges.map((b) => {
           const meta = BADGE_META[b] ?? { label: b, hint: "" };
           return (
             <span
               key={b}
               title={meta.hint}
-              className="nr-glass rounded-full px-3.5 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-[#6d4fc2]"
+              className="nrld-stamp rounded-full px-3.5 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-[#ff4d6e]"
             >
               ◈ {meta.label}
             </span>
@@ -164,29 +154,29 @@ export default function ProfilePanel() {
         {data.bonusesEnabled && data.bonusCredits > 0 && (
           <span
             title="risk-free predictions — spend them on any market"
-            className="nr-glass rounded-full px-3.5 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-[#c2410c]"
+            className="nrld-stamp rounded-full px-3.5 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-[#d9a441]"
           >
             ❄ {data.bonusCredits} free prediction{data.bonusCredits > 1 ? "s" : ""}
           </span>
         )}
         {data.refCode && (
-          <span className="nr-glass rounded-full px-3.5 py-1.5 font-mono text-[0.62rem] font-extrabold text-[#10161d]/60">
+          <span className="rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 font-mono text-[0.62rem] font-extrabold text-white/60">
             {data.refCode}
           </span>
         )}
       </div>
 
-      {/* invite link */}
+      {/* приглашение: ссылка + нативный share */}
       {data.inviteUrl && (
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <code className="min-w-0 flex-1 truncate rounded-xl bg-[#10161d]/5 px-3.5 py-2.5 font-mono text-[0.66rem] text-[#10161d]/70">
+        <div className="nrld-rise-late2 mt-3 flex flex-wrap items-center gap-3">
+          <code className="min-w-0 flex-1 truncate rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 font-mono text-[0.66rem] text-white/70">
             {data.inviteUrl}
           </code>
           <button
-            onClick={copyInvite}
-            className="rounded-full bg-[#10161d]/5 px-4 py-2 text-[0.66rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10"
+            onClick={() => void shareInvite()}
+            className="nrld-btn-blood nrld-tap rounded-full px-5 py-2.5 text-[0.66rem] font-extrabold uppercase tracking-[0.14em] text-white"
           >
-            {copied ? "copied ✓" : "copy invite"}
+            {copied ? "copied ✓" : "share the seam"}
           </button>
         </div>
       )}

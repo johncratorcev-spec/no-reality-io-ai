@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { readBettor, bettorResponse } from "@/lib/bet/identity";
 import { rateLimit } from "@/lib/rateLimit";
+import { claimableSummary } from "@/lib/bet/cashout";
 
 export const dynamic = "force-dynamic";
 
@@ -18,26 +19,35 @@ export async function GET(req: NextRequest) {
 
   const bettor = readBettor(req);
   if (bettor.isNew) {
-    return bettorResponse(bettor, { bets: [] });
+    return bettorResponse(bettor, {
+      bets: [],
+      claimableCents: 0,
+      claimedTotalCents: 0,
+      payoutsEnabled: false,
+    });
   }
 
   try {
-    const bets = await db.bet.findMany({
-      where: { bettorId: bettor.id },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      select: {
-        id: true,
-        clipCode: true,
-        side: true,
-        amountCents: true,
-        status: true,
-        payoutCents: true,
-        mode: true,
-        createdAt: true,
-        round: { select: { status: true, resolvedAs: true, closesAt: true } },
-      },
-    });
+    const [bets, summary] = await Promise.all([
+      db.bet.findMany({
+        where: { bettorId: bettor.id },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: {
+          id: true,
+          clipCode: true,
+          side: true,
+          amountCents: true,
+          status: true,
+          payoutCents: true,
+          mode: true,
+          claimed: true,
+          createdAt: true,
+          round: { select: { status: true, resolvedAs: true, closesAt: true } },
+        },
+      }),
+      claimableSummary(bettor.id),
+    ]);
 
     return bettorResponse(
       bettor,
@@ -50,14 +60,23 @@ export async function GET(req: NextRequest) {
           status: b.status,
           payoutCents: b.payoutCents,
           mode: b.mode,
+          claimed: b.claimed,
           roundStatus: b.round.status,
           resolvedAs: b.round.resolvedAs,
           createdAt: b.createdAt.toISOString(),
         })),
+        claimableCents: summary.claimableCents,
+        claimedTotalCents: summary.claimedTotalCents,
+        payoutsEnabled: summary.payoutsEnabled,
       }
     );
   } catch (e) {
     console.error("[me:bets] failed:", e instanceof Error ? e.message : e);
-    return bettorResponse(bettor, { bets: [] });
+    return bettorResponse(bettor, {
+      bets: [],
+      claimableCents: 0,
+      claimedTotalCents: 0,
+      payoutsEnabled: false,
+    });
   }
 }

@@ -367,6 +367,11 @@ model Bet {
   paymentId   String?  @unique // uuid платежа 2328 (webhook)
   status      String   @default("pending")
   payoutCents Int?
+  // кэшаут выигрыша через 2328.io Payout API (bw-<batchId>): одна выплата
+  // покрывает пачку won-ставок; failed-webhook снимает claimed обратно
+  claimed       Boolean    @default(false)
+  claimedAt     DateTime?
+  payoutOrderId String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -377,6 +382,8 @@ model Bet {
   @@index([bettorId])
   @@index([fingerprint])
   @@index([refCode])
+  @@index([bettorId, status, claimed])
+  @@index([payoutOrderId])
 }
 
 // События аналитики (ТЗ v2 §4.3.10 — «обязательно писать»):

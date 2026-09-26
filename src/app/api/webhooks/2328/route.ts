@@ -9,6 +9,7 @@ import {
 import { is2328PayoutConfigured } from "@/lib/2328/payout";
 import { runSinglePayout } from "@/lib/payouts";
 import { confirmBetPayment, failBetPayment } from "@/lib/bet/core";
+import { unclaimBetPayout } from "@/lib/bet/cashout";
 
 export const dynamic = "force-dynamic";
 
@@ -179,6 +180,23 @@ async function handlePayout(p: {
   txid: string | null;
   errorType: string | null;
 }) {
+  /* ---- кэшаут выигрыша игрока (bw-…) — свой контур, до Purchase ---- */
+  if (p.orderId.startsWith("bw-")) {
+    if (p.status === "completed") {
+      log("bet_cashout_completed", { orderId: p.orderId, txid: p.txid });
+    } else if (p.status === "failed" || p.status === "cancelled") {
+      const n = await unclaimBetPayout(p.orderId, p.errorType || p.status);
+      log(n ? "bet_cashout_reverted" : "bet_cashout_revert_noop", {
+        orderId: p.orderId,
+        bets: n,
+        error: p.errorType,
+      });
+    } else {
+      log("bet_cashout_intermediate", { orderId: p.orderId, status: p.status });
+    }
+    return;
+  }
+
   const purchase = await db.purchase.findFirst({
     where: { payoutOrderId: p.orderId },
   });

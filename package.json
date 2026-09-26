@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "test:stripe": "node scripts/stripe_selftest.mjs",
-    "test:bet": "node scripts/bet_selftest.mjs"
+    "test:bet": "node scripts/bet_selftest.mjs",
+    "test:cashout": "node scripts/cashout_selftest.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -62,6 +63,7 @@
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.525.0",
+    "motion": "^13.4.4",
     "nanoid": "^6.0.1",
     "next": "^16.1.1",
     "next-auth": "^4.24.11",

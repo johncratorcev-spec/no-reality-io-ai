@@ -28,8 +28,8 @@ export default async function ThanksPage({
   const sessionId = typeof sp.session_id === "string" ? sp.session_id : "";
 
   return (
-    <main className="min-h-dvh bg-white">
-      <section className="relative overflow-hidden py-10 text-[#10161d] sm:py-14">
+    <main className="nrld-page min-h-dvh">
+      <section className="relative overflow-hidden py-10 text-white sm:py-14">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-70"
@@ -47,7 +47,7 @@ export default async function ThanksPage({
               no reality.
             </a>
             <div className="ml-auto">
-              <Menu />
+              <Menu variant="dark" />
             </div>
           </div>
           <p className="text-[0.64rem] font-extrabold uppercase tracking-[0.28em] text-[#6d4fc2]">

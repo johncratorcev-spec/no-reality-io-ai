@@ -80,7 +80,7 @@ export default async function CollabPage() {
   const videoSrc = post?.videoUrl || "";
 
   return (
-    <div className="min-h-dvh bg-white text-[#10161d]">
+    <div className="nrld-page min-h-dvh text-white">
       {/* ================= ПЛАВАЮЩАЯ НАВИГАЦИЯ ================= */}
       <div className="fixed inset-x-0 top-3 z-[70] px-4">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
@@ -91,7 +91,7 @@ export default async function CollabPage() {
             <span className="nr-logo">no reality.</span>
           </a>
           <div className="ml-auto">
-            <Menu />
+            <Menu variant="dark" />
           </div>
         </div>
       </div>

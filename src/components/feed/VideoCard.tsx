@@ -13,7 +13,6 @@ import {
   AtSign,
   Check,
   Copy,
-  Eye,
   Heart,
   Lock,
   Paperclip,
@@ -28,7 +27,6 @@ import {
 } from "lucide-react";
 import type { ClientPost } from "@/lib/csv";
 import { isBoosted } from "@/lib/boost";
-import { pseudoViews } from "@/lib/utils";
 import { playMeow } from "@/lib/meow";
 import { PARTNER_OF_WEEK } from "@/lib/site";
 import { toggleFavorite, useFavoritesStore } from "@/lib/favorites";
@@ -682,7 +680,8 @@ function VideoCardInner({
   const hasMeta = Boolean(post.author || post.title);
   const statusShown = statusVisible && hasMeta && !error && !overlayUp;
   const boosted = isBoosted(post);
-  const viewsLabel = pseudoViews(post.utmCode).toLocaleString("en-US");
+  /* охваты убраны: цифры просмотров — фейк-социальное давление; вместо них
+     мотивация шеринга (рефералка 20% рейка) — see ShareSeam в BetPanel */
   const authorHandle =
     post.author && post.author !== "@unknown"
       ? post.author.replace(/^@/, "")
@@ -1127,14 +1126,6 @@ function VideoCardInner({
           aria-label="Open this video on Threads"
           className="nr-glass relative flex items-center gap-2 rounded-full px-4 py-2 text-[0.72rem] font-bold text-[#0a0a0a] transition-transform duration-300 hover:scale-[1.04] active:scale-95 sm:text-[0.78rem]"
         >
-          {/* счётчик просмотров — чип у стрелки */}
-          <span
-            className="nr-views-chip pointer-events-none absolute -left-2 -top-2.5 flex items-center gap-1 rounded-full bg-[#0a0a0a] px-1.5 py-[3px] text-[0.55rem] font-bold leading-none tracking-normal text-white"
-            aria-hidden="true"
-          >
-            <Eye className="h-2.5 w-2.5" />
-            {viewsLabel}
-          </span>
           <ArrowUpRight className="h-4 w-4 text-[#0a0a0a]" />
           threads
         </a>
