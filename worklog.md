@@ -939,3 +939,27 @@ Work Log:
 Stage Summary:
 - GitHub main = 3ab6afe: на remote теперь весь v2+редизайн — landing v3 (тёмный карнавал #0A0A0F/#1A1A24, белый текст, кровь #FF003C, Manrope, джокеры/вороны, лёгкий motion), ставки/кэшаут/пеймент на 2328.io, позиции в /pnl, тесты полного цикла (bet_selftest 30/30 + cashout_selftest 37/37).
 - Локаль = remote, рабочее дерево чистое.
+
+---
+Task ID: v3-hub-repositioning
+Agent: Super Z (main agent)
+Task: Полное перепозиционирование в «интерактивный хаб AI-контента и предсказаний»: единый VHS-zine стиль, лента-мозаика, GEO/SEO пакет (код+док), RU+EN, новый сет маскотов, тесты полного цикла.
+
+Work Log:
+- Ответы юзера на кларификацию: бренд оставить, ставки = ядро (2328.io), стиль VHS-zine, лента = мозаика, GEO/SEO = код+док, RU+EN, полный объём, новый сет маскотов.
+- site.ts: новая история хаба (tagline/ticker/description); lib/moods.ts — 4 канала (swag/creepy/future/ufo, кислотные цвета, EN+RU); lib/i18n.tsx — словарь RU/EN + LangProvider + LangSwitch (+?lang=ru, localStorage, авто-детект).
+- Дизайн-система vhz.css: зерно+сканлайны (fixed overlay), CMYK-заголовки, стикеры/скотч/стампы, кислотная палитра (yellow/magenta/cyan/green + blood для ставок), тикер-марки, мозаичные колонки, reduced-motion. Шрифты: Unbounded + IBM Plex Mono (кириллица) + Manrope(+cyrillic).
+- Маскоты (SVG): OracleEye, DreamMachine (CRT с глазом на экране), WatcherEyes + Reveal (IO).
+- Хаб-лендинг (/): тикер → герой-коллаж (машина снов + REAL?/SYNTH? + REC/таймкод) → цикл watch/call/resolve → настроения → слепой суд → реф-петля 20% → FAQ (RU/EN) → CTA. JSON-LD: WebSite+Organization+ItemList+FAQPage.
+- Лента v3 = мозаика (/feed): CSS-columns грид, фильтры настроений с счётчиками, слепой суд (?blind=1, скрывает метаданные), превью play-on-hover, share с ?ref= на карточке, track share_click/mood_filter. Театр /v/[code]: один клип (VideoCard+BetPanel/Cryo) + «ещё из мозаики».
+- Удалены: Landing/HeroCanvas/Characters/CountUp/Tilt/Partner/faq/WebGLBanner/Feed/FeedScreen (джокеров/воронов заменил новый сет — по выбору юзера).
+- GEO/SEO: /real-or-synth (глоссарий+FAQ+Article JSON-LD), /moods/{swag,creepy,future,ufo} — СТАТИЧЕСКИЕ папки (FS песочницы алиасит [mood] и ood] в один inode → динамический роут дал бы битый путь в git/проде); robots.ts явно разрешает 20 AI-краулеров; public/llms.txt + llms-full.txt; sitemap 12 маршрутов + hreflang en/ru/x-default; OG VHS-карточка og-vhs.png 1200×630 (scripts/og_card_v3.html).
+- Header/Footer: vhz-стиль, REC-точка, LangSwitch; Menu — разделы хаба (mosaic/what-is-hub/predictions/positions/market/future), тёмный вариант всегда.
+- ТЕСТЫ: npm run test:bet 30/30 PASS; test:cashout — сначала 15/37 (в .env нет тестовых ключей 2328) → временно добавлены TWOTHOUSAND328_* в .env + рестарт dev → 37/37 PASS → .env восстановлен, test:bet повторно 30/30. Линт: 0 ошибок (починены setState-in-effect в charity/DonateBox/CharityModal/i18n/Mosaic + ref-in-render в MediaCarousel). tsc чисто.
+- БРАУЗЕР (agent-browser): /, /feed, слепой суд (URL ?blind=1), /v/71vsIPUu (BetPanel живой), /real-or-synth, /moods/creepy+swag, /pnl, /market, /terms — VHS-zine везде, RU-переключатель работает (html lang=ru), mobile iPhone 14 вёрстка ок. Квирк: Threads-эмбед в headless сдёргивает вкладку на threads.com (внешний флак, не регресс).
+- PDF: download/no-reality-geo-seo-strategy.pdf (9 стр., Report route: palette.cascade → TocDocTemplate/multiBuild → обложка Template 01 HUD через html2poster+cover_validate → pypdf merge; QA: PASS c 6 неблокирующими WARN — callout-боксы посчитаны таблицами). HTML обложки: download/no-reality-geo-seo-strategy-cover.html.
+- Гонки: /moods/[mood] → 4 статические папки (см. выше); stray-путь ood] вычищен из git-индекса.
+
+Stage Summary:
+- GitHub-ready коммит 078daf8: хаб-позиционирование внедрено целиком — VHS-zine дизайн-система + мозаика + слепой суд + театр + RU/EN + GEO-кластер + llms.txt + AI-роботс + OG. Деньги (ставки/кэшаут/пеймент 2328.io) не тронуты, покрыты тестами 30+37 PASS.
+- Юзеру: 1) прод-пуш по команде; 2) OG-обложка новая og-vhs.png; 3) стратегия PDF в download/; 4) каналы настроений наполняются разметкой mood в posts.csv (ufo сейчас 2 клипа — просесть куратора).
