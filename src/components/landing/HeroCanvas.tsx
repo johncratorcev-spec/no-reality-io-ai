@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 /* ------------------------------------------------------------------ */
-/*  Hero-шейдер: органический «живой» поток — перламутровый туман      */
-/*  с доменным искажением (domain-warped fbm), ирисцентные розово-     */
-/*  мятные прожилки и мягкое дыхание к курсору. Лёгкий: 30fps cap,     */
-/*  DPR ≤ 1.5, пауза при скрытой вкладке, CSS-fallback без WebGL.      */
-/*  (тот же производственный паттерн, что у WebGLBanner в ленте)       */
+/*  Hero-шейдер: кровавый дым по ночному фону. Domain-warped fbm      */
+/*  (та же «шёлковая» турбулентность, что была раньше) перекрашена    */
+/*  в палитру карнавала: ночь #08070B, вино #4A0E1C, кровь #FF003C    */
+/*  с редкими золотыми прожилками. Дым дышит вслед за курсором.       */
+/*  Лёгкий: 30fps cap, DPR ≤ 1.5, пауза при скрытой вкладке,          */
+/*  CSS-fallback без WebGL.                                           */
 /* ------------------------------------------------------------------ */
 
 const VERT = `
@@ -50,7 +51,7 @@ void main(){
 
   float t = u_time * 0.05;
 
-  /* органика: двойное доменное искажение — «шелковая» турбулентность */
+  /* органика: двойное доменное искажение — «дымная» турбулентность */
   vec2 q = vec2(
     fbm(p * 1.35 + vec2(0.0, t)),
     fbm(p * 1.35 + vec2(5.2, -t * 0.8))
@@ -61,44 +62,46 @@ void main(){
   );
   float f = fbm(p * 2.1 + 2.2 * r);
 
-  /* курсор мягко «притягивает» поток — фон отвечает на движение */
+  /* курсор мягко «притягивает» дым */
   float md = exp(-3.5 * length(p - u_mouse * 0.55));
   f += md * 0.09;
 
-  /* палитра: почти белый лёд + перламур + ирисцентные прожилки */
-  vec3 base  = vec3(0.985, 0.992, 0.998);
-  vec3 pearl = vec3(0.863, 0.922, 0.969);
-  vec3 ice   = vec3(0.659, 0.812, 0.918);
-  vec3 blue  = vec3(0.357, 0.608, 0.835);
-  vec3 deep  = vec3(0.240, 0.490, 0.722);
-  vec3 pink  = vec3(0.894, 0.816, 0.910);
-  vec3 mint  = vec3(0.780, 0.894, 0.875);
+  /* палитра: ночь + вино + кровь + золотая пыль */
+  vec3 night  = vec3(0.031, 0.027, 0.043);
+  vec3 cellar = vec3(0.075, 0.031, 0.055);
+  vec3 wine   = vec3(0.290, 0.055, 0.110);
+  vec3 blood  = vec3(1.000, 0.000, 0.235);
+  vec3 rust   = vec3(0.640, 0.000, 0.150);
+  vec3 gold   = vec3(0.850, 0.640, 0.255);
 
-  vec3 c = base;
-  c = mix(c, pearl, smoothstep(0.22, 0.78, q.x) * 0.72);
-  c = mix(c, ice,   smoothstep(0.32, 0.88, r.x) * 0.55);
-  c = mix(c, blue,  smoothstep(0.55, 0.97, f) * 0.36);
-  c = mix(c, deep,  smoothstep(0.74, 1.00, f * r.y) * 0.22);
+  vec3 c = night;
+  c = mix(c, cellar, smoothstep(0.20, 0.75, q.x) * 0.85);
+  c = mix(c, wine,   smoothstep(0.30, 0.85, r.x) * 0.60);
+  c = mix(c, rust,   smoothstep(0.52, 0.94, f) * 0.42);
 
-  float veinPink = smoothstep(0.44, 0.56, r.y) * (1.0 - smoothstep(0.56, 0.70, r.y));
-  c = mix(c, pink, veinPink * 0.5);
-  float veinMint = smoothstep(0.48, 0.60, q.y) * (1.0 - smoothstep(0.60, 0.74, q.y));
-  c = mix(c, mint, veinMint * 0.42);
+  /* кровавые прожилки: узкие гребни шума */
+  float vein = smoothstep(0.46, 0.53, r.y) * (1.0 - smoothstep(0.53, 0.66, r.y));
+  c = mix(c, blood, vein * (0.30 + 0.22 * md));
 
-  /* свечение за заголовком */
-  c = mix(c, vec3(1.0), exp(-2.4 * length(p)) * 0.38);
+  /* золотая пыль: ещё более узкий гребень */
+  float dust = smoothstep(0.58, 0.62, q.y) * (1.0 - smoothstep(0.62, 0.70, q.y));
+  c = mix(c, gold, dust * 0.16);
 
-  /* воздушная виньетка */
-  c *= mix(1.0, 0.93, abs(uv.y - 0.5) * 0.85);
+  /* красное свечение за заголовком */
+  c += vec3(0.55, 0.0, 0.14) * exp(-3.2 * length(p)) * 0.34;
 
-  /* тонкое зерно */
-  c += (hash(uv * u_res.xy + fract(u_time)) - 0.5) * 0.02;
+  /* виньетка */
+  c *= mix(1.0, 0.78, abs(uv.y - 0.5) * 0.9);
+  c *= mix(1.0, 0.85, abs(p.x) * 0.7);
+
+  /* зерно */
+  c += (hash(uv * u_res.xy + fract(u_time)) - 0.5) * 0.022;
 
   gl_FragColor = vec4(c, 1.0);
 }
 `;
 
-const FRAME_MIN_MS = 1000 / 30; // 30fps — волны медленные, батарея целая
+const FRAME_MIN_MS = 1000 / 30; // 30fps — дым медленный, батарея целая
 
 export default function HeroCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -163,7 +166,7 @@ export default function HeroCanvas() {
     resize();
     window.addEventListener("resize", resize);
 
-    /* курсор: цель + плавный lerp — поток «дышит» вслед за мышью */
+    /* курсор: цель + плавный lerp — дым «дышит» вслед за мышью */
     const mouse = { x: 0, y: 0 };
     const target = { x: 0, y: 0 };
     const onPointer = (e: PointerEvent) => {
@@ -210,18 +213,19 @@ export default function HeroCanvas() {
   }, []);
 
   if (failed) {
-    /* CSS-fallback: статичная перламутрово-ирисцентная дымка + мягкие пятна */
+    /* CSS-fallback: ночь + кровавые пятна дыма */
     return (
-      <div aria-hidden className="absolute inset-0 overflow-hidden">
+      <div aria-hidden className="absolute inset-0 overflow-hidden bg-[#08070B]">
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(120deg, #f2f8fd 0%, #dcebf7 28%, #e9ddf0 52%, #d2e9e7 74%, #eef5fb 100%)",
+              "radial-gradient(120% 70% at 50% -10%, rgba(163,0,38,0.30) 0%, rgba(8,7,11,0) 55%), radial-gradient(70% 55% at 12% 100%, rgba(74,14,28,0.5) 0%, rgba(8,7,11,0) 60%), #08070B",
           }}
         />
-        <div className="nrld-blob absolute -left-24 top-1/4 h-[26rem] w-[26rem] rounded-full bg-[#a8cfea]/50 blur-3xl" />
-        <div className="nrld-blob nrld-blob-2 absolute -right-20 top-1/2 h-[22rem] w-[22rem] rounded-full bg-[#e39fd0]/30 blur-3xl" />
+        <div className="nrld-blob absolute -left-24 top-1/4 h-[26rem] w-[26rem] rounded-full bg-[#A30026]/35 blur-3xl" />
+        <div className="nrld-blob nrld-blob-2 absolute -right-20 top-1/2 h-[22rem] w-[22rem] rounded-full bg-[#4A0E1C]/50 blur-3xl" />
+        <div className="nrld-blob absolute left-1/3 bottom-[8%] h-[18rem] w-[18rem] rounded-full bg-[#FF003C]/12 blur-3xl" />
       </div>
     );
   }

@@ -883,3 +883,23 @@ Work Log:
 Stage Summary:
 - Remote main = fb18c74, рабочее дерево чистое.
 - На GitHub ушли: v2-работа (Prisma-модели Round/Bet/Payout, bet-модули, BetPanel, скрипты selftest/mark_truth, скриншоты t45/v2) + t45 market-работа + обновления подписей.
+
+---
+Task ID: landing-redesign-v3
+Agent: Super Z (main agent)
+Task: Полный редизайн лендинга — кровавый карнавал: 3D-анимации, джокеры, вороны в шляпах с очками, строго белый текст на тёмном, Manrope.
+
+Work Log:
+- Characters.tsx (новый): SVG-персонажи — JokerFace (шут в колпаке с бубенцами), JokerCard (колода настроений SWAG/FUTURE/CREEPY/UFO), CrowInHat (ворон: топ-хэт/боллер/фез + круглые очки/монокль/шейды, redEyes-вариант).
+- landing.css: полная перезапись — ночь #08070B, кровь #FF003C, панели nrld-panel/blood, CTA nrld-btn-blood, 3D: nrld-coin (флип монеты 1800°), nrld-flip (REAL/SYNTH rotateY), nrld-fan-card (веер), nrld-glitch, nrld-drip, nrld-timer-bar; reduced-motion учтён; Partner-классы перекрашены в тёмный.
+- HeroCanvas.tsx: шейдер переписан — кровавый дым (fbm, вино/кровь/золотая пыль) на ночном фоне, CSS-fallback тёмный.
+- Landing.tsx: полный редизайн — тёмная обёртка nrld-page, hero с 3D-джокер-монетой и вороном + параллакс, marquee, about, how (ставочный цикл: watch/call/bet), секция THE BET с интерактивным флип-демо (REAL/SYNTH кнопки, банк, таймер), THE DECK (веер 4 джокер-карт), CREW (3 ворона-куратора), Partner, FAQ, Socials, Footer — весь текст белый на тёмном, акценты кровью.
+- Menu.tsx: добавлен prop variant="dark" (тёмное стекло/кровавый бургер) — light-вариант сохранён для остальных страниц.
+- Partner.tsx: тексты перекрашены в белый/кровь, pin-бейдж кровавый.
+- faq.ts: переписан под v2-продукт (ставки REAL/SYNTH, пул, rake, 20% рефереру).
+- Globe.tsx больше не импортируется лендингом (файл сохранён).
+- Проверка: lint чистый по изменённым файлам (5 старых ошибок в нетронутых файлах), agent-browser: hero/bet/deck/crew/partner/faq/footer + мобильный iPhone 14 — рендер и интерактив (флип REAL/SYNTH, банк растёт) подтверждены, ошибок в консоли нет.
+
+Stage Summary:
+- Лендинг полностью в кровавом карнавал-стиле; скриншоты в download/redesign_*.png.
+- Остальные страницы (feed/market/future) не затронуты — Menu light-вариант работает как раньше.

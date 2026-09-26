@@ -49,14 +49,14 @@ export default function Partner() {
             {/* текстовая часть */}
             <div>
               <p className="nrld-cat-eyebrow">🐾 partner of the week</p>
-              <h2 className="mt-3 text-[2rem] font-extrabold leading-tight tracking-tight text-[#3d2314] sm:text-[2.6rem]">
+              <h2 className="mt-3 text-[2rem] font-extrabold leading-tight tracking-tight text-white sm:text-[2.6rem]">
                 {PARTNER_OF_WEEK.name}
                 <span className="nrld-cat-accent">.</span>
               </h2>
-              <p className="mt-2 text-[0.8rem] font-extrabold uppercase tracking-[0.2em] text-[#c26d3f]">
+              <p className="mt-2 text-[0.8rem] font-extrabold uppercase tracking-[0.2em] text-[#FF003C]">
                 {PARTNER_OF_WEEK.handle} · {PARTNER_OF_WEEK.kind}
               </p>
-              <p className="mt-5 max-w-xl text-[0.95rem] font-semibold leading-relaxed text-[#6b4a33]">
+              <p className="mt-5 max-w-xl text-[0.95rem] font-semibold leading-relaxed text-white/70">
                 {PARTNER_OF_WEEK.blurb}
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -70,7 +70,7 @@ export default function Partner() {
                   follow the crew
                   <ArrowUpRight className="h-4 w-4" />
                 </a>
-                <span className="text-[0.72rem] font-bold text-[#6b4a33]/60">
+                <span className="text-[0.72rem] font-bold text-white/45">
                   curated by humans, approved by cats
                 </span>
               </div>
@@ -94,12 +94,12 @@ export default function Partner() {
                 <a
                   href="/feed"
                   onClick={playMeow}
-                  className="nrld-cat-pin absolute -left-4 top-5 inline-flex -rotate-6 items-center gap-1.5 rounded-full bg-[#3d2314] px-3.5 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-[#ffe9d4] shadow-[0_10px_24px_rgba(61,35,20,0.35)] transition-transform duration-300 hover:rotate-0 hover:scale-105"
+                  className="nrld-cat-pin absolute -left-4 top-5 inline-flex -rotate-6 items-center gap-1.5 rounded-full bg-[#FF003C] px-3.5 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_10px_24px_rgba(255,0,60,0.45)] transition-transform duration-300 hover:rotate-0 hover:scale-105"
                 >
                   🐾 pinned in the feed
                 </a>
               </div>
-              <p className="mt-4 text-center text-[0.7rem] font-bold tracking-[0.18em] text-[#c26d3f]/70">
+              <p className="mt-4 text-center text-[0.7rem] font-bold tracking-[0.18em] text-white/40">
                 the crew, stacked and judgment-free
               </p>
             </div>
