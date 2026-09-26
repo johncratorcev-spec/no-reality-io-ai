@@ -963,3 +963,17 @@ Work Log:
 Stage Summary:
 - GitHub-ready коммит 078daf8: хаб-позиционирование внедрено целиком — VHS-zine дизайн-система + мозаика + слепой суд + театр + RU/EN + GEO-кластер + llms.txt + AI-роботс + OG. Деньги (ставки/кэшаут/пеймент 2328.io) не тронуты, покрыты тестами 30+37 PASS.
 - Юзеру: 1) прод-пуш по команде; 2) OG-обложка новая og-vhs.png; 3) стратегия PDF в download/; 4) каналы настроений наполняются разметкой mood в posts.csv (ufo сейчас 2 клипа — просесть куратора).
+
+---
+Task ID: push-v3
+Agent: main
+Task: Push v3 hub commits to origin/main (user command "Запушь")
+
+Work Log:
+- Verified working tree clean; commits 078daf8 (v3 hub repositioning) + 42a7479 (worklog) pending
+- git push origin main: 3ab6afe..42a7479, fast-forward, no conflicts
+- Verified branch synced with origin
+
+Stage Summary:
+- v3 hub (VHS-zine redesign, mosaic feed, i18n RU/EN, GEO/SEO pack) is now live on main
+- Amount/money chain (2328.io) untouched, still covered by selftests
