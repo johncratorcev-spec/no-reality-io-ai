@@ -925,3 +925,17 @@ Work Log:
 Stage Summary:
 - Весь сайт в едином кровавом карнавале (ночь/белый/кровь, Manrope, маскоты на лендинге); ставки/кэшаут/пеймент полностью на 2328.io с ledger-безопасностью (claim только после успешного payout-инвойса, refund по подписанному webhook'у); позиции отображаются в /pnl с motion-анимациями; охваты удалены, шаринг мотивируется 20% рефералки; полный цикл покрыт тестами 30+37 PASS.
 - Юзеру: 1) прод-env: TWOTHOUSAND328_PAYOUT_API_KEY + PROJECT_UUID включат кэшаут-кнопку в /pnl автоматически (без ключей показывается «payouts switch on with the 2328 payout keys»); 2) webhook 2328.io должен слать payout-события на /api/webhooks/2328 (обработчик bw-* уже там); 3) демонетизация охватов: псевдо-просмотры убраны полностью, рост через share_click → реф-цепочку; 4) npm run test:cashout — полный денежный цикл (окно 60с после запуска из-за rate-limit 4/min); 5) motion-анимации ~5kb (LazyMotion domAnimation), CSS-анимации — transform/opacity only, prefers-reduced-motion везде.
+
+---
+Task ID: git-push-2
+Agent: Super Z (main agent)
+Task: Запушить локальные коммиты в GitHub (запрос юзера «Запушь»).
+
+Work Log:
+- git fetch origin: новых scheduled-коммитов на remote нет; origin/main = f0501af — landing v3 (кровавый карнавал) уже был на GitHub.
+- Локально впереди 1 коммит: 3ab6afe — refresh CDN-подписей data/posts.csv, скриншоты верификации unified_*.png (home/feed/pnl/market/future/collab + mobile), bun.lock, .zscripts/dev.pid.
+- git push origin main → f0501af..3ab6afe, fast-forward, конфликтов нет (posts.csv без гонок на этот раз).
+
+Stage Summary:
+- GitHub main = 3ab6afe: на remote теперь весь v2+редизайн — landing v3 (тёмный карнавал #0A0A0F/#1A1A24, белый текст, кровь #FF003C, Manrope, джокеры/вороны, лёгкий motion), ставки/кэшаут/пеймент на 2328.io, позиции в /pnl, тесты полного цикла (bet_selftest 30/30 + cashout_selftest 37/37).
+- Локаль = remote, рабочее дерево чистое.
