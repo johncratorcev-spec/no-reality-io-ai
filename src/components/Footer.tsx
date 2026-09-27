@@ -42,6 +42,12 @@ export default function Footer() {
             terms
           </a>
           <a
+            href="/roadmap"
+            className="text-[0.64rem] font-bold uppercase tracking-[0.1em] text-white/50 transition-colors hover:text-white sm:text-[0.7rem]"
+          >
+            {lang === "ru" ? "роадмап" : "roadmap"}
+          </a>
+          <a
             href="/creators"
             className="hidden text-[0.64rem] font-bold uppercase tracking-[0.1em] text-white/50 transition-colors hover:text-white sm:block sm:text-[0.7rem]"
           >

@@ -44,7 +44,7 @@ function sessionPayload(
   return {
     wallet,
     refCode,
-    inviteUrl: `${origin(req)}/market?ref=${refCode}`,
+    inviteUrl: `${origin(req)}/bet?ref=${refCode}`,
   };
 }
 

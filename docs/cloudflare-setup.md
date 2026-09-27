@@ -103,3 +103,44 @@ CLICK_WORKER_SECRET=<секрет из шага 2>
 - [ ] `curl -I https://no-reality.fun/api/posts` → `cf-cache-status: DYNAMIC|BYPASS`
 - [ ] клик по `/r/<code>` → 302 мгновенно; в БД появился `Click`
 - [ ] Web Analytics показывает pageviews
+
+---
+
+## v6 (внутренняя экономика) — что добавилось к CF-подготовке
+
+### 4. Health-check / отказоустойчивость
+
+- `GET /api/health` → `{ ok, db: "up"|"down", ts, version }`.
+  Заводите uptime-checker (Better Stack / CF Health / UptimeRobot) на этот
+  URL. Мониторьте оба поля: живой процесс с `db: "down"` — сигнал, что
+  ставок/баланс трогать нельзя, но статика и лента отдаются.
+- `public/_headers` и `public/_redirects` — те же cache/redirect правила
+  в host-agnostic виде (подхватят CF Pages и Netlify автоматически).
+
+### 5. Turnstile для антифрода наград (когда включаете CF)
+
+Эндпоинты наград (`/api/reward/click`, UTM-награды) уже Turnstile-ready:
+
+1. CF Dashboard → Turnstile → добавьте сайт `no-reality.fun` (Free).
+2. Секрет в env: `TURNSTILE_SECRET=0x...`. Пока он не задан — проверка
+   выключена (код даже не лезет в CF).
+3. Клиентский виджет: добавить `cf-turnstile` в PredictModal/спецблоки
+   и передавать токен полем `token` в `/api/reward/click`.
+
+Слои антифрода уже в коде (lib/antifraud.ts): бот-UA фильтр, IP rate-limit,
+velocity (мин. интервал), дневные капсы, посуточный дедуп, LedgerTxn refKey
+unique. Бонус от CF: **Bot Fight Mode** (Security → Bots) режет ботов ещё
+до origin — включить обязательно.
+
+### 6. Деньги и webhook — отказоустойчивость
+
+- Единственный источник истины баланса — подписанный webhook 2328
+  (`orderId dp-*`). Поллинг клиента (`GET /api/wallet/deposit?order=`)
+  деньгами не управляет: он только читает статус после зачисления.
+- Идемпотентность: повторный webhook даёт 0 строк (updateMany pending→paid
+  + LedgerTxn refKey `deposit:<uuid>` unique) — двойных зачислений нет.
+- Если CF проксирует origin: убедитесь, что `/api/webhooks/2328` НЕ
+  кэшируется (уже покрыто правилом Bypass для /api/*) и не челленджится
+  Turnstile/бот-фильтром (при необходимости — WAF skip rule на этот путь).
+- In-memory rate-limit работает на один процесс; при переезде на Workers
+  заменить lib/rateLimit.ts на DO/KV-реализацию (интерфейс тот же).

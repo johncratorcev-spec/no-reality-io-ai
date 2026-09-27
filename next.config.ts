@@ -9,7 +9,6 @@ const isNetlify = Boolean(process.env.NETLIFY);
      недоверенных пакетов, поэтому клиент генерится явно в build-команде). */
 const serverlessIncludes = [
   "./data/posts.csv",
-  "./data/prompts.csv",
   "./db/custom.db",
   "./prisma/schema.prisma",
   "./node_modules/.prisma/**",
@@ -21,9 +20,7 @@ const tracedRoutes = [
   "/v/[code]",
   "/r/[code]",
   "/api/admin/refresh",
-  "/api/admin/payouts",
-  "/api/prompts/[code]/checkout",
-  "/api/prompts/[code]/status",
+  "/api/wallet/deposit",
   "/api/webhooks/2328",
 ];
 
@@ -39,12 +36,14 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
 
-  /* v4: mood-каналы убраны (фильтров на тэги больше нет) —
-     старые ссылки /moods/* ведут в бесконечный фид. */
+  /* v4: mood-каналы убраны; v6: продажа промптов убрана entirely —
+     старые ссылки /market ведут в предикшен-ленту. */
   async redirects() {
     return [
       { source: "/moods", destination: "/feed", permanent: true },
       { source: "/moods/:mood", destination: "/feed", permanent: true },
+      { source: "/market", destination: "/bet", permanent: true },
+      { source: "/market/:path*", destination: "/bet", permanent: true },
     ];
   },
 

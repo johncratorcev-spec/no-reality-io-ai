@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "node scripts/gen-posts-snapshot.mjs && node scripts/gen-prompts-snapshot.mjs && next build && node scripts/copy-standalone.mjs",
+    "build": "node scripts/gen-posts-snapshot.mjs && next build && node scripts/copy-standalone.mjs",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "db:push": "prisma db push --accept-data-loss",
@@ -13,7 +13,7 @@
     "db:reset": "prisma migrate reset",
     "test:bet": "node scripts/bet_selftest.mjs",
     "test:cashout": "node scripts/cashout_selftest.mjs",
-    "test:market": "node scripts/market_boost_selftest.mjs"
+    "test:market": "node scripts/boost_selftest.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

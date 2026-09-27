@@ -8,6 +8,7 @@ import {
   normalizeOwnerCode,
   recordUtmClick,
 } from "@/lib/utm";
+import { creditUtmReward } from "@/lib/utmReward";
 
 export const dynamic = "force-dynamic";
 
@@ -81,12 +82,24 @@ export async function GET(
   if (FEATURES.utmTracking) {
     const owner = normalizeOwnerCode(req.nextUrl.searchParams.get("ref"));
     if (owner) {
-      await recordUtmClick({
+      const unique = await recordUtmClick({
         ownerCode: owner,
         targetType: "video",
         targetId: code,
         visitorHash,
       });
+      /* v6: уникальный переход по ссылке владельца = награда в баланс
+         (анти-фрод внутри; best-effort — редирект не блокируем) */
+      if (unique) {
+        await creditUtmReward({
+          ownerCode: owner,
+          targetType: "video",
+          targetId: code,
+          visitorHash,
+          ip,
+          ua,
+        });
+      }
     }
   }
 

@@ -166,44 +166,73 @@ model FavoriteStats {
   updatedAt DateTime @updatedAt
 }
 
-// Покупка промпта: оплата через 2328.io → разблокировка prompt_full.
+// ─────────────────────────────────────────────────────────────────────────────
+// v6 — внутренняя экономика: аккаунт с нулевым порогом входа, внутренний
+// баланс и крипто-пополнение через 2328.io.
 //
-// Жизненный цикл status:
-//   pending          — платёжная сессия создана, ждём оплату (webhook)
-//   paid             — оплата подтверждена подписанным webhook'ом
-//   ready_for_payout — ждёт выплаты автору (полуавто-режим по умолчанию)
-//   payout_sent      — выплата отправлена/завершена (payout webhook completed)
-//   failed           — cancel/underpaid или payout failed без ретрая
-//   aml_hold         — 2328 пометил платёж AML-локом (ручная работа)
-//
-// Идемпотентность:
-//   orderId   ("nr-" + id) — ключ создания платежа в 2328: повторный POST
-//                      с тем же orderId возвращает существующую сессию;
-//   paymentId (uuid 2328) — уникальный, повторный webhook не создаёт дубль;
-//   payoutOrderId — генерируется с номером попытки, чтобы ретрай после
-//                      failed делал НОВУЮ выплату, а не возвращал старую.
-model Purchase {
-  id            String    @id @default(uuid())
-  utmCode       String
-  buyerHash     String
-  orderId       String    @unique
-  paymentId     String    @unique
-  paymentStatus String    @default("pending")
-  currency      String    @default("USDT")
-  amountUsdt    String    @default("0")
-  platformFee   String    @default("0")
-  sellerAmount  String    @default("0")
-  status        String    @default("pending")
-  txid          String?
-  payoutId      String?
-  payoutOrderId String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  paidAt        DateTime?
-  payoutAt      DateTime?
+// ПОРОГ ВХОДА = 0: аккаунт создаётся лениво по httpOnly-cookie nr_uid
+// (первый клик/ставка/награда). Ни email, ни кошелёк, ни формы не нужны.
+// Кошелёк (MetaMask/Phantom) или magic-link email привязываются опционально
+// и открывают NR PASS (пасс авторизованного: daily-бонус, повышенные капсы,
+// leaderboard, будущая конвертация в токен).
+model Account {
+  id           String    @id // uuid из cookie nr_uid
+  wallet       String?   @unique // 0x… / base58, lowercase — привязка кошелька
+  email        String?   @unique // magic-link email (опционально)
+  passTier     Int       @default(0) // 0 = guest, 1 = NR PASS
+  balanceCents Int       @default(0) // кэш баланса; истина — LedgerTxn
+  lastDailyAt  DateTime? // последний daily-бонус (UTC-день)
+  streakDays   Int       @default(0) // подряд дней с daily-бонусом
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  @@index([utmCode])
-  @@index([buyerHash])
+  txns   LedgerTxn[]
+  deposits DepositOrder[]
+
+  @@index([wallet])
+}
+
+// Двусторонний журнал внутренней валюты — ЕДИНСТВЕННЫЙ источник истины.
+// Каждое движение атомарно (updateMany с guard'ом баланса) и идемпотентно
+// (refKey unique: повторный webhook/клик не даст дубль).
+// kind: signup_bonus | daily_bonus | click_reward | utm_reward |
+//       bet_stake | bet_payout | deposit | deposit_demo
+model LedgerTxn {
+  id        String   @id @default(uuid())
+  accountId String
+  delta     Int // + начисление, − списание
+  kind      String
+  refKey    String?  @unique // идемпотент-ключ ("bet:<id>", "deposit:<uuid>", …)
+  meta      String   @default("{}")
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, createdAt])
+  @@index([accountId, kind, createdAt])
+  @@index([kind, createdAt])
+}
+
+// Крипто-пополнение внутреннего баланса: инвойс 2328.io (orderId dp-<id>)
+// → подписанный webhook paid → зачисление в LedgerTxn (источник истины —
+// только webhook, никакой клиентский поллинг деньгами не управляет).
+// В dev/demo (без 2328-ключей) — мгновенное demo-пополнение с дневным капсом.
+model DepositOrder {
+  id          String    @id @default(uuid())
+  accountId   String
+  orderId     String    @unique // dp-<id>
+  paymentId   String?   @unique // uuid платежа 2328 (webhook)
+  amountCents Int
+  status      String    @default("pending") // pending | paid | failed
+  mode        String    @default("crypto") // crypto | demo
+  txid        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  paidAt      DateTime?
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
   @@index([status])
 }
 
@@ -329,7 +358,10 @@ model Bet {
   fingerprint String // visitorHash (ip+ua+secret) — анти-фрод
   wallet      String? // кошелёк, если авторизован (вывод/рефка)
   refCode     String? // код пригласившего (r…) — 20% с рейка его ставки
-  mode        String   @default("demo") // demo | crypto (2328.io)
+  mode        String   @default("demo") // demo | crypto | balance
+  // v6: balance-ставки списываются с внутреннего баланса аккаунта (nr_uid);
+  // выигрыш резолва зачисляется обратно в баланс через LedgerTxn
+  accountId   String?
   orderId     String?  @unique // rb-<betId>[-<ref>] — вшит в платёж 2328
   paymentId   String?  @unique // uuid платежа 2328 (webhook)
   status      String   @default("pending")

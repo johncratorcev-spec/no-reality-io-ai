@@ -24,7 +24,7 @@ const ITEMS = [
   { href: "/real-or-synth", icon: "✦", label: "what is this", desc: "the game explained" },
   { href: "/predict", icon: "❄", label: "predictions", desc: "call the ending — any USDC stake" },
   { href: "/pnl", icon: "◑", label: "my positions", desc: "bets, payouts, cashout" },
-  { href: "/market", icon: "◆", label: "prompt market", desc: "prompts behind the clips — crypto" },
+  { href: "/roadmap", icon: "◆", label: "roadmap", desc: "internal balance → $NR token on Base" },
   { href: "/boost", icon: "⚡", label: "boost a clip", desc: "featured slot in the raffles" },
   { href: "/future", icon: "✧", label: "in future", desc: "roadmap — ending predictions" },
 ] as const;

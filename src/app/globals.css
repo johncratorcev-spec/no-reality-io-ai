@@ -477,6 +477,10 @@
 html,
 body {
   overscroll-behavior: none;
+  /* v6 global width guard — никакой горизонтальной
+     прокрутки на мобайле. clip (не hidden) сохраняет position: sticky. */
+  overflow-x: clip;
+  max-width: 100vw;
 }
 
 @theme inline {

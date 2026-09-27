@@ -27,7 +27,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     p("/feed", 0.9, "hourly"),
     p("/bet", 0.9, "hourly"),
     p("/real-or-synth", 0.9, "weekly"),
-    p("/market", 0.7, "weekly"),
+    p("/roadmap", 0.6, "weekly"),
     p("/predict", 0.7, "weekly"),
     p("/pnl", 0.4, "weekly"),
     p("/collab", 0.6, "weekly"),

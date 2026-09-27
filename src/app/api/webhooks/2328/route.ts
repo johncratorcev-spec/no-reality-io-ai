@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import {
   parse2328Webhook,
   verifyPaymentWebhook,
   verifyPayoutWebhook,
   isPaidStatus,
 } from "@/lib/2328/webhook";
-import { is2328PayoutConfigured } from "@/lib/2328/payout";
-import { runSinglePayout } from "@/lib/payouts";
 import { confirmBetPayment, failBetPayment } from "@/lib/bet/core";
 import { trackEvent } from "@/lib/bet/events";
-import { recordReferralEvent } from "@/lib/referral";
 import { confirmBoostPayment, failBoostPayment } from "@/lib/boost-order";
+import { confirmDepositPayment, failDepositOrder } from "@/lib/account";
 import { unclaimBetPayout } from "@/lib/bet/cashout";
 
 export const dynamic = "force-dynamic";
@@ -98,9 +95,33 @@ async function handlePayment(p: {
     return;
   }
 
-  /* ---- v2: ставки REAL/SYNTH (orderId rb-…) идут в свой контур ----
-      Покупки промптов (pd-…, nr-…) обрабатываются ниже; rb-* сюда не заходит,
-      чтобы Bet не находил Purchase и наоборот. */
+  /* ---- v6: пополнения внутреннего баланса (orderId dp-…) ----
+      Источник истины баланса — только подписанный webhook: зачисление
+      идемпотентно (refKey deposit:<uuid>), поллинг клиента деньгами
+      не управляет. */
+  if (p.orderId.startsWith("dp-")) {
+    if (isPaidStatus(p.paymentStatus)) {
+      const dep = await confirmDepositPayment(p.uuid, p.orderId, p.txid);
+      log(dep ? "deposit_credited" : "deposit_unknown", {
+        orderId: p.orderId,
+        uuid: p.uuid,
+        amountCents: dep?.amountCents ?? null,
+      });
+      if (dep) {
+        void trackEvent("deposit_paid", {
+          meta: { orderId: p.orderId, amountCents: dep.amountCents },
+        });
+      }
+    } else if (p.paymentStatus === "cancel" || p.paymentStatus === "underpaid") {
+      await failDepositOrder(p.uuid, p.orderId);
+      log("deposit_failed_final", { orderId: p.orderId, status: p.paymentStatus });
+    } else {
+      log("deposit_intermediate", { orderId: p.orderId, status: p.paymentStatus });
+    }
+    return;
+  }
+
+  /* ---- v2: ставки REAL/SYNTH (orderId rb-…) идут в свой контур ---- */
   if (p.orderId.startsWith("rb-")) {
     if (isPaidStatus(p.paymentStatus)) {
       const bet = await confirmBetPayment(p.uuid, p.orderId);
@@ -117,108 +138,11 @@ async function handlePayment(p: {
     return;
   }
 
-  const purchase = await db.purchase.findUnique({
-    where: { paymentId: p.uuid },
-  });
-
-  if (!purchase) {
-    // платёж создан не нами (или снапшот-БД перезаписалась) — фиксируем и выходим
-    log("payment_unknown", { uuid: p.uuid, orderId: p.orderId, status: p.paymentStatus });
-    return;
-  }
-
-  // фиксируем последний статус провайдера (без смены жизненного цикла)
-  await db.purchase.update({
-    where: { id: purchase.id },
-    data: { paymentStatus: p.paymentStatus },
-  });
-
-  if (isPaidStatus(p.paymentStatus)) {
-    // идемпотентный переход pending → paid: повторный webhook даст count 0
-    const moved = await db.purchase.updateMany({
-      where: { id: purchase.id, status: "pending" },
-      data: { status: "paid", paidAt: new Date(), txid: p.txid },
-    });
-    if (moved.count === 0) {
-      log("payment_paid_duplicate_ignored", { orderId: purchase.orderId });
-      return;
-    }
-    log("payment_paid", {
-      orderId: purchase.orderId,
-      utm: purchase.utmCode,
-      amount: purchase.amountUsdt,
-      seller: purchase.sellerAmount,
-      fee: purchase.platformFee,
-    });
-
-    // v5 аналитика: промпт разблокирован (prompt_unlock)
-    void trackEvent("prompt_unlock", {
-      clipCode: purchase.utmCode,
-      meta: { orderId: purchase.orderId, amountUsdt: purchase.amountUsdt },
-    });
-
-    // v5 рефералка крипто-покупок: код вшит в orderId (nr-<id>-<ref>);
-    // 20% суммы инвойса — рефереру, единый реестр с продажами
-    const refMatch = /^nr-[0-9a-f-]{36}-(r[a-z0-9]{5,11})$/i.exec(purchase.orderId);
-    if (refMatch) {
-      await recordReferralEvent({
-        orderId: purchase.orderId,
-        refCode: refMatch[1].toLowerCase(),
-        kind: "paid",
-        amountUsdt: purchase.amountUsdt,
-      }).catch(() => {});
-      void trackEvent("referral_earn", {
-        clipCode: purchase.utmCode,
-        meta: { ref: refMatch[1], orderId: purchase.orderId, amountUsdt: purchase.amountUsdt },
-      });
-    }
-
-    // переводим в очередь выплат; авто-режим платит сразу
-    await db.purchase.updateMany({
-      where: { id: purchase.id, status: "paid" },
-      data: { status: "ready_for_payout" },
-    });
-
-    if (process.env.PAYOUT_AUTO === "true" && is2328PayoutConfigured()) {
-      try {
-        await runSinglePayout(purchase.id);
-      } catch (e) {
-        // не теряем оплату: покупка остаётся ready_for_payout, выплату
-        // можно повторить вручную через /api/admin/payouts
-        console.error(
-          "[webhook2328] auto-payout failed:",
-          e instanceof Error ? e.message : e
-        );
-      }
-    }
-    return;
-  }
-
-  if (p.paymentStatus === "aml_lock") {
-    await db.purchase.updateMany({
-      where: { id: purchase.id, status: { in: ["pending", "paid"] } },
-      data: { status: "aml_hold" },
-    });
-    log("payment_aml_lock", { orderId: purchase.orderId });
-    return;
-  }
-
-  if (p.paymentStatus === "cancel" || p.paymentStatus === "underpaid") {
-    // cancel = инвойс истёк/отменён; underpaid = финальная недоплата.
-    // Промпт НЕ выдаётся — разблокировка смотрит только на платные статусы.
-    await db.purchase.updateMany({
-      where: { id: purchase.id, status: "pending" },
-      data: { status: "failed" },
-    });
-    log("payment_failed_final", { orderId: purchase.orderId, status: p.paymentStatus });
-    return;
-  }
-
-  log("payment_intermediate", { orderId: purchase.orderId, status: p.paymentStatus });
+  log("payment_unknown_scope", { uuid: p.uuid, orderId: p.orderId, status: p.paymentStatus });
 }
 
 /* ------------------------------------------------------------------ */
-/*  Выплата: завершение / сбой                                         */
+/*  Выплата: завершение / сбой (кэшаут выигрыша bw-…)                  */
 /* ------------------------------------------------------------------ */
 
 async function handlePayout(p: {
@@ -228,7 +152,7 @@ async function handlePayout(p: {
   txid: string | null;
   errorType: string | null;
 }) {
-  /* ---- кэшаут выигрыша игрока (bw-…) — свой контур, до Purchase ---- */
+  /* ---- кэшаут выигрыша игрока (bw-…) — свой контур ---- */
   if (p.orderId.startsWith("bw-")) {
     if (p.status === "completed") {
       log("bet_cashout_completed", { orderId: p.orderId, txid: p.txid });
@@ -245,42 +169,5 @@ async function handlePayout(p: {
     return;
   }
 
-  const purchase = await db.purchase.findFirst({
-    where: { payoutOrderId: p.orderId },
-  });
-
-  if (!purchase) {
-    log("payout_unknown", { orderId: p.orderId, status: p.status });
-    return;
-  }
-
-  if (p.status === "completed") {
-    const moved = await db.purchase.updateMany({
-      where: { id: purchase.id, status: { in: ["ready_for_payout", "payout_sent"] } },
-      data: { status: "payout_sent", payoutAt: new Date(), payoutId: p.uuid, txid: p.txid },
-    });
-    log(moved.count ? "payout_completed" : "payout_completed_duplicate_ignored", {
-      orderId: purchase.orderId,
-      txid: p.txid,
-    });
-    return;
-  }
-
-  if (p.status === "failed" || p.status === "cancelled") {
-    // возвращаем в очередь: следующий прогон создаст НОВУЮ выплату
-    // (новый payoutOrderId с номером попытки)
-    await db.purchase.updateMany({
-      where: { id: purchase.id, status: "payout_sent" },
-      data: { status: "ready_for_payout", payoutId: null, payoutOrderId: null },
-    });
-    log("payout_failed_requeued", { orderId: purchase.orderId, error: p.errorType });
-    return;
-  }
-
-  log("payout_intermediate", { orderId: purchase.orderId, status: p.status });
+  log("payout_unknown", { orderId: p.orderId, status: p.status });
 }
-
-/* ------------------------------------------------------------------ */
-/*  Одна выплата живёт в src/lib/payouts.ts — используется и авто-      */
-/*  режимом (PAYOUT_AUTO), и админ-роутом /api/admin/payouts            */
-/* ------------------------------------------------------------------ */

@@ -1,0 +1,8 @@
+# no-reality.fun — edge redirects (клонов продаённых маршрутов).
+# Next обрабатывает их через next.config.ts; этот файл — фолбэк для
+# CF Pages/Netlify, чтобы старые ссылки не отдавали 404 с edge.
+
+/market /bet 308
+/market/* /bet 308
+/moods /feed 308
+/moods/* /feed 308

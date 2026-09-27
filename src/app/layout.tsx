@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     "prediction game",
     "pari-mutuel betting",
     "crypto predictions",
-    "prompt market",
+    "internal balance",
   ],
   alternates: {
     canonical: "/",

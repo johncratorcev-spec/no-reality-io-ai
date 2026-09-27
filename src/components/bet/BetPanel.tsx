@@ -1,43 +1,37 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Share2, Wallet } from "lucide-react";
+import { Coins, Gift, Share2, Wallet } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
+import { fmtBalance } from "@/lib/econ";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
 import { useWalletSession } from "@/lib/use-wallet";
+import { useAccount, type AccountView } from "@/hooks/use-account";
+import type { RoundView } from "@/lib/bet/roundView";
+import PredictModal from "./PredictModal";
 import ShareSeam from "./ShareSeam";
 
 /**
  * BetPanel v5 — панель предикшен-ленты (REAL / SYNTH + банк + таймер).
  *
- * Поток: свайп → клип активен → GET /api/round?clip= (лениво открывает раунд)
- * → тап REAL/SYNTH → сумма $1/$3/$5 → если кошелёк не подключён — сразу
- * connect (затем ставка продолжается сама) → «ТЫ В ПУЛЕ» → поллинг
+ * Поток (v6, воронка предикшенов): свайп → клип активен → GET /api/round
+ * (лениво открывает раунд) → тап REAL/SYNTH → PREDICT-МОДАЛКА → сумма $1/$3/$5
+ * → ставка с ВНУТРЕННЕГО БАЛАНСА мгновенно («ТЫ В ПУЛЕ») → поллинг
  * /api/round/:id каждые ~1.5с → резолв → РЕЗУЛЬТАТ-КАРТА (вердикт + сумма +
  * deep link + «поделиться результатом» + «следующий»).
  *
- * Аналитика воронки: prediction_view / wallet_connect (в use-wallet) /
- * bet_placed (сервер) / share_result.
+ * Порог входа = 0: аккаунт создаётся сам (cookie nr_uid + welcome-бонус),
+ * ни кошелька, ни форм. Кошелёк — опционален (NR PASS/leaderboard/кэшаут).
+ * Не хватает баланса → модалка сама предлагает крипто-пополнение (2328.io)
+ * и после вебхука дожимает ставку.
+ *
+ * Аналитика воронки: prediction_view / funnel_side_pick / predict_modal_open /
+ * funnel_confirm / funnel_insufficient / topup_open / bet_placed (сервер) /
+ * share_result.
  */
 
 type Side = "real" | "synth";
-
-interface RoundView {
-  id: string;
-  clipCode: string;
-  status: "open" | "locked" | "resolved";
-  closesAt: string;
-  serverNow: string;
-  windowSec: number;
-  poolRealCents: number;
-  poolSynthCents: number;
-  poolTotalCents: number;
-  myBet: { side: Side; amountCents: number; status: string; payoutCents: number | null } | null;
-  resolvedAs?: Side;
-  myResult?: "won" | "lost" | null;
-  myPayoutCents?: number | null;
-}
 
 interface BetPanelProps {
   clipCode: string;
@@ -76,13 +70,13 @@ function crashFrame(clip: string, kind: "nb-crush" | "nb-glitch") {
 }
 
 export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPanelProps) {
-  const { wallet, ready: walletReady, connecting: walletConnecting, error: walletError, connect } =
-    useWalletSession();
+  const { wallet, connecting: walletConnecting, connect } = useWalletSession();
+  const { account, refresh: refreshAccount, setAccount, claimDaily } = useAccount();
 
   const [round, setRound] = useState<RoundView | null>(null);
-  const [phase, setPhase] = useState<"idle" | "amount" | "connect" | "pending">("idle");
+  const [phase, setPhase] = useState<"idle" | "pending">("idle");
   const [chosenSide, setChosenSide] = useState<Side | null>(null);
-  const [pendingAmount, setPendingAmount] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [error, setError] = useState("");
   const [payUrl, setPayUrl] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
@@ -100,6 +94,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
 
   const skewRef = useRef(0);
   const settledRef = useRef(false);
+  const lastModeRef = useRef<string | null>(null);
   const clipRef = useRef(clipCode);
   clipRef.current = clipCode;
 
@@ -110,6 +105,10 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     setStreak(readStreak());
     settledRef.current = false;
     setError("");
+    setModalOpen(false);
+    setChosenSide(null);
+    setPayUrl(null);
+    setPhase("idle");
     let alive = true;
 
     (async () => {
@@ -170,7 +169,9 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     if (r.resolvedAs === "real") crashFrame(r.clipCode, "nb-glitch");
     if (r.myResult === "lost") crashFrame(r.clipCode, "nb-crush");
     setResultPop((p) => p + 1);
-  }, []);
+    /* v6: выигрыш balance-ставки упал на внутренний баланс — обновляем */
+    void refreshAccount();
+  }, [refreshAccount]);
 
   /* ---- поллинг раунда, пока он жив и карточка активна (§4.3.5) ---- */
   useEffect(() => {
@@ -208,100 +209,59 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     };
   }, [isActive, round?.id, round?.status, round?.poolTotalCents, onSettled]);
 
-  /* ---- ставка (кошелёк уже подключён или не нужен) ---- */
-  const placeBet = async (amountCents: number) => {
-    if (!round || !chosenSide) return;
-    setError("");
-    setChipIn((c) => c + 1);
-    try {
-      const ref = (() => {
-        try {
-          return localStorage.getItem("nr-ref");
-        } catch {
-          return null;
-        }
-      })();
-      const r = await fetch("/api/bet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          round_id: round.id,
-          side: chosenSide,
-          amount_cents: amountCents,
-          ref: ref,
-        }),
-      });
-      const d = (await r.json()) as {
-        bet_id?: string;
-        status?: string;
-        mode?: string;
-        pay_url?: string | null;
-        round?: RoundView | null;
-        error?: string;
-      };
-      if (!r.ok || d.error) {
-        setError(d.error === "already_bet" ? "ставка уже в банке" : "банк не принял");
-        setShake((s) => s + 1);
-        return;
-      }
+  /* ---- v6: ставка из модалки предикта прошла ---- */
+  const onPlaced = useCallback(
+    (d: {
+      bet_id?: string;
+      status?: string;
+      mode?: string;
+      pay_url?: string | null;
+      round?: RoundView | null;
+      account?: AccountView;
+    }) => {
+      setError("");
       if (d.round) {
         setRound(d.round);
         setBankKey((k) => k + 1);
       }
+      if (d.account) setAccount(d.account);
+      lastModeRef.current = "balance";
       if (d.status === "pending" && d.pay_url) {
         setPayUrl(d.pay_url);
-        try {
-          window.open(d.pay_url, "_blank", "noopener");
-        } catch {
-          /* попап заблокирован — кнопка «оплатить» ниже */
-        }
       }
+      setModalOpen(false);
+      setChosenSide(null);
       setPhase("pending");
-      /* мгновенный фидбек «ТЫ В ПУЛЕ» — демо-ставка в пуле сразу */
+      /* мгновенный фидбек «ТЫ В ПУЛЕ» — balance-ставка в пуле сразу */
       if (d.status === "active") {
+        setChipIn((c) => c + 1);
         setInPool((v) => v + 1);
         setTimeout(() => setInPool(0), 1700);
       }
-    } catch {
-      setError("сеть дрогнула");
-      setShake((s) => s + 1);
-    }
-  };
+    },
+    [setAccount]
+  );
 
-  /* ---- кошелёк подключился, пока ждали его перед ставкой — дожимаем ---- */
-  useEffect(() => {
-    if (!wallet || pendingAmount == null || !chosenSide) return;
-    const amount = pendingAmount;
-    const t = setTimeout(() => {
-      setPendingAmount(null);
-      void placeBet(amount);
-    }, 0);
-    return () => clearTimeout(t);
-  }, [wallet, pendingAmount, chosenSide, placeBet]);
-
+  /** тап REAL/SYNTH: открываем модалку предикта (воронка v6) */
   const pickSide = (side: Side) => {
+    if (!round) return;
     setError("");
     setChosenSide(side);
-    setPhase("amount");
+    setModalOpen(true);
+    track("funnel_side_pick", clipCode, { side });
     if (side === "real") setFlashLime((f) => f + 1);
     else setFlashBlood((f) => f + 1);
   };
 
-  /** выбор суммы: если кошелёк не подключён — сначала connect, ставка дожмётся сама */
-  const chooseAmount = (amountCents: number) => {
-    if (!wallet && walletReady) {
-      setPendingAmount(amountCents);
-      setPhase("connect");
-      void connect();
-      return;
-    }
-    void placeBet(amountCents);
-  };
-
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setChosenSide(null);
+  }, []);
   const again = () => {
     /* новый шов: перезапрашиваем раунд (старый уже resolved) */
     settledRef.current = false;
     setChosenSide(null);
+    setModalOpen(false);
     setPayUrl(null);
     setPhase("idle");
     (async () => {
@@ -443,6 +403,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
               {result.mine === "won" && (
                 <p className="mt-4 text-[1.05rem] font-black" style={{ color: "var(--nb-poison)" }}>
                   твой глаз сработал · +{fmtUsd(result.payout)}
+                  {lastModeRef.current === "balance" ? " на баланс" : ""}
                 </p>
               )}
               {result.mine === "lost" && (
@@ -624,6 +585,55 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
               </p>
             )}
 
+            {/* ---- v6: строка баланса — аккаунт с нулевым порогом входа ---- */}
+            {phase === "idle" && (
+              <div className="mt-2.5 flex min-w-0 items-center gap-1.5 overflow-hidden">
+                <span
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.68rem] font-black"
+                  style={{
+                    background: "rgba(200,255,0,.1)",
+                    color: "var(--nb-poison)",
+                    border: "1px solid rgba(200,255,0,.28)",
+                  }}
+                >
+                  <Coins className="h-3 w-3" />
+                  {fmtBalance(account?.balanceCents ?? 0)}
+                </span>
+                {account?.isPass && (
+                  <span
+                    className="shrink-0 rounded-full px-2 py-0.5 text-[0.56rem] font-black tracking-[0.16em]"
+                    style={{ background: "rgba(242,237,228,.1)", color: "rgba(242,237,228,.75)" }}
+                  >
+                    PASS
+                  </span>
+                )}
+                {account?.isPass && account.dailyAvailable && (
+                  <button
+                    onClick={() => void claimDaily()}
+                    className="nb-btn inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[0.62rem] font-black"
+                    style={{
+                      background: "rgba(200,255,0,.12)",
+                      color: "var(--nb-poison)",
+                      border: "1px solid rgba(200,255,0,.3)",
+                    }}
+                  >
+                    <Gift className="h-3 w-3" />
+                    бонус
+                  </button>
+                )}
+                {!account?.isPass && (
+                  <button
+                    onClick={() => void connect()}
+                    className="nb-btn ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[0.58rem] font-bold"
+                    style={{ border: "1px dashed rgba(242,237,228,.3)", color: "rgba(242,237,228,.6)" }}
+                  >
+                    <Wallet className="h-3 w-3" />
+                    кошелёк → PASS
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* ---- idle: две крупные кнопки ---- */}
             {phase === "idle" && (
               <div className="mt-2.5 grid grid-cols-2 gap-2">
@@ -642,75 +652,6 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                 >
                   SYNTH
                 </button>
-              </div>
-            )}
-
-            {/* ---- amount: пресеты суммы $1/$3/$5 ---- */}
-            {phase === "amount" && chosenSide && (
-              <div className="mt-2.5">
-                <div className="flex items-center gap-1.5">
-                  {BET.betPresetsCents.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => chooseAmount(c)}
-                      className="nb-btn nb-chip flex-1 rounded-xl border px-2 py-2.5 text-[0.85rem] font-black"
-                      style={{
-                        borderColor: "rgba(242,237,228,.22)",
-                        color: "var(--nb-bone)",
-                        background: "rgba(242,237,228,.05)",
-                      }}
-                    >
-                      {fmtUsd(c)}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setPhase("idle")}
-                    aria-label="Back"
-                    className="nb-btn rounded-xl px-3 py-2.5 text-[0.7rem] font-bold"
-                    style={{ color: "rgba(242,237,228,.5)" }}
-                  >
-                    ←
-                  </button>
-                </div>
-                <p className="mt-1.5 text-center text-[0.62rem] font-bold" style={{ color: "rgba(242,237,228,.4)" }}>
-                  на {chosenSide === "real" ? "REAL" : "SYNTH"} · крипто-инвойс 2328
-                </p>
-              </div>
-            )}
-
-            {/* ---- connect: ждём подключение кошелька (v5) ---- */}
-            {phase === "connect" && (
-              <div className="mt-2.5 flex items-center justify-between gap-2">
-                <span
-                  className="inline-flex items-center gap-2 text-[0.72rem] font-bold"
-                  style={{ color: "rgba(242,237,228,.75)" }}
-                >
-                  {walletConnecting ? (
-                    <>
-                      <Wallet className="h-3.5 w-3.5 animate-pulse" />
-                      подключаем кошелёк…
-                    </>
-                  ) : walletError ? (
-                    walletError
-                  ) : (
-                    <>
-                      <Wallet className="h-3.5 w-3.5" />
-                      подключи кошелёк — ставка дожмётся сама
-                    </>
-                  )}
-                </span>
-                {walletError && (
-                  <button
-                    onClick={() => {
-                      setPendingAmount(null);
-                      setPhase("amount");
-                    }}
-                    className="nb-btn rounded-full px-3 py-1.5 text-[0.66rem] font-bold"
-                    style={{ color: "rgba(242,237,228,.6)" }}
-                  >
-                    назад
-                  </button>
-                )}
               </div>
             )}
 
@@ -747,6 +688,22 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
             )}
           </div>
         </div>
+      )}
+
+      {/* ---------- v6: predict-модалка — последняя ступень воронки ---------- */}
+      {modalOpen && round && (
+        <PredictModal
+          roundId={round.id}
+          clipCode={clipCode}
+          side={chosenSide}
+          account={account}
+          wallet={wallet}
+          onConnectWallet={() => void connect()}
+          walletConnecting={walletConnecting}
+          onClose={closeModal}
+          onPlaced={onPlaced}
+          onAccountUpdate={setAccount}
+        />
       )}
 
       {/* ---------- joker-blink: серия 5+ ---------- */}

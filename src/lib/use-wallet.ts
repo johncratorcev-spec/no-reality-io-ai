@@ -63,6 +63,24 @@ async function attachBets(): Promise<void> {
   }
 }
 
+/** v6: привязка кошелька к мгновенному аккаунту — открывает NR PASS */
+async function linkWalletPass(): Promise<void> {
+  try {
+    const r = await fetch("/api/me/link-wallet", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+      cache: "no-store",
+    });
+    const d = (await r.json().catch(() => ({}))) as { account?: { isPass?: boolean } };
+    if (d.account?.isPass) {
+      track("pass_granted", undefined, {});
+    }
+  } catch {
+    /* best-effort */
+  }
+}
+
 export function useWalletSession() {
   const [state, setState] = useState<WalletSession>(initialState);
 
@@ -128,6 +146,7 @@ export function useWalletSession() {
         }));
         track("wallet_connect", undefined, { provider: "phantom" });
         void attachBets();
+        void linkWalletPass();
         return;
       } catch (e) {
         setState((s) => ({
@@ -175,6 +194,7 @@ export function useWalletSession() {
       }));
       track("wallet_connect", undefined, { provider: "metamask" });
       void attachBets();
+      void linkWalletPass();
     } catch (e) {
       setState((s) => ({
         ...s,

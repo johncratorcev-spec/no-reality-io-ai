@@ -4,7 +4,7 @@ import LegalShell from "@/components/legal/LegalShell";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "The rules for using no reality.: a curated feed of AI video and an upcoming marketplace of prompts and instructions. We distribute — creators own.",
+    "The rules for using no reality.: a curated feed of AI video and REAL or SYNTH prediction raffles played with an internal balance. We distribute — creators own.",
   alternates: { canonical: "/terms" },
 };
 
@@ -16,7 +16,7 @@ export default function TermsPage() {
       kicker="legal"
       title="Terms of Service"
       updated={UPDATED}
-      intro="These Terms of Service (“Terms”) govern your access to and use of no reality. (the “Platform”), including our feed of AI-generated videos and, as it launches, our marketplace of prompts and instructions. By browsing, watching, sharing or otherwise using the Platform you agree to be bound by these Terms. If you do not agree, please do not use the Platform."
+      intro="These Terms of Service (“Terms”) govern your access to and use of no reality. (the “Platform”), including our feed of AI-generated videos and our REAL or SYNTH prediction raffles played with an internal balance. By browsing, watching, sharing or otherwise using the Platform you agree to be bound by these Terms. If you do not agree, please do not use the Platform."
       contactName="Contact"
       contactHandle="@your_betfriend"
       sections={[
@@ -24,23 +24,23 @@ export default function TermsPage() {
           heading: "About the Platform",
           body: [
             "no reality. is an independent curation and distribution platform. We display a feed of AI-generated videos that were originally shared publicly by their creators on third-party services (such as Threads), together with attribution to the original author wherever technically possible.",
-            "We are developing a marketplace where creators can offer prompts, instructions and related know-how to other users. In everything we publish or will publish, our role is strictly that of a distributor and intermediary: we do not produce, commission, edit or own the works made available through the Platform.",
+            "The Platform also hosts prediction raffles (“Raffles”) in which visitors call whether a clip is REAL footage or SYNTHETIC, staking an internal balance that can be topped up in cryptocurrency. In everything we publish, our role is strictly that of a distributor, intermediary and raffle operator: we do not produce, commission, edit or own the works made available through the Platform.",
           ],
         },
         {
           heading: "Ownership of Content — Rights Stay With the Authors",
           body: [
-            "All videos, prompts, instructions, titles, descriptions and other materials displayed on the Platform remain the exclusive intellectual property of their respective authors. Nothing in these Terms, and nothing you do on the Platform, transfers any ownership rights from an author to us or to you.",
+            "All videos, titles, descriptions and other materials displayed on the Platform remain the exclusive intellectual property of their respective authors. Nothing in these Terms, and nothing you do on the Platform, transfers any ownership rights from an author to us or to you.",
             "We claim no authorship of any third-party work. Any trademarks, handles or names shown on the Platform belong to their owners and are used solely for identification and attribution purposes.",
-            "Unless a creator grants you broader rights (for example, through the terms of a marketplace listing), you receive only a personal, non-exclusive, non-transferable right to view the content on the Platform and to use its sharing features. Any commercial use, re-upload, derivative work or redistribution of a creator’s work requires that creator’s separate permission.",
+            "Unless a creator grants you broader rights, you receive only a personal, non-exclusive, non-transferable right to view the content on the Platform and to use its sharing features. Any commercial use, re-upload, derivative work or redistribution of a creator’s work requires that creator’s separate permission.",
           ],
         },
         {
-          heading: "The Marketplace of Prompts and Instructions",
+          heading: "Internal Balance, Raffles and Payouts",
           body: [
-            "The marketplace will allow creators to list prompts, workflows and instructions for discovery, purchase and delivery through the Platform. Listings are created, described and supported by the creators who publish them; the Platform facilitates presentation, checkout and delivery but does not itself generate, test or warrant the results any prompt or instruction may produce.",
-            "When you acquire a prompt or instruction through the marketplace, the licence you receive is the one granted by the selling creator on the listing page. The Platform takes no commission in rights: a purchase never makes the Platform an owner or co-author of the item.",
-            "Because transactions happen between you and the selling creator, disputes about quality, suitability or expected results should be raised with the creator first. We may step in to moderate listings that violate these Terms or the rights of others.",
+            "Raffles are played with the Platform’s internal balance — a prepaid, non-interest-bearing accounting unit used inside the Platform. Your balance is recorded in a tamper-evident transaction ledger; only balances confirmed by our payment provider’s signed webhook are credited.",
+            "A stake is deducted from your balance the moment it enters the raffle pool and is not refundable while the round is open. When a round resolves, the prize pool is split pari-mutuel among the winning side pro-rata to stakes, minus the rake disclosed in the interface. Raffle outcomes are decided by the curator’s verdict on the underlying footage.",
+            "Internal balance is not legal tender and currently has no off-platform value. Our roadmap describes a future token on Base with conversion of internal balance — any such conversion, and any withdrawal of real funds, will additionally require identity verification and will only ever be executed to a wallet you control. Balances obtained through abuse, automation or fraud may be voided.",
           ],
         },
         {
@@ -61,13 +61,13 @@ export default function TermsPage() {
           heading: "Third-Party Services",
           body: [
             "Content on the Platform originates from public posts on third-party services, first and foremost Threads by Meta. Those services have their own terms of service and community standards, which apply to the original posts. We are not affiliated with, endorsed by or sponsored by Meta, Threads or any author whose work we display.",
-            "Links from the Platform to third-party sites (including a creator’s profile or a marketplace listing) are provided for convenience; we do not control and are not responsible for their content.",
+            "Links from the Platform to third-party sites (including a creator’s profile or our payment provider’s checkout) are provided for convenience; we do not control and are not responsible for their content.",
           ],
         },
         {
           heading: "Disclaimer of Warranties",
           body: [
-            "The Platform is provided on an “as is” and “as available” basis. To the fullest extent permitted by law we disclaim all warranties, express or implied, including merchantability, fitness for a particular purpose and non-infringement. We do not warrant that the feed will be uninterrupted, error-free, or that any particular video, prompt or instruction will remain available.",
+            "The Platform is provided on an “as is” and “as available” basis. To the fullest extent permitted by law we disclaim all warranties, express or implied, including merchantability, fitness for a particular purpose and non-infringement. We do not warrant that the feed will be uninterrupted, error-free, or that any particular raffle round will resolve within a specific time.",
           ],
         },
         {
@@ -80,7 +80,7 @@ export default function TermsPage() {
         {
           heading: "Changes",
           body: [
-            "We may update these Terms as the Platform evolves — in particular as the marketplace of prompts and instructions launches and matures. The “last updated” date above always reflects the current version. Continued use of the Platform after an update constitutes acceptance of the revised Terms.",
+            "We may update these Terms as the Platform evolves — in particular as the internal balance economy matures towards its Base-token phase. The “last updated” date above always reflects the current version. Continued use of the Platform after an update constitutes acceptance of the revised Terms.",
           ],
         },
       ]}

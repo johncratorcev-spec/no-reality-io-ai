@@ -238,7 +238,7 @@
 }
 
 /* --- веер джокерских карт: 3D ----------------------------------- */
-.nrld-fan-scene { perspective: 1300px; }
+.nrld-fan-scene { perspective: 1300px; overflow-x: clip; }
 .nrld-fan-card {
   transform-style: preserve-3d;
   transition: transform 0.55s cubic-bezier(0.34, 1.4, 0.5, 1), box-shadow 0.55s ease;

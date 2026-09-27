@@ -222,7 +222,7 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
                   setMood(m.key);
                   setHardOn(false);
                 }}
-                className="shrink-0 rounded-full border px-3 py-1.5 text-[0.6rem] font-black uppercase tracking-[0.16em] backdrop-blur-md transition-transform duration-200 hover:scale-[1.05] active:scale-95"
+                className="shrink-0 rounded-full border px-2.5 py-1.5 text-[0.6rem] font-black uppercase tracking-[0.12em] backdrop-blur-md transition-transform duration-200 hover:scale-[1.05] active:scale-95 sm:px-3 sm:tracking-[0.16em]"
                 style={{
                   borderColor: active ? m.color : "rgba(242,237,228,.14)",
                   color: active ? m.color : "rgba(242,237,228,.6)",
@@ -237,7 +237,7 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
 
           <button
             onClick={toggleHard}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-[0.6rem] font-black uppercase tracking-[0.16em] backdrop-blur-md transition-transform duration-200 hover:scale-[1.05] active:scale-95"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-[0.6rem] font-black uppercase tracking-[0.12em] backdrop-blur-md transition-transform duration-200 hover:scale-[1.05] active:scale-95 sm:px-3 sm:tracking-[0.16em]"
             style={{
               borderColor: hardOn ? "var(--nb-blood)" : "rgba(242,237,228,.14)",
               color: hardOn ? "var(--nb-blood)" : "rgba(242,237,228,.6)",
@@ -250,7 +250,7 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
             {hardLoading ? "…" : hardOn ? "HARD MODE" : "HARD"}
           </button>
 
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <div className="ml-1.5 flex shrink-0 items-center gap-1.5 sm:ml-auto">
             {/* live-индикатор: «сейчас ставят» */}
             {liveBettors != null && liveBettors > 0 && (
               <span

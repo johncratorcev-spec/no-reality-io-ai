@@ -8,6 +8,7 @@ import {
   recordUtmClick,
   visitorHashOf,
 } from "@/lib/utm";
+import { creditUtmReward } from "@/lib/utmReward";
 
 export const dynamic = "force-dynamic";
 
@@ -45,12 +46,19 @@ export async function POST(req: NextRequest) {
   }
 
   const ua = req.headers.get("user-agent") || "unknown";
-  await recordUtmClick({
+  const targetType = normalizeTargetType(body.targetType);
+  const targetId = normalizeTargetId(body.targetId);
+  const unique = await recordUtmClick({
     ownerCode,
-    targetType: normalizeTargetType(body.targetType),
-    targetId: normalizeTargetId(body.targetId),
+    targetType,
+    targetId,
     visitorHash: visitorHashOf(ip, ua),
   });
+
+  /* v6: уникальный переход = награда владельцу ссылки во внутреннюю валюту */
+  if (unique) {
+    await creditUtmReward({ ownerCode, targetType, targetId, visitorHash: visitorHashOf(ip, ua), ip, ua });
+  }
 
   return new NextResponse(null, { status: 204 });
 }

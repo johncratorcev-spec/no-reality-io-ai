@@ -30,7 +30,7 @@ const NAV = [
 
 const FOOTER_LINKS = [
   ...NAV,
-  { href: "/market", label: "◆ prompt market" },
+  { href: "/roadmap", label: "◈ roadmap" },
   { href: "/future", label: "◑ in future" },
   { href: "/feed", label: "▸ the feed" },
   { href: "/bet", label: "◈ the raffles" },

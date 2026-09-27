@@ -1,23 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { BetError, placeBet, roundView, type PlaceBetResult } from "@/lib/bet/core";
-import { readBettor, bettorResponse } from "@/lib/bet/identity";
+import {
+  BetError,
+  placeBet,
+  placeBetBalance,
+  roundView,
+  type PlaceBetResult,
+} from "@/lib/bet/core";
+import { readBettor } from "@/lib/bet/identity";
 import { normalizeRefCode } from "@/lib/referral";
 import { visitorHashOf } from "@/lib/utm";
 import { rateLimit } from "@/lib/rateLimit";
+import {
+  readAccount,
+  ensureAccount,
+  accountView,
+  type AccountRef,
+} from "@/lib/account";
 
 export const dynamic = "force-dynamic";
 
+const YEAR = 60 * 60 * 24 * 365;
+
 /**
  * POST /api/bet — ставка на раунд (§4.2).
- *   { round_id, side: real|synth, amount_cents, ref? }
+ *   { round_id, side: real|synth, amount_cents, ref?, mode?: "balance" }
  *
- * Anon-first: аккаунт не нужен, личность — httpOnly-cookie nr_bet.
+ * Режимы:
+ *   mode="balance" (v6, основной путь UI) — ставка с внутреннего баланса
+ *     мгновенного аккаунта (cookie nr_uid). Списание атомарно; внутренний
+ *     баланс — источник истины после удачного ответа вебхука пополнения.
+ *     Ответ содержит свежий account (баланс/пасс) + срез раунда.
+ *   без mode — легаси: demo (мгновенно) или crypto (инвойс 2328.io,
+ *     ставка станет активной после подписанного webhook'а).
+ *
  * Анти-фрод (§4.3.9): 10/мин на IP, одна активная ставка на раунд
  * с одного bettorId/fingerprint, cap суммы.
- * demo-режим (без 2328-ключей): ставка активна мгновенно.
- * crypto-режим: инвойс 2328.io → pay_url, ставка станет активной
- * после подписанного webhook'а.
  */
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
@@ -53,6 +71,55 @@ export async function POST(req: NextRequest) {
     req.cookies.get("nr_phantom")?.value?.toLowerCase() ||
     null;
 
+  /* ---- v6: баланс-режим (основной путь предикшен-воронки) ---- */
+  if (body.mode === "balance") {
+    const account: AccountRef = readAccount(req);
+    try {
+      const acc = await ensureAccount(account.id);
+      if (!acc) {
+        return accountResponseWrapped(account, bettor, { error: "account_failed" }, 500);
+      }
+      const result = await placeBetBalance({
+        roundId,
+        side: body.side,
+        amountCents: body.amount_cents,
+        bettorId: bettor.id,
+        accountId: account.id,
+        fingerprint,
+        refCode,
+        wallet: walletCookie,
+      });
+
+      const fresh = await ensureAccount(account.id);
+      const round = await db.round.findUnique({ where: { id: roundId } });
+      const myBet = await db.bet.findFirst({
+        where: { roundId, bettorId: bettor.id },
+        orderBy: { createdAt: "desc" },
+        select: { side: true, amountCents: true, status: true, payoutCents: true },
+      });
+      return accountResponseWrapped(account, bettor, {
+        bet_id: result.betId,
+        status: result.status,
+        mode: result.mode,
+        balance_cents: result.balanceCents ?? fresh.balanceCents,
+        account: accountView(fresh),
+        round: round ? roundView(round, myBet) : null,
+      });
+    } catch (e) {
+      if (e instanceof BetError) {
+        return accountResponseWrapped(
+          account,
+          bettor,
+          { error: e.code, message: e.message },
+          e.status
+        );
+      }
+      console.error("[bet] balance failed:", e instanceof Error ? e.message : e);
+      return accountResponseWrapped(account, bettor, { error: "bet_failed" }, 500);
+    }
+  }
+
+  /* ---- легаси: demo / crypto (инвойс 2328) ---- */
   try {
     const result: PlaceBetResult = await placeBet({
       roundId,
@@ -72,7 +139,7 @@ export async function POST(req: NextRequest) {
       select: { side: true, amountCents: true, status: true, payoutCents: true },
     });
 
-    return bettorResponse(bettor, {
+    return bettorResponseWrapped(bettor, {
       bet_id: result.betId,
       status: result.status,
       mode: result.mode,
@@ -81,13 +148,52 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     if (e instanceof BetError) {
-      return bettorResponse(
+      return bettorResponseWrapped(
         bettor,
         { error: e.code, message: e.message },
         e.status
       );
     }
     console.error("[bet] failed:", e instanceof Error ? e.message : e);
-    return bettorResponse(bettor, { error: "bet_failed" }, 500);
+    return bettorResponseWrapped(bettor, { error: "bet_failed" }, 500);
   }
+}
+
+/* обёртки, гарантирующие доставку cookies нового bettor/account */
+
+function bettorResponseWrapped(
+  bettor: { id: string; isNew: boolean },
+  body: unknown,
+  status = 200
+): NextResponse {
+  const res = NextResponse.json(body, { status });
+  if (bettor.isNew) {
+    res.cookies.set("nr_bet", bettor.id, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: YEAR,
+      path: "/",
+    });
+  }
+  return res;
+}
+
+function accountResponseWrapped(
+  account: { id: string; isNew: boolean },
+  bettor: { id: string; isNew: boolean },
+  body: unknown,
+  status = 200
+): NextResponse {
+  const res = bettorResponseWrapped(bettor, body, status);
+  if (account.isNew) {
+    res.cookies.set("nr_uid", account.id, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: YEAR,
+      path: "/",
+    });
+  }
+  return res;
 }

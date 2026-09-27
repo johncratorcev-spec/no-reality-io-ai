@@ -1,0 +1,469 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Coins, Gift, Wallet, X, Zap } from "lucide-react";
+import { BET, fmtUsd } from "@/lib/bet/config";
+import { DEPOSIT_PRESETS_CENTS, DAILY_BONUS_CENTS, fmtBalance } from "@/lib/econ";
+import { track } from "@/lib/bet/trackClient";
+import type { RoundView } from "@/lib/bet/roundView";
+import type { AccountView } from "@/hooks/use-account";
+
+/**
+ * PredictModal (v6) — модалка предикта: последняя ступень воронки.
+ *
+ * bet-режим:   выбор суммы → ставка с внутреннего баланса (мгновенно).
+ * topup-режим: не хватает баланса → крипто-пополнение USDT (2328.io).
+ *              Внутренний баланс — источник истины ПОСЛЕ удачного
+ *              ответа вебхука: модалка поллит статус инвойса, и как
+ *              только webhook зачислил деньги — выбранная ставка
+ *              дожимается автоматически.
+ *
+ * Воронка (крипто-адаптированная): никаких email/форм — кошелёк
+ * опционален и нужен только для NR PASS / leaderboard / кэшаута.
+ */
+
+type Side = "real" | "synth";
+
+interface PredictModalProps {
+  roundId: string;
+  clipCode: string;
+  /** null = открыта только для пополнения (без ставки) */
+  side: Side | null;
+  account: AccountView | null;
+  wallet: string | null;
+  onConnectWallet: () => void;
+  walletConnecting: boolean;
+  onClose: () => void;
+  /** ставка прошла — панель обновляет раунд/пул */
+  onPlaced: (resp: PlacedResponse) => void;
+  onAccountUpdate: (a: AccountView) => void;
+}
+
+interface PlacedResponse {
+  bet_id: string;
+  status: string;
+  mode: string;
+  balance_cents?: number;
+  account?: AccountView;
+  round?: RoundView | null;
+  error?: string;
+}
+
+const POLL_MS = 2500;
+const POLL_MAX = 150_000;
+
+export default function PredictModal({
+  roundId,
+  clipCode,
+  side,
+  account,
+  wallet,
+  onConnectWallet,
+  walletConnecting,
+  onClose,
+  onPlaced,
+  onAccountUpdate,
+}: PredictModalProps) {
+  const [mode, setMode] = useState<"bet" | "topup">(side ? "bet" : "topup");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [pendingAmount, setPendingAmount] = useState<number | null>(null);
+  const [deposit, setDeposit] = useState<{ orderId: string; payUrl: string | null; mode: string } | null>(null);
+  const [depositStatus, setDepositStatus] = useState<string>("pending");
+  const [awaitingNetwork, setAwaitingNetwork] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const aliveRef = useRef(true);
+
+  const balance = account?.balanceCents ?? 0;
+  const pendingSide = side ?? "real";
+
+  useEffect(() => {
+    aliveRef.current = true;
+    track("predict_modal_open", clipCode, { side, mode: side ? "bet" : "topup" });
+    return () => {
+      aliveRef.current = false;
+    };
+  }, [clipCode, side]);
+
+  const stopPoll = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => stopPoll, [stopPoll]);
+
+  const placeBet = useCallback(
+    async (amountCents: number) => {
+      setBusy(true);
+      setError("");
+      track("funnel_confirm", clipCode, { side: pendingSide, amount: amountCents });
+      try {
+        const ref = (() => {
+          try {
+            return localStorage.getItem("nr-ref");
+          } catch {
+            return null;
+          }
+        })();
+        const r = await fetch("/api/bet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            round_id: roundId,
+            side: pendingSide,
+            amount_cents: amountCents,
+            mode: "balance",
+            ref,
+          }),
+        });
+        const d = (await r.json()) as PlacedResponse & { account?: AccountView };
+        if (!r.ok || d.error) {
+          if (d.error === "insufficient_balance") {
+            setPendingAmount(amountCents);
+            setMode("topup");
+            track("funnel_insufficient", clipCode, { amount: amountCents });
+            return;
+          }
+          if (d.error === "already_bet") setError("ставка уже в банке");
+          else if (d.error === "round_closed") setError("шов закрылся — открой следующий");
+          else setError("банк не принял");
+          return;
+        }
+        if (d.account) onAccountUpdate(d.account);
+        onPlaced(d);
+      } catch {
+        setError("сеть дрогнула");
+      } finally {
+        if (aliveRef.current) setBusy(false);
+      }
+    },
+    [roundId, clipCode, pendingSide, onAccountUpdate, onPlaced]
+  );
+
+  /** авто-дожим ставки после зачисления баланса (вебхук → источник истины) */
+  const tryAutoBet = useCallback(
+    (fresh: AccountView) => {
+      const wanted = pendingAmount;
+      if (wanted == null || !side) return;
+      if (fresh.balanceCents >= wanted) {
+        setPendingAmount(null);
+        void placeBet(wanted);
+      }
+    },
+    [pendingAmount, side, placeBet]
+  );
+
+  const startDeposit = useCallback(
+    async (amountCents: number) => {
+      setBusy(true);
+      setError("");
+      track("topup_open", clipCode, { amount: amountCents });
+      try {
+        const r = await fetch("/api/wallet/deposit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount_cents: amountCents }),
+        });
+        const d = (await r.json()) as {
+          order_id?: string;
+          pay_url?: string | null;
+          mode?: string;
+          account?: AccountView;
+          error?: string;
+        };
+        if (!r.ok || d.error) {
+          setError(d.error === "demo_cap" ? "demo-лимит на сегодня" : "инвойс не создался");
+          return;
+        }
+        if (d.account) onAccountUpdate(d.account);
+
+        if (d.mode === "demo") {
+          /* sandbox: деньги уже на балансе — дожимаем ставку сразу */
+          setDepositStatus("paid");
+          if (d.account) tryAutoBet(d.account);
+          return;
+        }
+
+        setDeposit({ orderId: d.order_id ?? "", payUrl: d.pay_url ?? null, mode: "crypto" });
+        setDepositStatus("pending");
+        setAwaitingNetwork(true);
+        if (d.pay_url) {
+          try {
+            window.open(d.pay_url, "_blank", "noopener");
+          } catch {
+            /* попап заблокирован — кнопка «оплатить» останется в модалке */
+          }
+        }
+
+        /* поллинг статуса: зачисление делает ТОЛЬКО подписанный webhook;
+           как только баланс вырос — источник истины подтверждён */
+        stopPoll();
+        const started = Date.now();
+        pollRef.current = setInterval(async () => {
+          if (!aliveRef.current || !d.order_id) {
+            stopPoll();
+            return;
+          }
+          if (Date.now() - started > POLL_MAX) {
+            stopPoll();
+            setAwaitingNetwork(false);
+            setError("инвойс истёк — создай новый");
+            return;
+          }
+          try {
+            const pr = await fetch(`/api/wallet/deposit?order=${encodeURIComponent(d.order_id!)}`, {
+              cache: "no-store",
+            });
+            const pd = (await pr.json()) as { status?: string; balanceCents?: number };
+            if (pd.status === "paid") {
+              stopPoll();
+              setDepositStatus("paid");
+              setAwaitingNetwork(false);
+              const fresh = await fetch("/api/me", { cache: "no-store" })
+                .then((x) => x.json() as Promise<{ account?: AccountView }>)
+                .catch(() => ({ account: null }));
+              if (fresh.account) {
+                onAccountUpdate(fresh.account);
+                tryAutoBet(fresh.account);
+              }
+            }
+          } catch {
+            /* сеть моргнула — следующий тик */
+          }
+        }, POLL_MS);
+      } catch {
+        setError("сеть дрогнула");
+      } finally {
+        if (aliveRef.current) setBusy(false);
+      }
+    },
+    [clipCode, onAccountUpdate, tryAutoBet, stopPoll]
+  );
+
+  const claimDaily = useCallback(async () => {
+    const r = await fetch("/api/me/daily", { method: "POST" });
+    const d = (await r.json()) as { credited?: boolean; account?: AccountView };
+    if (d.account) onAccountUpdate(d.account);
+  }, [onAccountUpdate]);
+
+  const pickAmount = (amountCents: number) => {
+    if (amountCents > balance) {
+      setPendingAmount(amountCents);
+      setMode("topup");
+      track("funnel_insufficient", clipCode, { amount: amountCents });
+      return;
+    }
+    void placeBet(amountCents);
+  };
+
+  /* ---------- рендер ---------- */
+  const accent =
+    pendingSide === "real" ? "var(--nb-poison)" : "var(--nb-blood)";
+  const accentBg = pendingSide === "real" ? "rgba(200,255,0,.12)" : "rgba(255,0,60,.14)";
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-label="prediction"
+    >
+      {/* фон */}
+      <button
+        aria-label="close"
+        onClick={onClose}
+        className="absolute inset-0 cursor-default"
+        style={{ background: "rgba(4,3,8,.72)", backdropFilter: "blur(3px)" }}
+      />
+
+      {/* лист */}
+      <div
+        className="nb-panel relative w-full max-w-md rounded-t-3xl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 sm:rounded-3xl"
+        style={{ animation: "nb-sheet-up .28s cubic-bezier(.2,.9,.3,1) both" }}
+      >
+        {/* хват сверху (мобайл) */}
+        <div
+          aria-hidden
+          className="mx-auto mb-3 h-1 w-10 rounded-full sm:hidden"
+          style={{ background: "rgba(242,237,228,.25)" }}
+        />
+
+        {/* шапка */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p
+              className="text-[0.58rem] font-black uppercase tracking-[0.28em]"
+              style={{ color: "rgba(242,237,228,.45)" }}
+            >
+              {mode === "topup" ? "пополнение баланса" : "твой предикт"}
+            </p>
+            {mode === "bet" ? (
+              <p className="mt-1 flex items-center gap-2 text-[1.3rem] font-black leading-none">
+                <span
+                  className="rounded-lg px-2 py-1 text-[0.8rem]"
+                  style={{ background: accentBg, color: accent }}
+                >
+                  {pendingSide.toUpperCase()}
+                </span>
+                <span style={{ color: "var(--nb-bone)" }}>{fmtUsd(BET.minBetCents)}–{fmtUsd(BET.maxBetCents)}</span>
+              </p>
+            ) : (
+              <p className="mt-1 text-[1.05rem] font-black leading-tight" style={{ color: "var(--nb-bone)" }}>
+                топни баланс — вернись в пул
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Закрыть"
+            className="rounded-full p-2"
+            style={{ color: "rgba(242,237,228,.55)" }}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* строка баланса */}
+        <div
+          className="mt-4 flex items-center justify-between gap-2 rounded-2xl px-3.5 py-2.5"
+          style={{ background: "rgba(242,237,228,.05)", border: "1px solid rgba(242,237,228,.12)" }}
+        >
+          <span className="flex items-center gap-2 text-[0.8rem] font-extrabold" style={{ color: "rgba(242,237,228,.75)" }}>
+            <Coins className="h-4 w-4" style={{ color: "var(--nb-poison)" }} />
+            баланс
+          </span>
+          <span className="flex items-center gap-2">
+            {account?.isPass && (
+              <span
+                className="rounded-full px-2 py-0.5 text-[0.56rem] font-black tracking-[0.16em]"
+                style={{ background: "rgba(200,255,0,.14)", color: "var(--nb-poison)" }}
+              >
+                PASS
+              </span>
+            )}
+            <span className="text-[1.05rem] font-black" style={{ color: "var(--nb-bone)" }}>
+              {fmtBalance(balance)}
+            </span>
+          </span>
+        </div>
+
+        {/* ---- bet: пресеты суммы ---- */}
+        {mode === "bet" && (
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {BET.betPresetsCents.map((c) => {
+              const afford = c <= balance;
+              return (
+                <button
+                  key={c}
+                  disabled={busy}
+                  onClick={() => pickAmount(c)}
+                  className="nb-btn rounded-2xl px-2 py-4 text-[1.1rem] font-black disabled:opacity-60"
+                  style={{
+                    border: `1px solid ${afford ? accent : "rgba(242,237,228,.16)"}`,
+                    color: afford ? accent : "rgba(242,237,228,.38)",
+                    background: afford ? accentBg : "rgba(242,237,228,.03)",
+                  }}
+                >
+                  {fmtUsd(c)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ---- topup: пресеты пополнения + статус ---- */}
+        {mode === "topup" && (
+          <div className="mt-4">
+            {!deposit && (
+              <>
+                <p className="text-[0.72rem] font-bold" style={{ color: "rgba(242,237,228,.6)" }}>
+                  только крипто · USDT через 2328 · зачисление после подтверждения сети
+                </p>
+                <div className="mt-2.5 grid grid-cols-3 gap-2">
+                  {DEPOSIT_PRESETS_CENTS.map((c) => (
+                    <button
+                      key={c}
+                      disabled={busy}
+                      onClick={() => void startDeposit(c)}
+                      className="nb-btn nb-btn-real rounded-2xl px-2 py-4 text-[1.05rem] font-black"
+                    >
+                      {fmtUsd(c)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {deposit && depositStatus === "pending" && (
+              <div className="mt-3 flex flex-col items-center gap-2.5 py-2 text-center">
+                <Zap className="h-5 w-5 animate-pulse" style={{ color: "var(--nb-poison)" }} />
+                <p className="text-[0.82rem] font-black" style={{ color: "var(--nb-bone)" }}>
+                  ждём подтверждение сети…
+                </p>
+                <p className="text-[0.66rem] font-bold" style={{ color: "rgba(242,237,228,.55)" }}>
+                  баланс пополнится сразу после вебхука 2328 — ставка дожмётся сама
+                </p>
+                {deposit.payUrl && (
+                  <a
+                    href={deposit.payUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="nb-btn mt-1 rounded-full px-5 py-2.5 text-[0.78rem] font-black"
+                    style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
+                  >
+                    открыть инвойс 2328
+                  </a>
+                )}
+              </div>
+            )}
+
+            {depositStatus === "paid" && (
+              <p className="mt-3 text-center text-[0.85rem] font-black" style={{ color: "var(--nb-poison)" }}>
+                баланс пополнен ✓
+              </p>
+            )}
+
+            {/* мягкий CTA на кошелёк (опционально): PASS + ежедневный бонус */}
+            {!wallet && !deposit && (
+              <button
+                onClick={onConnectWallet}
+                disabled={walletConnecting}
+                className="nb-btn mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[0.78rem] font-bold"
+                style={{ border: "1px dashed rgba(242,237,228,.28)", color: "rgba(242,237,228,.7)" }}
+              >
+                <Wallet className="h-4 w-4" />
+                {walletConnecting ? "подключаем…" : "подключи кошелёк — откроет PASS и ежедневный бонус"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ошибка */}
+        {error && (
+          <p className="mt-2.5 text-[0.72rem] font-bold" style={{ color: "var(--nb-blood)" }}>
+            {error}
+          </p>
+        )}
+
+        {/* PASS-плашка daily */}
+        {account?.isPass && account.dailyAvailable && (
+          <button
+            onClick={() => void claimDaily()}
+            className="nb-btn mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-[0.74rem] font-black"
+            style={{ background: "rgba(200,255,0,.1)", color: "var(--nb-poison)", border: "1px solid rgba(200,255,0,.3)" }}
+          >
+            <Gift className="h-4 w-4" />
+            дневной бонус PASS · +{fmtBalance(DAILY_BONUS_CENTS)}
+          </button>
+        )}
+
+        {/* футер-примечание */}
+        <p className="mt-3 text-center text-[0.6rem] font-bold leading-relaxed" style={{ color: "rgba(242,237,228,.38)" }}>
+          без кошелька и регистрации · выигрыш приходит на баланс мгновенно
+        </p>
+      </div>
+    </div>
+  );
+}

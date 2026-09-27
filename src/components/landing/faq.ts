@@ -27,7 +27,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
   {
     q: "Is no reality. free to watch?",
-    a: "Yes. Watching, scrolling and sharing the feed is completely free, no account required. Betting is optional and starts at $1. Some authors also sell the prompt behind their video — those unlock with a one-time payment, but the feed itself never asks for money.",
+    a: "Yes. Watching, scrolling and sharing the feed is completely free, no account required. Predictions are optional and start at $1 from your internal balance — you get a welcome balance the moment you first play, no forms, no wallet needed. Topping up is crypto-only (USDT via 2328.io), and the feed itself never asks for money.",
   },
   {
     q: "What are the raffles?",

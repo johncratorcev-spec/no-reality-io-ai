@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getPostByCode } from "@/lib/csv";
 import { BET, betDemoEnabled } from "./config";
 import { trackEvent } from "./events";
+import { applyLedger } from "@/lib/account";
 import { is2328PaymentConfigured, create2328Payment } from "@/lib/2328/payment";
 
 /**
@@ -173,8 +174,141 @@ export interface PlaceBetInput {
 export interface PlaceBetResult {
   betId: string;
   status: "active" | "pending";
-  mode: "demo" | "crypto";
+  mode: "demo" | "crypto" | "balance";
   payUrl?: string;
+  balanceCents?: number;
+}
+
+/**
+ * v6 — ставка с внутреннего баланса (источник истины — LedgerTxn).
+ * Списание атомарно внутри транзакции создания ставки: нет денег →
+ * insufficient_balance (402) и никакого следа в пуле. Ставка активна
+ * мгновенно — депонирование уже случилось ранее (крипто-инвойс → webhook).
+ */
+export async function placeBetBalance(input: {
+  roundId: string;
+  side: unknown;
+  amountCents: unknown;
+  bettorId: string;
+  accountId: string;
+  fingerprint: string;
+  refCode?: string | null;
+  wallet?: string | null;
+}): Promise<PlaceBetResult> {
+  const side = input.side === "real" || input.side === "synth" ? input.side : null;
+  if (!side) throw new BetError("side must be real|synth", 400, "bad_side");
+
+  const amount = Number(input.amountCents);
+  if (!Number.isInteger(amount) || amount < BET.minBetCents || amount > BET.maxBetCents) {
+    throw new BetError(
+      `amount_cents must be ${BET.minBetCents}..${BET.maxBetCents}`,
+      400,
+      "bad_amount"
+    );
+  }
+
+  const round = await db.round.findUnique({ where: { id: input.roundId } });
+  if (!round) throw new BetError("round not found", 404, "round_not_found");
+  if (!truthOf(round.clipCode)) {
+    throw new BetError("clip is not bettable", 409, "not_bettable");
+  }
+  if (round.status !== "open" || round.closesAt.getTime() <= Date.now()) {
+    throw new BetError("round is closed", 409, "round_closed");
+  }
+
+  /* анти-фрод: одна ставка на раунд с одного bettorId/fingerprint */
+  const dupBettor = await db.bet.findFirst({
+    where: {
+      roundId: round.id,
+      bettorId: input.bettorId,
+      status: { in: ["pending", "active", "won", "lost"] },
+    },
+    select: { id: true },
+  });
+  if (dupBettor) {
+    throw new BetError("already bet this round", 409, "already_bet");
+  }
+  const dupFp = await db.bet.findFirst({
+    where: {
+      roundId: round.id,
+      fingerprint: input.fingerprint,
+      status: { in: ["pending", "active"] },
+    },
+    select: { id: true },
+  });
+  if (dupFp) {
+    throw new BetError("fingerprint already active this round", 409, "fingerprint_bet");
+  }
+
+  const wallet =
+    typeof input.wallet === "string" && input.wallet.length >= 20
+      ? input.wallet.toLowerCase().slice(0, 64)
+      : null;
+
+  const { bet, balanceCents } = await db.$transaction(async (tx) => {
+    const b = await tx.bet.create({
+      data: {
+        roundId: round.id,
+        clipCode: round.clipCode,
+        side,
+        amountCents: amount,
+        bettorId: input.bettorId,
+        accountId: input.accountId,
+        fingerprint: input.fingerprint,
+        refCode: input.refCode ?? null,
+        wallet,
+        mode: "balance",
+        status: "active",
+      },
+    });
+    /* списание с баланса внутри той же транзакции: нет денег → откат всего */
+    const debited = await applyLedger(
+      input.accountId,
+      -amount,
+      "bet_stake",
+      `bet:${b.id}`,
+      { betId: b.id, clip: round.clipCode, side },
+      tx
+    );
+    if (!debited) {
+      throw new BetError("not enough balance", 402, "insufficient_balance");
+    }
+    await tx.round.update({
+      where: { id: round.id },
+      data:
+        side === "real"
+          ? { poolRealCents: { increment: amount } }
+          : { poolSynthCents: { increment: amount } },
+    });
+    const acc = await tx.account.findUniqueOrThrow({
+      where: { id: input.accountId },
+      select: { balanceCents: true },
+    });
+    return { bet: b, balanceCents: acc.balanceCents };
+  });
+
+  moneyLog("bet_placed_balance", {
+    betId: bet.id,
+    roundId: round.id,
+    clip: round.clipCode,
+    side,
+    amountCents: amount,
+    balanceCents,
+    ref: input.refCode ?? null,
+  });
+  void trackEvent("bet_placed", {
+    clipCode: round.clipCode,
+    visitorHash: input.fingerprint,
+    meta: { mode: "balance", side, amountCents: amount, ref: input.refCode ?? null },
+  });
+  if (input.refCode) {
+    void trackEvent("ref_converted", {
+      clipCode: round.clipCode,
+      meta: { ref: input.refCode, betId: bet.id },
+    });
+  }
+
+  return { betId: bet.id, status: "active", mode: "balance", balanceCents };
 }
 
 /**
@@ -485,6 +619,26 @@ export async function resolveRound(roundId: string): Promise<ResolveSummary | nu
       where: { id: b.id, status: "active" },
       data: { status: won ? "won" : "lost", payoutCents: payout },
     });
+
+    /* v6: выигрыш balance-ставки зачисляется на внутренний баланс
+       (LedgerTxn, идемпотентно по betpay:<betId> — повторный вызов
+       resolveRound не задвоит) */
+    if (won && b.mode === "balance" && b.accountId && payout > 0) {
+      const credited = await applyLedger(
+        b.accountId,
+        payout,
+        "bet_payout",
+        `betpay:${b.id}`,
+        { betId: b.id, roundId: round.id, clip: round.clipCode }
+      );
+      if (credited) {
+        moneyLog("bet_payout_balance", {
+          betId: b.id,
+          accountId: b.accountId,
+          payoutCents: payout,
+        });
+      }
+    }
 
     void trackEvent(won ? "bet_won" : "bet_lost", {
       clipCode: round.clipCode,

@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
    - clicks: уникальные переходы по UTM-редиректам (Click) + топ кодов;
    - rating: сумма score (PostStats);
    - referrals: профили кошельков + события (checkout/paid) + начисления;
-   - purchases: покупки промптов по статусам.
+   - economy: аккаунты, внутренний баланс, крипто-пополнения (v6).
 
    Без ключа — 401; если БД недоступна — 503 (serverless-холодный старт).
    ================================================================ */
@@ -42,14 +42,16 @@ export async function GET(req: NextRequest) {
     const now = Date.now();
     const dayMs = 86_400_000;
 
-    const [visits, clicks, stats, profiles, events, purchases, favAgg, favTotal, utmClicks, markets, betsTotal] =
+    const [visits, clicks, stats, profiles, events, accounts, ledgerSum, deposits, favAgg, favTotal, utmClicks, markets, betsTotal] =
       await Promise.all([
         db.pageVisit.findMany({ orderBy: { createdAt: "asc" } }),
         db.click.findMany({ orderBy: { createdAt: "asc" } }),
         db.postStats.findMany({ orderBy: { score: "desc" } }),
         db.referralProfile.findMany({ orderBy: { createdAt: "asc" } }),
         db.referralEvent.findMany({ orderBy: { createdAt: "asc" } }),
-        db.purchase.findMany({ orderBy: { createdAt: "asc" } }),
+        db.account.findMany({ orderBy: { createdAt: "asc" } }),
+        db.ledgerTxn.aggregate({ _sum: { delta: true } }),
+        db.depositOrder.findMany({ orderBy: { createdAt: "asc" } }),
         // task 44: счётчики избранного (агрегат-таблица)
         db.favoriteStats.findMany({ orderBy: { count: "desc" } }),
         db.favorite.count(),
@@ -114,10 +116,13 @@ export async function GET(req: NextRequest) {
       .filter((e) => e.kind === "paid")
       .reduce((s, e) => s + Number(e.payoutUsdt ?? 0), 0);
 
-    /* --- purchases --- */
-    const purchasesByStatus = new Map<string, number>();
-    for (const p of purchases) {
-      purchasesByStatus.set(p.status, (purchasesByStatus.get(p.status) ?? 0) + 1);
+    /* --- economy (v6) --- */
+    const passUsers = accounts.filter((a) => a.passTier > 0).length;
+    const depositsByStatus = new Map<string, number>();
+    let depositsPaidCents = 0;
+    for (const d of deposits) {
+      depositsByStatus.set(d.status, (depositsByStatus.get(d.status) ?? 0) + 1);
+      if (d.status === "paid") depositsPaidCents += d.amountCents;
     }
 
     /* --- task 44: избранное (агрегат + точный total) --- */
@@ -168,9 +173,15 @@ export async function GET(req: NextRequest) {
         eventsByKind: Object.fromEntries(evByKind),
         accruedPayoutUsdt: payoutUsdt.toFixed(2),
       },
-      purchases: {
-        total: purchases.length,
-        byStatus: Object.fromEntries(purchasesByStatus),
+      economy: {
+        accounts: accounts.length,
+        passUsers,
+        balanceCents: ledgerSum._sum.delta ?? 0,
+        deposits: {
+          total: deposits.length,
+          byStatus: Object.fromEntries(depositsByStatus),
+          paidCents: depositsPaidCents,
+        },
       },
       favorites: {
         total: favTotal,

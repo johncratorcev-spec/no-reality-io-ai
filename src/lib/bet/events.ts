@@ -4,11 +4,12 @@ import { db } from "@/lib/db";
  * События аналитики (ТЗ v2 §4.3.10 + v5 воронка предикшен-ленты) —
  * best-effort: БД недоступна → событие теряется, UX не ломается.
  *
- * Серверные: bet_placed / bet_won / bet_lost / prompt_unlock /
+ * Серверные: bet_placed / bet_won / bet_lost / deposit_paid /
  * referral_earn / boost_purchase / ref_converted.
  * Клиентские (POST /api/track/event): prediction_view / clip_view /
  * wallet_connect / share_result / share_click / prompt_upsell_click /
- * referral_click / onboarding_*
+ * referral_click / onboarding_* / predict_modal_open / topup_open /
+ * funnel_* (воронка предикшенов v6)
  */
 export type TrackName =
   | "clip_view"
@@ -24,8 +25,21 @@ export type TrackName =
   | "share_click"
   | "share_result"
   | "prompt_upsell_click"
-  | "prompt_unlock"
   | "boost_purchase"
+  | "deposit_paid"
+  | "predict_modal_open"
+  | "topup_open"
+  | "topup_paid"
+  | "funnel_side_pick"
+  | "funnel_amount_pick"
+  | "funnel_confirm"
+  | "funnel_insufficient"
+  | "balance_refilled"
+  | "welcome_granted"
+  | "daily_claimed"
+  | "pass_granted"
+  | "reward_click"
+  | "utm_reward"
   | "onboarding_done"
   | "onboarding_skip"
   | "hard_mode_open"
@@ -45,8 +59,21 @@ const NAMES = new Set<string>([
   "share_click",
   "share_result",
   "prompt_upsell_click",
-  "prompt_unlock",
   "boost_purchase",
+  "deposit_paid",
+  "predict_modal_open",
+  "topup_open",
+  "topup_paid",
+  "funnel_side_pick",
+  "funnel_amount_pick",
+  "funnel_confirm",
+  "funnel_insufficient",
+  "balance_refilled",
+  "welcome_granted",
+  "daily_claimed",
+  "pass_granted",
+  "reward_click",
+  "utm_reward",
   "onboarding_done",
   "onboarding_skip",
   "hard_mode_open",

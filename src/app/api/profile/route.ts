@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
         wallet: wallet ?? null,
         email: email ?? null,
         refCode,
-        inviteUrl: refCode ? `${origin(req)}/market?ref=${refCode}` : null,
+        inviteUrl: refCode ? `${origin(req)}/bet?ref=${refCode}` : null,
         bonusCredits,
         badges,
         reach,

@@ -1,0 +1,25 @@
+# no-reality.fun — edge headers (Cloudflare Pages / Netlify / любой CDN).
+# Для proxied-origin те же правила уже продублированы в next.config.ts headers().
+
+# Хэшированный бандл Next — immutable, год.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Наши ассеты — неделя + SWR-сутки.
+/images/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+/sfx/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+/partner/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# API — никогда не кэшировать (ставки/баланс/сессии/health).
+/api/*
+  Cache-Control: no-store, max-age=0
+  X-Content-Type-Options: nosniff
+
+# Базовая защита для всех ответов.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
