@@ -46,6 +46,8 @@ export default function WalletButton() {
   const [magicEnabled, setMagicEnabled] = useState(false);
   const [magicEmail, setMagicEmail] = useState("");
   const [magicState, setMagicState] = useState<"idle" | "sending" | "sent">("idle");
+  /* v7: Google Sign-In — статус сервера (кнопка прячется без ключей) */
+  const [googleEnabled, setGoogleEnabled] = useState(false);
 
   /* сердце на карточке просит кошелёк → открываем connect-флоу */
   useEffect(() => {
@@ -95,6 +97,15 @@ export default function WalletButton() {
       } catch {
         /* magic остаётся выключенным */
       }
+      try {
+        const r = await fetch("/api/auth/google/status", { cache: "no-store" });
+        if (r.ok) {
+          const d = (await r.json()) as { enabled?: boolean };
+          setGoogleEnabled(Boolean(d.enabled));
+        }
+      } catch {
+        /* google остаётся выключенным */
+      }
     })();
   }, [open]);
 
@@ -143,15 +154,27 @@ export default function WalletButton() {
           {short(wallet)}
         </button>
       ) : (
-        <button
-          onClick={connect}
-          disabled={connecting}
-          className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f0ff] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#6d4fc2] transition-all duration-300 hover:scale-105 hover:bg-[#eae4ff] active:scale-95 disabled:opacity-60"
-          title="sign in with Phantom or MetaMask"
-        >
-          <span aria-hidden>🦇</span>
-          {connecting ? "connecting…" : "connect"}
-        </button>
+        <div className="flex items-center gap-1.5">
+          {googleEnabled && (
+            <a
+              href="/api/auth/google/start"
+              title="sign in with Google"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#1f2937] ring-1 ring-[#e5e7eb] transition-all duration-300 hover:scale-105 hover:bg-[#f9fafb] active:scale-95"
+            >
+              <span aria-hidden className="text-[0.8rem] font-black">G</span>
+              google
+            </a>
+          )}
+          <button
+            onClick={connect}
+            disabled={connecting}
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f0ff] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#6d4fc2] transition-all duration-300 hover:scale-105 hover:bg-[#eae4ff] active:scale-95 disabled:opacity-60"
+            title="sign in with Phantom or MetaMask"
+          >
+            <span aria-hidden>🦇</span>
+            {connecting ? "connecting…" : "connect"}
+          </button>
+        </div>
       )}
 
       {error && (
@@ -260,6 +283,17 @@ export default function WalletButton() {
                 {copied ? "copied ✓" : "copy invite"}
               </button>
             </>
+          )}
+
+          {/* ---------- Google Sign-In (v7): вход/регистрация одним тапом ---------- */}
+          {googleEnabled && (
+            <a
+              href="/api/auth/google/start"
+              className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-white px-3.5 py-2 text-[0.7rem] font-extrabold text-[#1f2937] ring-1 ring-[#e5e7eb] transition-colors hover:bg-[#f9fafb]"
+            >
+              <span aria-hidden className="text-[0.9rem] font-black">G</span>
+              sign in with Google
+            </a>
           )}
 
           {/* ---------- Magic Link (task 44 §6): email-вход как дополнение ---------- */}

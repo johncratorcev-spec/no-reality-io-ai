@@ -1047,3 +1047,27 @@ Stage Summary:
 - v6: продажа промптов удалена полностью; вход без регистрации (мгновенный аккаунт + welcome-баланс), внутренняя валюта — источник истины после вебхука; мотивация: NR PASS (daily/стрики), награды за целевые клики и UTM-переходы, антифрод в 4 слоя + Turnstile-ready; модалка предикта с крипто-топапом и авто-дожимом ставки; роадмап с токеном на Base и конвертацией в реальные деньги; адаптив-свип всех страниц чист; Cloudflare-подготовка (headers/redirects/health/docs)
 - Денежная цепочка: bet 30/30, cashout 37/37, boost 22/22, economy 36/36 — все на подписанных webhook'ах, идемпотентно
 - Env для прода: WELCOME_BONUS_CENTS, DAILY_BONUS_CENTS, CLICK_REWARD_CENTS(+DAILY_CAP), UTM_REWARD_CENTS(+DAILY_CAP), DEPOSIT_PREETS через ECON; TURNSTILE_SECRET включит капчу на наградах
+
+---
+Task ID: v7-release
+Agent: Super Z (main agent)
+Task: Релиз v7 по 15 пунктам ТЗ: Google auth; убрать реальные крипто-ставки; виртуальные ставки + 300 монет при регистрации; локализация; Instagram-бонус @mmayrday; платные бусты остаются криптой; панель резолва с секретным кодом; роадмап USDC на Base; тесты на тестовых монетках; кэширование Vercel+Supabase; архитектура/UI; воронка платного депозита с мультипликатором; оптимизация; iframe white-label; персональная UTM.
+
+Work Log:
+- SECURITY: секреты в .env (ADMIN_SECRET=NR-ORCL-…, ADMIN_SESSION_SECRET, VISITOR_SALT); дефолт "no-reality-secret" вырезан из всех auth-путей (track/round-resolve/admin/* — timing-safe через timingSafeEqual); src/lib/admin/session.ts — HMAC-cookie nr_admin (12ч, SameSite=None для iframe), POST/GET/DELETE /api/admin/session, rate limit 5/мин + брутфорс-тест в selftest.
+- DOUBLE-PAYOUT FIX: cashoutWonBets/claimableSummary/cashout-claim guard — mode:"crypto" ONLY; balance-выигрыши больше нельзя вывести крипто-пейаутом (v7-guard тест).
+- GOOGLE AUTH: lib/auth/google.ts (state-cookie CSRF, code exchange, aud check), /api/auth/google/{start,callback,status}; вход по email → привязка к гостевому nr_uid (баланс не теряется) или existing Account; PASSTier=1; кнопка Google в WalletButton (скрыта без ключей; sandbox: status enabled=false).
+- VIRTUAL-ONLY BETTING: /api/bet — mode:"balance" обязателен, легаси demo/crypto → 400 bet_mode_disabled; /api/cryo/bet mode:"phantom" → 410 onchain_bets_disabled; rb-webhook chain сохранена (инвойсы в полёте).
+- ECONOMY: welcome 300 монет (проверено selftest); fmtCoins/fmtBalance/fmtUsd → целые монеты; DEPOSIT_BONUS_PERCENTS=0/10/25 → DepositOrder.bonusCents + ledger deposit_bonus (idempotent по paymentUuid) + demo-путь тоже с бонусом; /api/wallet/deposit отдаёт bonus_cents/bonus_pct.
+- INSTAGRAM: lib/rewards/instagram.ts (HMAC open-cookie, min delay 25с, TTL 2ч) + /api/reward/instagram (GET ?open=1 → 302 instagram.com/mmayrday; POST claim → +300 один раз, refKey ig:<accountId>); already_claimed без куки.
+- RESOLVE PANEL: OracleConsole — вход по секретному коду (cookie, ключ больше не в localStorage/URL), вкладки MARKETS/ROUNDS/EVENTS, white-label ?wl=&accent=&embed=1; /api/admin/rounds (list + force verdict real|synth через resolveRound(opts.verdict) + force_resolve лог); /api/admin/events (POST → атомарный append в posts.csv: фото/видео одним https-URL, truth, mood; GET список).
+- ROADMAP: EN/RU — «каждая виртуальная монетка станет реальным USDC-эквивалентом на Base, 1:1 на TGE» + Google-вход, 300 монет, IG-задание, мультипликатор пакетов.
+- CACHING: lib/cache.ts (memory LRU + Supabase REST-адаптер по SUPABASE_URL/SERVICE_ROLE_KEY/CACHE_TABLE), /api/posts через cacheWrap 20с + edge s-maxage=60 SWR=300, docs/CACHING.md.
+- PERF/HEADERS: experimental.optimizePackageImports(lucide-react), compress, poweredByHeader=false; security headers (nosniff/referrer/permissions + CSP frame-ancestors 'self', /admin/* — frame-ancestors * для white-label iframe).
+- I18N: словарь bet.* (50+ ключей EN/RU), PredictModal и BetPanel полностью на useLang; модалка: монеты, мультипликатор-бейджи, IG-задание, IG_REWARD_CENTS=300.
+- TESTS: economy_selftest 57/57 (+депозитный бонус 1000→+1100, bet_mode_disabled ×2, IG open/too_fast/no-cookie/claim/dup, админ-сессия 7 проверок, google status); bet_selftest 30/30 (balance-режим, банк 700, формулы 157/472/0, ref 0.06); cashout_selftest 36/36 (легаси crypto-цепочка через БД+webhook + v7-guard); boost_selftest 22/22; tsc clean; eslint clean.
+
+Stage Summary:
+- Ветка main, все 15 пунктов ТЗ закрыты; крипта осталась ТОЛЬКО на депозитах (dp-*, с мультипликатором) и бустах (bs-*); ставки — виртуальные монеты.
+- Секретный код панели резолва выдан владельцу в отчёте релиза (NR-ORCL-8EFD8ED41124-80930B42), .env в .gitignore.
+- Google-вход активируется env GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (redirect: /api/auth/google/callback), в sandbox кнопка скрыта и selftest проверяет disabled-state.

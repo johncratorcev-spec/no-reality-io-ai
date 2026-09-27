@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
+import {
+  hasAdminSession,
+  legacyKeyMatches,
+  adminConfigured,
+} from "@/lib/admin/session";
 import { db } from "@/lib/db";
 import { referralRatePct } from "@/lib/referral";
 
@@ -22,10 +27,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  const key =
+  /* v7: сессия (cookie nr_admin) или легаси-ключ — оба timing-safe. */
+  if (!adminConfigured()) {
+    return NextResponse.json({ error: "admin_not_configured" }, { status: 503 });
+  }
+  const legacyKey =
     req.nextUrl.searchParams.get("key") || req.headers.get("x-admin-key");
-  const secret = process.env.ADMIN_SECRET || "no-reality-secret";
-  if (!key || key !== secret) {
+  if (!hasAdminSession(req) && !legacyKeyMatches(legacyKey)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

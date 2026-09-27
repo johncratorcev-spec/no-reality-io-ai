@@ -573,18 +573,29 @@ export interface ResolveSummary {
  * open|locked → resolved через updateMany; повторный вызов вернёт null.
  * Вызывать только после closesAt (ленивый cron в /api/round + внешний cron).
  */
-export async function resolveRound(roundId: string): Promise<ResolveSummary | null> {
+export async function resolveRound(
+  roundId: string,
+  opts?: { verdict?: "real" | "synth" }
+): Promise<ResolveSummary | null> {
   const round = await db.round.findUnique({ where: { id: roundId } });
   if (!round || round.status === "resolved") return null;
-  if (round.closesAt.getTime() > Date.now()) return null; // ещё открыт
+  /* v7: opts.verdict — принудительный вердикт панели резолва (real|synth):
+     перекрывает CSV-truth и разрешает досрочное закрытие (право оракула). */
+  const forced =
+    opts?.verdict === "real" || opts?.verdict === "synth" ? opts.verdict : null;
+  if (!forced && round.closesAt.getTime() > Date.now()) return null; // ещё открыт
 
-  const truth = truthOf(round.clipCode);
+  const truth = forced ?? truthOf(round.clipCode);
   if (!truth) {
     console.error(
       "[money-op][bet] resolve_blocked_no_truth",
       JSON.stringify({ roundId: round.id, clip: round.clipCode })
     );
     return null; // куратор снял truth у живого раунда — разбор вручную
+  }
+
+  if (forced) {
+    moneyLog("force_resolve", { roundId: round.id, clip: round.clipCode, verdict: forced });
   }
 
   /* гейт идемпотентности: ровно один вызов проходит дальше */

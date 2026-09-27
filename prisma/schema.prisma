@@ -223,6 +223,9 @@ model DepositOrder {
   orderId     String    @unique // dp-<id>
   paymentId   String?   @unique // uuid платежа 2328 (webhook)
   amountCents Int
+  // v7: бонус-мультипликатор пакета (0/10/25%) — начисляется тем же
+  // вебхуком отдельной ledger-строкой deposit_bonus:<paymentId>
+  bonusCents  Int       @default(0)
   status      String    @default("pending") // pending | paid | failed
   mode        String    @default("crypto") // crypto | demo
   txid        String?

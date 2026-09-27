@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
 import { getPostByCode } from "@/lib/csv";
 import { FEATURES } from "@/lib/features";
+import { visitorSalt } from "@/lib/utm";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
       : "";
   if (!visitorHash) {
     const ua = req.headers.get("user-agent") || "unknown";
-    const secret = process.env.ADMIN_SECRET || "no-reality-secret";
+    const secret = visitorSalt();
     visitorHash = createHash("sha256")
       .update(`${ip}::${ua}::${secret}`)
       .digest("hex");

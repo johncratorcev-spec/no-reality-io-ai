@@ -46,7 +46,14 @@ import { createHmac } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
+import { readFileSync } from "node:fs";
+
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
+const ADMIN_SECRET_ENV = (readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
+  .split("\n")
+  .find((l) => l.startsWith("ADMIN_SECRET=")) || "")
+  .split("=")[1]?.replace(/"/g, "")
+  .trim();
 const DB_PATH = path.resolve(process.cwd(), "db/custom.db");
 const PAYMENT_KEY = "test-payment-key";
 const CLIP = "71vsIPUu";
@@ -249,11 +256,53 @@ async function run() {
     .get(`deposit:${depUuid}`);
   ok("двойного зачисления нет (refKey unique)", (ledgerDep?.n ?? 0) === 1, `rows=${ledgerDep?.n}`);
 
+  /* --- v7: бонус-мультипликатор пакета (1000 → +10%) --- */
+  const balBeforeBig = await balOf();
+  const depBig = await U("POST", "/api/wallet/deposit", { amount_cents: 1000 });
+  ok(
+    "пакет 1000: инвойс с бонусом",
+    depBig.status === 200 && depBig.json.bonus_cents === 100 && depBig.json.bonus_pct === 10,
+    `bonus=${depBig.json.bonus_cents}/${depBig.json.bonus_pct}% ${depBig.json.error || ""}`
+  );
+  const bigUuid = String(depBig.json.pay_url || "").split("/pay/")[1] || "";
+  const bigRow = db()
+    .prepare("SELECT id, orderId, bonusCents FROM DepositOrder WHERE paymentId = ?")
+    .get(bigUuid);
+  ok("DepositOrder.bonusCents = 100", bigRow?.bonusCents === 100, `row=${bigRow?.bonusCents}`);
+  cleanup.deposits.push(bigRow?.id);
+  cleanup.accounts.push(bigRow?.accountId);
+  const goodBig = await webhook2328(
+    { uuid: bigUuid, order_id: bigRow.orderId, payment_status: "paid", txid: "mock-tx-big", amount: "10.00", currency: "USDT" },
+    PAYMENT_KEY
+  );
+  ok("бонус-пакет webhook принят", goodBig === 200);
+  const balAfterBig = await balOf();
+  ok("баланс +1100 (1000 + бонус 10%)", balAfterBig === balBeforeBig + 1100, `${balBeforeBig} → ${balAfterBig}`);
+  const bonusTxn = db()
+    .prepare("SELECT COUNT(*) AS n FROM LedgerTxn WHERE refKey = ? AND kind = 'deposit_bonus'")
+    .get(`deposit_bonus:${bigUuid}`);
+  ok("ledger deposit_bonus записан", (bonusTxn?.n ?? 0) === 1, `rows=${bonusTxn?.n}`);
+
   /* === E. ставка с баланса === */
   const roundOpen = await U("GET", `/api/round?clip=${CLIP}`);
   const round = roundOpen.json.round;
   ok("раунд открыт", roundOpen.status === 200 && Boolean(round?.id), round?.id?.slice(0, 8));
   cleanup.rounds.push(round?.id);
+
+  /* === E0. v7: крипто/demo-ставки сняты с производства === */
+  const betLegacy = await U("POST", "/api/bet", {
+    round_id: round.id,
+    side: "real",
+    amount_cents: 100,
+  });
+  ok("ставка без mode → bet_mode_disabled (400)", betLegacy.status === 400 && betLegacy.json.error === "bet_mode_disabled", betLegacy.json.error);
+  const betCrypto = await U("POST", "/api/bet", {
+    round_id: round.id,
+    side: "real",
+    amount_cents: 100,
+    mode: "crypto",
+  });
+  ok("mode=crypto → bet_mode_disabled (400)", betCrypto.status === 400 && betCrypto.json.error === "bet_mode_disabled", betCrypto.json.error);
 
   const balBeforeBet = await balOf();
   const bet1 = await U("POST", "/api/bet", {
@@ -298,6 +347,20 @@ async function run() {
     mode: "balance",
   });
   ok("сверх баланса → insufficient_balance (402)", poorBet.status === 402 && poorBet.json.error === "insufficient_balance", poorBet.json.error);
+
+  /* === F0. Instagram-задание: open сейчас, claim после ожидания резолва
+     (мин. задержка 25с между open и claim пройдёт во время ожидания F) === */
+  const Ig = makeClient("ig-user");
+  const igMe = await Ig("GET", "/api/me");
+  cleanup.accounts.push(igMe.json.account?.accountId);
+  const igOpen = await Ig("GET", "/api/reward/instagram?open=1");
+  ok("IG open → 302 на instagram", igOpen.status === 302 && String(igOpen.location || "").includes("instagram.com"), igOpen.location);
+  const igClaimFast = await Ig("POST", "/api/reward/instagram");
+  ok("IG claim сразу → too_fast (425)", igClaimFast.status === 425, `status=${igClaimFast.status}`);
+  const igNoCookie = makeClient("ig-nocookie");
+  await igNoCookie("GET", "/api/me");
+  const igClaimNoOpen = await igNoCookie("POST", "/api/reward/instagram");
+  ok("IG claim без open-куки → 403", igClaimNoOpen.status === 403, `status=${igClaimNoOpen.status}`);
 
   /* === F. резолв → выплата на баланс === */
   console.log("  … ждём closesAt раунда (окно 45с в sandbox) …");
@@ -354,9 +417,50 @@ async function run() {
   ok("повторный тот же visitor → награды нет", (utmReward2?.n ?? 0) === 1, `rows=${utmReward2?.n}`);
   d6.close();
 
+  /* === G2. v7: claim Instagram-награды (задержка уже прошла) === */
+  const igClaim = await Ig("POST", "/api/reward/instagram");
+  ok("IG claim → ok +300", igClaim.status === 200 && igClaim.json.ok === true && igClaim.json.rewardCents === 300, igClaim.json.error || `+${igClaim.json.rewardCents}`);
+  const igDup = await Ig("POST", "/api/reward/instagram");
+  ok("IG повторный claim → already_claimed (409)", igDup.status === 409 && igDup.json.error === "already_claimed", igDup.json.error);
+
   /* === H. живость === */
   const health = await U("GET", "/api/health");
   ok("health ok, db up", health.status === 200 && health.json.ok === true && health.json.db === "up");
+
+  /* === I. v7: админ-сессия (секретный код) + Google status === */
+  ok("ADMIN_SECRET читается из .env", Boolean(ADMIN_SECRET_ENV), `${ADMIN_SECRET_ENV?.slice(0, 8)}…`);
+
+  const gStatus = await U("GET", "/api/auth/google/status");
+  ok("google status отвечает (sandbox: disabled)", gStatus.status === 200 && gStatus.json.enabled === false, `enabled=${gStatus.json.enabled}`);
+
+  const admNo = makeClient("admin-probe");
+  const admNoState = await admNo("GET", "/api/admin/session");
+  ok("админ-сессия до входа → authed false", admNoState.status === 200 && admNoState.json.authed === false);
+
+  const admBad = await admNo("POST", "/api/admin/session", { code: "wrong-code-123" });
+  ok("неверный код → 401", admBad.status === 401, `status=${admBad.status}`);
+
+  const admOk = await admNo("POST", "/api/admin/session", { code: ADMIN_SECRET_ENV });
+  ok("верный код → 200 + cookie", admOk.status === 200, `status=${admOk.status}`);
+
+  const admState = await admNo("GET", "/api/admin/session");
+  ok("админ-сессия после входа → authed true", admState.json.authed === true);
+
+  const admRounds = await admNo("GET", "/api/admin/rounds");
+  ok("панель: раунды видны по cookie-сессии", admRounds.status === 200 && Array.isArray(admRounds.json.rounds), `rounds=${admRounds.json.rounds?.length}`);
+
+  const admNoKey = makeClient("admin-nosess");
+  const admNoKeyRes = await admNoKey("GET", "/api/admin/rounds");
+  ok("без сессии/ключа → 401", admNoKeyRes.status === 401);
+
+  /* анти-брутфорс: после 5 неудачных попыток в минуту → 429 */
+  let brute429 = false;
+  for (let i = 0; i < 5; i++) {
+    const r = await admNoKey("POST", "/api/admin/session", { code: `brute-${i}` });
+    if (r.status === 429) brute429 = true;
+  }
+  const bruteLast = await admNoKey("POST", "/api/admin/session", { code: "brute-final" });
+  ok("брутфорс кода → 429 (rate limit)", brute429 || bruteLast.status === 429, `last=${bruteLast.status}`);
 
   /* ---------- итог ---------- */
   console.log(`\n[economy-selftest] ${passed} PASS, ${failed} FAIL`);

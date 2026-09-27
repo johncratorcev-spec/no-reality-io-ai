@@ -36,6 +36,14 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
 
+  /* v7 (п.13 ТЗ): скорость. Иконки lucide тянутся поимённо —
+        optimizePackageImports режет мёртвые экспорты из бандла. */
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
+  compress: true,
+  poweredByHeader: false,
+
   /* v4: mood-каналы убраны; v6: продажа промптов убрана entirely —
      старые ссылки /market ведут в предикшен-ленту. */
   async redirects() {
@@ -47,13 +55,15 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  /* Task 44 (Cloudflare free, §1): origin-заголовки, которыми CF (и любые
-     CDN/браузеры) руководствуются автоматически:
+  /* Task 44 (Cloudflare free, §1) + v7 (п.10/14 ТЗ): origin-заголовки.
        - /_next/static — хэшированный бандл: immutable, год;
        - /images, /sfx, /partner — наши ассеты: неделя + SWR-сутки;
-       - /api — никогда не кэшировать (ставки/сессии/статистика).
-     HTML Next отдаёт сам с no-store (страницы динамические) — в CF
-     достаточно Cache Rule «Bypass для HTML», см. docs/cloudflare-setup.md. */
+       - /api/posts — единственный «контентный» API: edge-кэш Vercel/CF
+         60с + SWR 5 мин (лиента меняется редко, ставки — не тут);
+       - /api — всё остальное никогда не кэшировать;
+       - /admin/:path* — допускаем встраивание в iframe (white label):
+         frame-ancestors *; остальной сайт — только self;
+       - базовые security-заголовки на всё. */
   async headers() {
     return [
       {
@@ -75,8 +85,44 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/api/posts",
+        headers: [
+          {
+            key: "Cache-Control",
+            value:
+              "public, s-maxage=60, stale-while-revalidate=300, max-age=15",
+          },
+        ],
+      },
+      {
         source: "/api/:path*",
         headers: [{ key: "Cache-Control", value: "no-store, max-age=0" }],
+      },
+      {
+        source: "/admin/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors *",
+          },
+        ],
+      },
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+          /* CSP frame-ancestors вместо X-Frame-Options: /admin перекрывается
+             своим правилом выше (white-label iframe), остальное — only self */
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'self'",
+          },
+        ],
       },
     ];
   },

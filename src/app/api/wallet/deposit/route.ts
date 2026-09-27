@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
       order_id: dep.orderId,
       pay_url: dep.payUrl,
       mode: dep.mode,
+      /* v7: бонус-мультипликатор пакета (монеты сверху, % пакета) */
+      bonus_cents: dep.bonusCents,
+      bonus_pct: dep.bonusPct,
       presets: ECON.depositPresetsCents,
       account: accountView(fresh),
     });

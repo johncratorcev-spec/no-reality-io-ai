@@ -40,10 +40,18 @@ export function normalizeTargetId(raw: unknown): string {
   return /^[\w-]{0,64}$/.test(id) ? id : "";
 }
 
+/** соль анонимного отпечатка: VISITOR_SALT (v7), фолбэк — старая связка */
+export function visitorSalt(): string {
+  return (
+    process.env.VISITOR_SALT ||
+    process.env.ADMIN_SECRET ||
+    "no-reality-salt"
+  );
+}
+
 /** анонимный visitor-отпечаток (канон /r/[code]) */
 export function visitorHashOf(ip: string, ua: string): string {
-  const secret = process.env.ADMIN_SECRET || "no-reality-secret";
-  return createHash("sha256").update(`${ip}::${ua}::${secret}`).digest("hex");
+  return createHash("sha256").update(`${ip}::${ua}::${visitorSalt()}`).digest("hex");
 }
 
 /**

@@ -33,6 +33,7 @@ import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 const DB_PATH = path.resolve(process.cwd(), "db/custom.db");
@@ -64,13 +65,13 @@ function sign2328(body, key) {
 
 /* ---------- cookie-jar fetch ---------- */
 function makeClient(name) {
-  let cookie = "";
-  return async function api(method, url, body) {
+  const jar = { cookie: "" };
+  async function api(method, url, body) {
     const res = await fetch(`${BASE}${url}`, {
       method,
       headers: {
         ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(cookie ? { cookie } : {}),
+        ...(jar.cookie ? { cookie: jar.cookie } : {}),
         "user-agent": `cashout-selftest/1.0 (${name})`,
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -78,14 +79,29 @@ function makeClient(name) {
     const sc = res.headers.getSetCookie?.() || [res.headers.get("set-cookie") || ""];
     for (const c of sc) {
       const m = /nr_bet=([^;]+)/.exec(c || "");
-      if (m) cookie = `nr_bet=${m[1]}`;
+      if (m) jar.cookie = `nr_bet=${m[1]}`;
     }
     let json = null;
     try {
       json = await res.json();
     } catch {}
     return { status: res.status, json };
-  };
+  }
+  api.jar = jar;
+  return api;
+}
+
+/** легаси crypto-ставка (v7 снимает crypto-путь из API, но webhook-цепочка
+    rb-* жива для инвойсов «в полёте») — создаём pending-строку как делал API */
+function seedLegacyCryptoBet(roundId, clipCode, bettorId, side, amountCents, refCode) {
+  const betId = randomUUID();
+  const d = db();
+  d.prepare(
+    `INSERT INTO Bet (id, roundId, clipCode, side, amountCents, bettorId, fingerprint, refCode, mode, orderId, status, claimed, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, 'cashout-selftest', ?, 'crypto', ?, 'pending', 0, datetime('now'), datetime('now'))`
+  ).run(betId, roundId, clipCode, side, amountCents, bettorId, refCode || null, `rb-${betId}`);
+  d.close();
+  return betId;
 }
 
 /* ---------- mock-2328 launcher ---------- */
@@ -142,23 +158,24 @@ async function run() {
   const round = r1.json.round;
   created.rounds.push(round.id);
 
-  const b1 = await A("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 100 });
-  ok("crypto-ставка принята", b1.status === 200 && b1.json.bet_id, `mode=${b1.json.mode}`);
-  ok("ставка pending до оплаты", b1.json.status === "pending");
-  ok("pay_url от мока 2328", typeof b1.json.pay_url === "string" && b1.json.pay_url.includes("/pay/"), b1.json.pay_url);
-  const paymentUuid = (b1.json.pay_url || "").split("/pay/")[1] || "";
-  created.bets.push(b1.json.bet_id);
-  const orderRow0 = db().prepare("SELECT orderId FROM Bet WHERE id = ?").get(b1.json.bet_id);
+  /* v7: crypto-инвойс per-bet снят с производства — легаси-цепочку симулируем
+     строкой в БД (как инвойс, созданный до миграции), вебхуки те же */
+  const bettorA = /nr_bet=([^;]+)/.exec(A.jar.cookie || "")?.[1];
+  const b1id = seedLegacyCryptoBet(round.id, created.clip, bettorA, "real", 100, null);
+  const paymentUuid = randomUUID();
+  ok("легаси crypto-ставка создана (pending)", Boolean(b1id) && Boolean(bettorA), b1id.slice(0, 8));
+  created.bets.push(b1id);
+  const orderRow0 = db().prepare("SELECT orderId FROM Bet WHERE id = ?").get(b1id);
   ok("orderId rb-* записан", String(orderRow0?.orderId || "").startsWith("rb-"), orderRow0?.orderId);
 
-  const betRow0 = db().prepare("SELECT status FROM Bet WHERE id = ?").get(b1.json.bet_id);
+  const betRow0 = db().prepare("SELECT status FROM Bet WHERE id = ?").get(b1id);
   ok("в пуле до оплаты ставки нет", betRow0?.status === "pending");
 
   /* === 2. битая подпись → 401 === */
   const badSign = await webhook2328(
     {
       uuid: paymentUuid,
-      order_id: `rb-${b1.json.bet_id}`,
+      order_id: `rb-${b1id}`,
       payment_status: "paid",
       txid: "mock-tx-1",
       amount: "1.00",
@@ -167,14 +184,14 @@ async function run() {
     "wrong-key-XXXX"
   );
   ok("webhook с битой подписью → 401", badSign === 401);
-  const stillPending = db().prepare("SELECT status FROM Bet WHERE id = ?").get(b1.json.bet_id);
+  const stillPending = db().prepare("SELECT status FROM Bet WHERE id = ?").get(b1id);
   ok("после 401 ставка осталась pending", stillPending?.status === "pending");
 
   /* === 3. верная подпись → active + пул === */
   const good = await webhook2328(
     {
       uuid: paymentUuid,
-      order_id: `rb-${b1.json.bet_id}`,
+      order_id: `rb-${b1id}`,
       payment_status: "paid",
       txid: "mock-tx-1",
       amount: "1.00",
@@ -183,23 +200,20 @@ async function run() {
     PAYMENT_KEY
   );
   ok("payment webhook принят", good === 200);
-  const activeRow = db().prepare("SELECT status FROM Bet WHERE id = ?").get(b1.json.bet_id);
+  const activeRow = db().prepare("SELECT status FROM Bet WHERE id = ?").get(b1id);
   ok("ставка active после оплаты", activeRow?.status === "active");
 
   /* вторая ставка: D, $5 SYNTH, с реферальным кодом (проиграет) */
-  const b2 = await D("POST", "/api/bet", {
-    round_id: round.id,
-    side: "synth",
-    amount_cents: 500,
-    ref: "rselftest99",
-  });
-  ok("crypto-ставка D с рефом принята", b2.status === 200 && b2.json.bet_id, `mode=${b2.json.mode}`);
-  created.bets.push(b2.json.bet_id);
-  const uuidD = (b2.json.pay_url || "").split("/pay/")[1] || "";
+  await D("GET", `/api/round?clip=${created.clip}`); // nr_bet cookie
+  const bettorD = /nr_bet=([^;]+)/.exec(D.jar.cookie || "")?.[1];
+  const b2id = seedLegacyCryptoBet(round.id, created.clip, bettorD, "synth", 500, "rselftest99");
+  ok("легаси crypto-ставка D с рефом создана", Boolean(b2id) && Boolean(bettorD), b2id.slice(0, 8));
+  created.bets.push(b2id);
+  const uuidD = randomUUID();
   await webhook2328(
     {
       uuid: uuidD,
-      order_id: `rb-${b2.json.bet_id}`,
+      order_id: `rb-${b2id}`,
       payment_status: "paid",
       txid: "mock-tx-2",
       amount: "5.00",
@@ -221,12 +235,12 @@ async function run() {
 
   /* A один в REAL: payout = prize = 600 − 60 = 540 */
   const meA = await A("GET", "/api/me/bets");
-  const betA = meA.json.bets?.find((b) => b.id === b1.json.bet_id);
+  const betA = meA.json.bets?.find((b) => b.id === b1id);
   const expectA = Math.floor((600 - 60) * 100 / 100);
   ok("A: won с payout prize", betA?.status === "won" && betA.payoutCents === expectA, `payout=${betA?.payoutCents} expect=${expectA}`);
 
   const meD = await D("GET", "/api/me/bets");
-  const betD = meD.json.bets?.find((b) => b.id === b2.json.bet_id);
+  const betD = meD.json.bets?.find((b) => b.id === b2id);
   ok("D: lost, payout=0", betD?.status === "lost" && betD.payoutCents === 0, `status=${betD?.status} payout=${betD?.payoutCents}`);
 
   /* === 5. рефералка === */
@@ -259,7 +273,7 @@ async function run() {
   /* === 8. БД: claimed + повторный кэшаут === */
   const claimedRow = db()
     .prepare("SELECT claimed, payoutOrderId FROM Bet WHERE id = ?")
-    .get(b1.json.bet_id);
+    .get(b1id);
   ok("bet.claimed=1", claimedRow?.claimed === 1, `payoutOrderId=${claimedRow?.payoutOrderId}`);
   ok("payoutOrderId bw-*", String(claimedRow?.payoutOrderId || "").startsWith("bw-"));
 
@@ -286,7 +300,7 @@ async function run() {
     PAYOUT_KEY
   );
   ok("payout failed webhook принят", failedSt === 200);
-  const unclaimedRow = db().prepare("SELECT claimed, payoutOrderId FROM Bet WHERE id = ?").get(b1.json.bet_id);
+  const unclaimedRow = db().prepare("SELECT claimed, payoutOrderId FROM Bet WHERE id = ?").get(b1id);
   ok("claimed снят после failed", unclaimedRow?.claimed === 0);
 
   const sum3 = await A("GET", "/api/me/cashout");
@@ -295,7 +309,7 @@ async function run() {
   /* повторный кэшаут после отката */
   const co2 = await A("POST", "/api/me/cashout", { wallet: W });
   ok("повторный кэшаут после отката ok", co2.status === 200 && co2.json.amountCents === expectA, `new bw-${co2.json.cashoutId}`);
-  const reClaimed = db().prepare("SELECT payoutOrderId, claimed FROM Bet WHERE id = ?").get(b1.json.bet_id);
+  const reClaimed = db().prepare("SELECT payoutOrderId, claimed FROM Bet WHERE id = ?").get(b1id);
   ok("новый payoutOrderId", reClaimed?.claimed === 1 && reClaimed.payoutOrderId !== bwId);
 
   /* === 10. completed → остаётся claimed === */
@@ -313,7 +327,7 @@ async function run() {
     PAYOUT_KEY
   );
   ok("payout completed webhook принят", doneSt === 200);
-  const finalRow = db().prepare("SELECT claimed FROM Bet WHERE id = ?").get(b1.json.bet_id);
+  const finalRow = db().prepare("SELECT claimed FROM Bet WHERE id = ?").get(b1id);
   ok("после completed claimed=1", finalRow?.claimed === 1);
 
   /* === 11. позиции в /api/me/bets === */
@@ -321,6 +335,21 @@ async function run() {
   ok("позиции: claimed-флаг в списке", typeof pos.json.bets?.[0]?.claimed === "boolean");
   ok("позиции: payoutsEnabled в сводке", pos.json.payoutsEnabled === true);
   ok("позиции: claimable обнулился", pos.json.claimableCents === 0);
+
+  /* === 12. v7-guard: balance-выигрыш НЕ кэшаутится крипто-пейаутом === */
+  const V = makeClient("balance-winner");
+  await V("GET", `/api/round?clip=${created.clip}`); // nr_bet cookie
+  const bettorV = /nr_bet=([^;]+)/.exec(V.jar.cookie || "")?.[1];
+  const vb = randomUUID();
+  const dv = db();
+  dv.prepare(
+    `INSERT INTO Bet (id, roundId, clipCode, side, amountCents, bettorId, fingerprint, mode, status, payoutCents, claimed, createdAt, updatedAt)
+     VALUES (?, ?, ?, 'synth', 300, ?, 'balance-winner', 'balance', 'won', 900, 0, datetime('now'), datetime('now'))`
+  ).run(vb, round.id, created.clip, bettorV);
+  dv.close();
+  created.bets.push(vb);
+  const sumV = await V("GET", "/api/me/cashout");
+  ok("v7-guard: balance-won не попадает в claimable", sumV.json.claimableCents === 0, `claimable=${sumV.json.claimableCents}`);
 
   /* cleanup audit: money-op логи уже в stdout */
 }

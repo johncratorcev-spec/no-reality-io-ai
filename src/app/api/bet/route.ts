@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import {
   BetError,
-  placeBet,
   placeBetBalance,
   roundView,
-  type PlaceBetResult,
 } from "@/lib/bet/core";
 import { readBettor } from "@/lib/bet/identity";
 import { normalizeRefCode } from "@/lib/referral";
@@ -24,15 +22,18 @@ const YEAR = 60 * 60 * 24 * 365;
 
 /**
  * POST /api/bet — ставка на раунд (§4.2).
- *   { round_id, side: real|synth, amount_cents, ref?, mode?: "balance" }
+ *   { round_id, side: real|synth, amount_cents, ref?, mode: "balance" }
  *
- * Режимы:
- *   mode="balance" (v6, основной путь UI) — ставка с внутреннего баланса
- *     мгновенного аккаунта (cookie nr_uid). Списание атомарно; внутренний
- *     баланс — источник истины после удачного ответа вебхука пополнения.
- *     Ответ содержит свежий account (баланс/пасс) + срез раунда.
- *   без mode — легаси: demo (мгновенно) или crypto (инвойс 2328.io,
- *     ставка станет активной после подписанного webhook'а).
+ * v7 — СТАВКИ ТОЛЬКО ВНУТРЕННИМИ МОНЕТАМИ (виртуальные):
+ *   mode="balance" обязателен — списание с внутреннего баланса мгновенного
+ *   аккаунта (cookie nr_uid), атомарно и идемпотентно. Внутренний баланс —
+ *   источник истины после удачного ответа вебхука пополнения.
+ *   Ответ содержит свежий account (баланс/пасс) + срез раунда.
+ *
+ * Легаси-режимы demo/crypto (инвойс 2328 на ставку) УДАЛЕНЫ: реальные
+ * крипто-ставки больше не существуют. 2328.io остаётся только на
+ * пополнении (dp-*) и бустах (bs-*). Инвойсы rb-* в полёте доедут через
+ * webhook (confirmBetPayment сохранён).
  *
  * Анти-фрод (§4.3.9): 10/мин на IP, одна активная ставка на раунд
  * с одного bettorId/fingerprint, cap суммы.
@@ -70,6 +71,12 @@ export async function POST(req: NextRequest) {
     req.cookies.get("nr_wallet")?.value?.toLowerCase() ||
     req.cookies.get("nr_phantom")?.value?.toLowerCase() ||
     null;
+
+  /* ---- v7: баланс-режим — единственный путь ставки (виртуальные монеты) ---- */
+  if (body.mode !== "balance") {
+    /* крипто/demo-ставки сняты с производства */
+    return bettorResponseWrapped(bettor, { error: "bet_mode_disabled" }, 400);
+  }
 
   /* ---- v6: баланс-режим (основной путь предикшен-воронки) ---- */
   if (body.mode === "balance") {
@@ -119,44 +126,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  /* ---- легаси: demo / crypto (инвойс 2328) ---- */
-  try {
-    const result: PlaceBetResult = await placeBet({
-      roundId,
-      side: body.side,
-      amountCents: body.amount_cents,
-      bettorId: bettor.id,
-      fingerprint,
-      refCode,
-      wallet: walletCookie,
-    });
-
-    /* свежий срез раунда — чтобы клиент сразу увидел обновлённый банк */
-    const round = await db.round.findUnique({ where: { id: roundId } });
-    const myBet = await db.bet.findFirst({
-      where: { roundId, bettorId: bettor.id },
-      orderBy: { createdAt: "desc" },
-      select: { side: true, amountCents: true, status: true, payoutCents: true },
-    });
-
-    return bettorResponseWrapped(bettor, {
-      bet_id: result.betId,
-      status: result.status,
-      mode: result.mode,
-      pay_url: result.payUrl ?? null,
-      round: round ? roundView(round, myBet) : null,
-    });
-  } catch (e) {
-    if (e instanceof BetError) {
-      return bettorResponseWrapped(
-        bettor,
-        { error: e.code, message: e.message },
-        e.status
-      );
-    }
-    console.error("[bet] failed:", e instanceof Error ? e.message : e);
-    return bettorResponseWrapped(bettor, { error: "bet_failed" }, 500);
-  }
+  /* ---- легаси-ветка удалена (v7): ставки только виртуальными монетами ---- */
 }
 
 /* обёртки, гарантирующие доставку cookies нового bettor/account */

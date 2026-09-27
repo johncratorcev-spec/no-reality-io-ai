@@ -59,13 +59,16 @@ export interface ClaimableSummary {
 }
 
 export async function claimableSummary(bettorId: string): Promise<ClaimableSummary> {
+  /* v7: ТОЛЬКО легаси crypto-ставки. Выигрыши balance-ставок уже зачислены
+     на внутренний баланс (ledger betpay:<id>) — крипто-кэшаут по ним был бы
+     двойной выплатой. mode:"balance" из выборки исключён навсегда. */
   const agg = await db.bet.aggregate({
-    where: { bettorId, status: "won" },
+    where: { bettorId, status: "won", mode: "crypto" },
     _sum: { payoutCents: true },
   });
   const wonTotal = agg._sum.payoutCents ?? 0;
   const claimedAgg = await db.bet.aggregate({
-    where: { bettorId, status: "won", claimed: true },
+    where: { bettorId, status: "won", claimed: true, mode: "crypto" },
     _sum: { payoutCents: true },
   });
   const claimedTotal = claimedAgg._sum.payoutCents ?? 0;
@@ -113,9 +116,16 @@ export async function cashoutWonBets(
     );
   }
 
-  /* блокируем пачку: только won & !claimed, payoutCents > 0 */
+  /* блокируем пачку: won & !claimed & mode:"crypto" (см. v7 — balance-выигрыши
+     платятся внутренними монетами, крипто-пейаут по ним = двойная выплата) */
   const bets = await db.bet.findMany({
-    where: { bettorId, status: "won", claimed: false, payoutCents: { gt: 0 } },
+    where: {
+      bettorId,
+      status: "won",
+      claimed: false,
+      payoutCents: { gt: 0 },
+      mode: "crypto",
+    },
     select: { id: true, payoutCents: true },
   });
   const amountCents = bets.reduce((s, b) => s + (b.payoutCents ?? 0), 0);
@@ -155,9 +165,15 @@ export async function cashoutWonBets(
     throw new CashoutError("payout provider unavailable", 502, "payout_failed");
   }
 
-  /* claim ТОЛЬКО после успешного инвойса; гонка конкурентов видна по count */
+  /* claim ТОЛЬКО после успешного инвойса; гонка конкурентов видна по count;
+     mode:"crypto" в guard'е — вторая линия против двойной выплаты */
   const marked = await db.bet.updateMany({
-    where: { id: { in: bets.map((b) => b.id) }, status: "won", claimed: false },
+    where: {
+      id: { in: bets.map((b) => b.id) },
+      status: "won",
+      claimed: false,
+      mode: "crypto",
+    },
     data: { claimed: true, claimedAt: new Date(), payoutOrderId },
   });
   if (marked.count !== bets.length) {

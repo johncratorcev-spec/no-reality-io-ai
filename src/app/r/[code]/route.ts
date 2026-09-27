@@ -6,8 +6,7 @@ import { rateLimit } from "@/lib/rateLimit";
 import { FEATURES } from "@/lib/features";
 import {
   normalizeOwnerCode,
-  recordUtmClick,
-} from "@/lib/utm";
+  recordUtmClick, visitorSalt } from "@/lib/utm";
 import { creditUtmReward } from "@/lib/utmReward";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +51,7 @@ export async function GET(
 
   // --- visitor fingerprint (анонимный): ip + ua + секрет ---
   const ua = req.headers.get("user-agent") || "unknown";
-  const secret = process.env.ADMIN_SECRET || "no-reality-secret";
+  const secret = visitorSalt();
   const visitorHash = createHash("sha256")
     .update(`${ip}::${ua}::${secret}`)
     .digest("hex");

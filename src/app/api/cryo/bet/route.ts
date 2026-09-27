@@ -68,10 +68,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // --- v7: on-chain USDC-ставки сняты с производства (только виртуальные).
+  //     mode "phantom" = 410 Gone; demo/bonus остаются (виртуальные позиции). ---
+  if (body.mode === "phantom") {
+    return NextResponse.json(
+      { error: "onchain_bets_disabled" },
+      { status: 410 }
+    );
+  }
+
   // --- task 44: бесплатный прогноз — списываем кредит, фиксируем номинал.
   //     Сессия обязана совпадать с кошельком ставки (иначе спуф credits). ---
-  let mode: "demo" | "phantom" | "bonus" =
-    body.mode === "phantom" ? "phantom" : "demo";
+  let mode: "demo" | "phantom" | "bonus" = "demo";
   let amount = body.amount ?? CRYO.betAmountUsdc;
   if (body.mode === "bonus") {
     const session = sessionWallet(req);

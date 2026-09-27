@@ -10,6 +10,7 @@ import { useWalletSession } from "@/lib/use-wallet";
 import { useAccount, type AccountView } from "@/hooks/use-account";
 import type { RoundView } from "@/lib/bet/roundView";
 import PredictModal from "./PredictModal";
+import { useLang } from "@/lib/i18n";
 import ShareSeam from "./ShareSeam";
 
 /**
@@ -70,6 +71,7 @@ function crashFrame(clip: string, kind: "nb-crush" | "nb-glitch") {
 }
 
 export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPanelProps) {
+  const { t } = useLang();
   const { wallet, connecting: walletConnecting, connect } = useWalletSession();
   const { account, refresh: refreshAccount, setAccount, claimDaily } = useAccount();
 
@@ -289,8 +291,8 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     const asReal = round?.resolvedAs === "real";
     const url = withRef(`${window.location.origin}/v/${clipRef.current}`);
     const text = won
-      ? `я угадал: это ${asReal ? "REAL" : "SYNTH"} · банк отдал мне ${fmtUsd(round?.myPayoutCents ?? 0)} — проверь свой глаз:`
-      : `моя ставка не сыграла: это было ${asReal ? "REAL" : "SYNTH"}. угадай лучше меня:`;
+      ? `I called it: ${asReal ? "REAL" : "SYNTH"} · the bank paid me ${fmtUsd(round?.myPayoutCents ?? 0)} — check your eye:`
+      : `my bet missed: it was ${asReal ? "REAL" : "SYNTH"}. call it better than me:`;
     track("share_result", clipRef.current, { won, as: round?.resolvedAs });
     try {
       if (navigator.share) {
@@ -365,7 +367,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
               boxShadow: "0 0 44px rgba(200,255,0,.25)",
             }}
           >
-            ТЫ В ПУЛЕ · {fmtUsd(round?.myBet?.amountCents ?? 0)}{" "}
+            {t.bet.inPool} · {fmtUsd(round?.myBet?.amountCents ?? 0)}{" "}
             {round?.myBet?.side.toUpperCase() === "REAL" ? "REAL" : "SYNTH"}
           </span>
         </div>
@@ -392,7 +394,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                 className="nb-bone-reveal mt-2 text-[2rem] font-black leading-none"
                 style={{ color: result.as === "real" ? "var(--nb-bone)" : "var(--nb-blood)" }}
               >
-                {result.as === "real" ? "ЭТО БЫЛО ЖИВОЕ" : "ЭТО СИНТЕТИКА"}
+                {result.as === "real" ? t.bet.wasReal : t.bet.wasSynth}
               </p>
 
               <div
@@ -402,18 +404,18 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
 
               {result.mine === "won" && (
                 <p className="mt-4 text-[1.05rem] font-black" style={{ color: "var(--nb-poison)" }}>
-                  твой глаз сработал · +{fmtUsd(result.payout)}
-                  {lastModeRef.current === "balance" ? " на баланс" : ""}
+                  {t.bet.eyeWorked}{fmtUsd(result.payout)}
+                  {lastModeRef.current === "balance" ? t.bet.onBalance : ""}
                 </p>
               )}
               {result.mine === "lost" && (
                 <p className="mt-4 text-[0.95rem] font-extrabold" style={{ color: "rgba(242,237,228,.72)" }}>
-                  {fmtUsd(round?.myBet?.amountCents ?? 0)} ушли в банк
+                  {fmtUsd(round?.myBet?.amountCents ?? 0)}{t.bet.wentToBank}
                 </p>
               )}
               {!result.mine && (
                 <p className="mt-4 text-[0.85rem] font-bold" style={{ color: "rgba(242,237,228,.55)" }}>
-                  ты не ставил — заходи в следующий шов
+                  {t.bet.notBet}
                 </p>
               )}
 
@@ -426,7 +428,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                     border: "1px solid rgba(200,255,0,.35)",
                   }}
                 >
-                  серия ×{streak}
+                  {t.bet.streak}{streak}
                 </p>
               )}
             </div>
@@ -466,7 +468,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                   className="nb-btn w-full rounded-full px-5 py-3 text-[0.85rem] font-black"
                   style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
                 >
-                  следующий →
+                  {t.bet.next}
                 </button>
               )}
               <div className="grid grid-cols-2 gap-2">
@@ -475,13 +477,13 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                   className="nb-btn nb-btn-real inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-[0.74rem] font-bold"
                 >
                   <Share2 className="h-3.5 w-3.5" />
-                  {shared ? "ссылка скопирована" : "поделиться результатом"}
+                  {shared ? t.bet.copied : t.bet.shareResult}
                 </button>
                 <button
                   onClick={again}
                   className="nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.74rem] font-bold"
                 >
-                  ещё шов
+                  {t.bet.moreSeams}
                 </button>
               </div>
               <div className="flex items-center justify-center gap-3">
@@ -491,7 +493,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                   className="text-[0.64rem] font-bold underline decoration-dotted underline-offset-4"
                   style={{ color: "rgba(242,237,228,.5)" }}
                 >
-                  кэшаут — в pnl
+                  {t.bet.cashoutPnl}
                 </a>
               </div>
             </div>
@@ -556,14 +558,14 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                     className="text-[0.58rem] font-extrabold uppercase tracking-[0.22em]"
                     style={{ color: "rgba(242,237,228,.45)" }}
                   >
-                    {round.status === "open" ? "банк живой" : round.status === "locked" ? "шов замер" : "resolved"}
+                    {round.status === "open" ? t.bet.bankLive : round.status === "locked" ? t.bet.bankFrozen : "resolved"}
                   </span>
                   {streak >= 2 && (
                     <span
                       className="ml-auto text-[0.62rem] font-black tracking-[0.14em]"
                       style={{ color: "var(--nb-poison)" }}
                     >
-                      серия ×{streak}
+                      {t.bet.streak}{streak}
                     </span>
                   )}
                 </div>
@@ -618,7 +620,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                     }}
                   >
                     <Gift className="h-3 w-3" />
-                    бонус
+                    {t.bet.bonus}
                   </button>
                 )}
                 {!account?.isPass && (
@@ -628,7 +630,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                     style={{ border: "1px dashed rgba(242,237,228,.3)", color: "rgba(242,237,228,.6)" }}
                   >
                     <Wallet className="h-3 w-3" />
-                    кошелёк → PASS
+                    {t.bet.walletPass}
                   </button>
                 )}
               </div>
@@ -677,11 +679,11 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                     className="nb-btn rounded-full px-4 py-2 text-[0.7rem] font-black"
                     style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
                   >
-                    оплатить инвойс
+                    {t.bet.payInvoice}
                   </a>
                 ) : (
                   <span className="text-[0.68rem] font-bold" style={{ color: "rgba(242,237,228,.5)" }}>
-                    {hasMyBet && round.myBet.status === "active" ? "ты в пуле" : "ждём шов…"}
+                    {hasMyBet && round.myBet.status === "active" ? t.bet.youInPool : t.bet.waitingSeam}
                   </span>
                 )}
               </div>

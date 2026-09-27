@@ -43,8 +43,12 @@ export function betDemoEnabled(): boolean {
   return process.env.FEATURE_BET_DEMO !== "0";
 }
 
-/** формат суммы для UI: 237 → "$2.37", 500 → "$5" */
+/**
+ * формат суммы для UI (v7): всё, что проходит через fmtUsd, — ВИРТУАЛЬНЫЕ
+ * МОНЕТЫ (ставки/пулы/выигрыши внутренних монет): 237 → "237", 500 → "500".
+ * Имя сохранено ради диффа; "$" здесь больше не существует — реальные
+ * деньги остались только в pnl-кэшауте (там свой локальный fmtUsd).
+ */
 export function fmtUsd(cents: number): string {
-  const dollars = cents / 100;
-  return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+  return String(Math.round(cents));
 }

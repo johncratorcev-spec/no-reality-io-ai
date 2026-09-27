@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveExpiredRounds, resolveRound } from "@/lib/bet/core";
 import { rateLimit } from "@/lib/rateLimit";
+import {
+  hasAdminSession,
+  legacyKeyMatches,
+  adminConfigured,
+} from "@/lib/admin/session";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +27,12 @@ export async function POST(
     return NextResponse.json({ error: "too many requests" }, { status: 429 });
   }
 
-  const key = req.nextUrl.searchParams.get("key") || "";
-  const secret = process.env.ADMIN_SECRET || "no-reality-secret";
-  if (key !== secret) {
+  /* v7: сессия или легаси cron-ключ — timing-safe, без дефолтного секрета */
+  if (!adminConfigured()) {
+    return NextResponse.json({ error: "admin_not_configured" }, { status: 503 });
+  }
+  const legacyKey = req.nextUrl.searchParams.get("key") || "";
+  if (!hasAdminSession(req) && !legacyKeyMatches(legacyKey)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

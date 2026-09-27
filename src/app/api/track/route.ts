@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
+import { visitorSalt } from "@/lib/utm";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   // анонимный visitor-хэш: ip + ua + секрет (тот же паттерн, что в Click)
   const ua = req.headers.get("user-agent") || "unknown";
-  const secret = process.env.ADMIN_SECRET || "no-reality-secret";
+  const secret = visitorSalt();
   const visitorHash = createHash("sha256")
     .update(`${ip}::${ua}::${secret}`)
     .digest("hex");

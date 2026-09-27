@@ -1,25 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Coins, Gift, Wallet, X, Zap } from "lucide-react";
+import { Coins, Gift, Instagram, Wallet, X, Zap } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
-import { DEPOSIT_PRESETS_CENTS, DAILY_BONUS_CENTS, fmtBalance } from "@/lib/econ";
+import {
+  DEPOSIT_PRESETS_CENTS,
+  DEPOSIT_BONUS_PCTS,
+  DAILY_BONUS_CENTS,
+  IG_REWARD_CENTS,
+  fmtCoins,
+} from "@/lib/econ";
 import { track } from "@/lib/bet/trackClient";
 import type { RoundView } from "@/lib/bet/roundView";
 import type { AccountView } from "@/hooks/use-account";
+import { useLang } from "@/lib/i18n";
 
 /**
- * PredictModal (v6) — модалка предикта: последняя ступень воронки.
+ * PredictModal (v7) — модалка предикта: последняя ступень воронки.
  *
- * bet-режим:   выбор суммы → ставка с внутреннего баланса (мгновенно).
- * topup-режим: не хватает баланса → крипто-пополнение USDT (2328.io).
- *              Внутренний баланс — источник истины ПОСЛЕ удачного
- *              ответа вебхука: модалка поллит статус инвойса, и как
- *              только webhook зачислил деньги — выбранная ставка
- *              дожимается автоматически.
+ * bet-режим:   выбор суммы → ставка ВИРТУАЛЬНЫМИ МОНЕТАМИ (мгновенно,
+ *              без крипты — реальные ставки сняты с производства в v7).
+ * topup-режим: не хватает монет → пополнение USDT (2328.io, строго крипта).
+ *              Внутренний баланс — источник истины ПОСЛЕ удачного ответа
+ *              вебхука: модалка поллит статус инвойса, и как только webhook
+ *              зачислил деньги — выбранная ставка дожимается автоматически.
+ *              v7: пакеты несут бонус-мультипликатор монет (+10%/+25%).
+ * ig-задание:  подписка на Instagram @mmayrday → +300 монет (раз за аккаунт).
  *
- * Воронка (крипто-адаптированная): никаких email/форм — кошелёк
- * опционален и нужен только для NR PASS / leaderboard / кэшаута.
+ * Воронка (крипто-адаптированная): никаких email/форм — вход Google
+ * опционален, кошелёк нужен только для NR PASS / leaderboard.
  */
 
 type Side = "real" | "synth";
@@ -51,6 +60,7 @@ interface PlacedResponse {
 
 const POLL_MS = 2500;
 const POLL_MAX = 150_000;
+const IG_MIN_DELAY_MS = 26_000;
 
 export default function PredictModal({
   roundId,
@@ -64,6 +74,7 @@ export default function PredictModal({
   onPlaced,
   onAccountUpdate,
 }: PredictModalProps) {
+  const { t } = useLang();
   const [mode, setMode] = useState<"bet" | "topup">(side ? "bet" : "topup");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -73,6 +84,10 @@ export default function PredictModal({
   const [awaitingNetwork, setAwaitingNetwork] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const aliveRef = useRef(true);
+
+  /* ig-задание: idle → opened (ждём delay) → claim */
+  const [igState, setIgState] = useState<"idle" | "opened" | "done">("idle");
+  const [igMsg, setIgMsg] = useState("");
 
   const balance = account?.balanceCents ?? 0;
   const pendingSide = side ?? "real";
@@ -126,20 +141,20 @@ export default function PredictModal({
             track("funnel_insufficient", clipCode, { amount: amountCents });
             return;
           }
-          if (d.error === "already_bet") setError("ставка уже в банке");
-          else if (d.error === "round_closed") setError("шов закрылся — открой следующий");
-          else setError("банк не принял");
+          if (d.error === "already_bet") setError(t.bet.alreadyBet);
+          else if (d.error === "round_closed") setError(t.bet.roundClosed);
+          else setError(t.bet.betRejected);
           return;
         }
         if (d.account) onAccountUpdate(d.account);
         onPlaced(d);
       } catch {
-        setError("сеть дрогнула");
+        setError(t.bet.networkDown);
       } finally {
         if (aliveRef.current) setBusy(false);
       }
     },
-    [roundId, clipCode, pendingSide, onAccountUpdate, onPlaced]
+    [roundId, clipCode, pendingSide, onAccountUpdate, onPlaced, t]
   );
 
   /** авто-дожим ставки после зачисления баланса (вебхук → источник истины) */
@@ -174,7 +189,7 @@ export default function PredictModal({
           error?: string;
         };
         if (!r.ok || d.error) {
-          setError(d.error === "demo_cap" ? "demo-лимит на сегодня" : "инвойс не создался");
+          setError(d.error === "demo_cap" ? t.bet.demoCap : t.bet.invoiceFailed);
           return;
         }
         if (d.account) onAccountUpdate(d.account);
@@ -209,7 +224,7 @@ export default function PredictModal({
           if (Date.now() - started > POLL_MAX) {
             stopPoll();
             setAwaitingNetwork(false);
-            setError("инвойс истёк — создай новый");
+            setError(t.bet.invoiceExpired);
             return;
           }
           try {
@@ -234,12 +249,12 @@ export default function PredictModal({
           }
         }, POLL_MS);
       } catch {
-        setError("сеть дрогнула");
+        setError(t.bet.networkDown);
       } finally {
         if (aliveRef.current) setBusy(false);
       }
     },
-    [clipCode, onAccountUpdate, tryAutoBet, stopPoll]
+    [clipCode, onAccountUpdate, tryAutoBet, stopPoll, t]
   );
 
   const claimDaily = useCallback(async () => {
@@ -247,6 +262,40 @@ export default function PredictModal({
     const d = (await r.json()) as { credited?: boolean; account?: AccountView };
     if (d.account) onAccountUpdate(d.account);
   }, [onAccountUpdate]);
+
+  /* ---------- Instagram-задание (@mmayrday → +300 монет) ---------- */
+  const igOpen = useCallback(() => {
+    try {
+      window.open("/api/reward/instagram?open=1", "_blank", "noopener");
+    } catch {}
+    setIgState("opened");
+    window.setTimeout(() => {
+      if (aliveRef.current) setIgMsg("");
+    }, IG_MIN_DELAY_MS - 1000);
+  }, []);
+
+  const igClaim = useCallback(async () => {
+    setBusy(true);
+    setIgMsg("");
+    try {
+      const r = await fetch("/api/reward/instagram", { method: "POST" });
+      const d = (await r.json()) as { ok?: boolean; error?: string; account?: AccountView };
+      if (r.ok && d.ok) {
+        if (d.account) onAccountUpdate(d.account);
+        setIgState("done");
+        setIgMsg(t.bet.igDone);
+      } else if (d.error === "already_claimed") {
+        setIgState("done");
+        setIgMsg(t.bet.igAlready);
+      } else if (d.error === "too_fast" || d.error === "open_instagram_first") {
+        setIgMsg(t.bet.igWait);
+      }
+    } catch {
+      setIgMsg(t.bet.networkDown);
+    } finally {
+      if (aliveRef.current) setBusy(false);
+    }
+  }, [onAccountUpdate, t]);
 
   const pickAmount = (amountCents: number) => {
     if (amountCents > balance) {
@@ -280,7 +329,7 @@ export default function PredictModal({
 
       {/* лист */}
       <div
-        className="nb-panel relative w-full max-w-md rounded-t-3xl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 sm:rounded-3xl"
+        className="nb-panel relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 sm:rounded-3xl"
         style={{ animation: "nb-sheet-up .28s cubic-bezier(.2,.9,.3,1) both" }}
       >
         {/* хват сверху (мобайл) */}
@@ -297,7 +346,7 @@ export default function PredictModal({
               className="text-[0.58rem] font-black uppercase tracking-[0.28em]"
               style={{ color: "rgba(242,237,228,.45)" }}
             >
-              {mode === "topup" ? "пополнение баланса" : "твой предикт"}
+              {mode === "topup" ? t.bet.topupBalance : t.bet.yourPredict}
             </p>
             {mode === "bet" ? (
               <p className="mt-1 flex items-center gap-2 text-[1.3rem] font-black leading-none">
@@ -308,10 +357,13 @@ export default function PredictModal({
                   {pendingSide.toUpperCase()}
                 </span>
                 <span style={{ color: "var(--nb-bone)" }}>{fmtUsd(BET.minBetCents)}–{fmtUsd(BET.maxBetCents)}</span>
+                <span className="text-[0.62rem] font-bold" style={{ color: "rgba(242,237,228,.45)" }}>
+                  {t.bet.coins}
+                </span>
               </p>
             ) : (
               <p className="mt-1 text-[1.05rem] font-black leading-tight" style={{ color: "var(--nb-bone)" }}>
-                топни баланс — вернись в пул
+                {t.bet.topupSub}
               </p>
             )}
           </div>
@@ -332,7 +384,7 @@ export default function PredictModal({
         >
           <span className="flex items-center gap-2 text-[0.8rem] font-extrabold" style={{ color: "rgba(242,237,228,.75)" }}>
             <Coins className="h-4 w-4" style={{ color: "var(--nb-poison)" }} />
-            баланс
+            {t.bet.balance}
           </span>
           <span className="flex items-center gap-2">
             {account?.isPass && (
@@ -344,7 +396,7 @@ export default function PredictModal({
               </span>
             )}
             <span className="text-[1.05rem] font-black" style={{ color: "var(--nb-bone)" }}>
-              {fmtBalance(balance)}
+              {fmtCoins(balance)}
             </span>
           </span>
         </div>
@@ -373,25 +425,40 @@ export default function PredictModal({
           </div>
         )}
 
-        {/* ---- topup: пресеты пополнения + статус ---- */}
+        {/* ---- topup: пресеты пополнения с мультипликатором + статус ---- */}
         {mode === "topup" && (
           <div className="mt-4">
             {!deposit && (
               <>
                 <p className="text-[0.72rem] font-bold" style={{ color: "rgba(242,237,228,.6)" }}>
-                  только крипто · USDT через 2328 · зачисление после подтверждения сети
+                  {t.bet.cryptoOnly}
                 </p>
                 <div className="mt-2.5 grid grid-cols-3 gap-2">
-                  {DEPOSIT_PRESETS_CENTS.map((c) => (
-                    <button
-                      key={c}
-                      disabled={busy}
-                      onClick={() => void startDeposit(c)}
-                      className="nb-btn nb-btn-real rounded-2xl px-2 py-4 text-[1.05rem] font-black"
-                    >
-                      {fmtUsd(c)}
-                    </button>
-                  ))}
+                  {DEPOSIT_PRESETS_CENTS.map((c, i) => {
+                    const pct = DEPOSIT_BONUS_PCTS[i] ?? 0;
+                    const isBest = pct === Math.max(...DEPOSIT_BONUS_PCTS) && pct > 0;
+                    return (
+                      <button
+                        key={c}
+                        disabled={busy}
+                        onClick={() => void startDeposit(c)}
+                        className="nb-btn nb-btn-real relative rounded-2xl px-2 py-4 text-[1.05rem] font-black"
+                      >
+                        {fmtUsd(c)}
+                        {pct > 0 && (
+                          <span
+                            className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[0.52rem] font-black tracking-[0.08em]"
+                            style={{
+                              background: "var(--nb-poison)",
+                              color: "#0a080d",
+                            }}
+                          >
+                            +{pct}%{isBest ? ` · ${t.bet.bestRate}` : ""}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -400,10 +467,10 @@ export default function PredictModal({
               <div className="mt-3 flex flex-col items-center gap-2.5 py-2 text-center">
                 <Zap className="h-5 w-5 animate-pulse" style={{ color: "var(--nb-poison)" }} />
                 <p className="text-[0.82rem] font-black" style={{ color: "var(--nb-bone)" }}>
-                  ждём подтверждение сети…
+                  {t.bet.awaitingNetwork}
                 </p>
                 <p className="text-[0.66rem] font-bold" style={{ color: "rgba(242,237,228,.55)" }}>
-                  баланс пополнится сразу после вебхука 2328 — ставка дожмётся сама
+                  {t.bet.topupHint}
                 </p>
                 {deposit.payUrl && (
                   <a
@@ -413,7 +480,7 @@ export default function PredictModal({
                     className="nb-btn mt-1 rounded-full px-5 py-2.5 text-[0.78rem] font-black"
                     style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
                   >
-                    открыть инвойс 2328
+                    {t.bet.openInvoice}
                   </a>
                 )}
               </div>
@@ -421,7 +488,7 @@ export default function PredictModal({
 
             {depositStatus === "paid" && (
               <p className="mt-3 text-center text-[0.85rem] font-black" style={{ color: "var(--nb-poison)" }}>
-                баланс пополнен ✓
+                {t.bet.topupDone}
               </p>
             )}
 
@@ -434,7 +501,7 @@ export default function PredictModal({
                 style={{ border: "1px dashed rgba(242,237,228,.28)", color: "rgba(242,237,228,.7)" }}
               >
                 <Wallet className="h-4 w-4" />
-                {walletConnecting ? "подключаем…" : "подключи кошелёк — откроет PASS и ежедневный бонус"}
+                {walletConnecting ? t.bet.walletConnecting : t.bet.walletCta}
               </button>
             )}
           </div>
@@ -455,13 +522,50 @@ export default function PredictModal({
             style={{ background: "rgba(200,255,0,.1)", color: "var(--nb-poison)", border: "1px solid rgba(200,255,0,.3)" }}
           >
             <Gift className="h-4 w-4" />
-            дневной бонус PASS · +{fmtBalance(DAILY_BONUS_CENTS)}
+            {t.bet.dailyPassBonus}{fmtCoins(DAILY_BONUS_CENTS)}
           </button>
+        )}
+
+        {/* ---------- IG-задание: @mmayrday → +300 монет ---------- */}
+        {igState !== "done" && (
+          <div
+            className="mt-3 rounded-2xl px-3.5 py-3"
+            style={{ border: "1px dashed rgba(255,0,60,.35)", background: "rgba(255,0,60,.05)" }}
+          >
+            <p className="flex items-center gap-2 text-[0.74rem] font-black" style={{ color: "var(--nb-bone)" }}>
+              <Instagram className="h-4 w-4" style={{ color: "var(--nb-blood)" }} />
+              {t.bet.igTask} ·{" "}
+              <span style={{ color: "var(--nb-poison)" }}>{t.bet.igReward}</span>
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={igOpen}
+                disabled={igState === "opened"}
+                className="nb-btn flex-1 rounded-xl px-3 py-2 text-[0.68rem] font-black"
+                style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
+              >
+                {t.bet.igOpen}
+              </button>
+              <button
+                onClick={() => void igClaim()}
+                disabled={busy || igState !== "opened"}
+                className="nb-btn flex-1 rounded-xl px-3 py-2 text-[0.68rem] font-black disabled:opacity-50"
+                style={{ border: "1px solid rgba(200,255,0,.4)", color: "var(--nb-poison)" }}
+              >
+                {t.bet.igClaim}
+              </button>
+            </div>
+            {igMsg && (
+              <p className="mt-1.5 text-[0.62rem] font-bold" style={{ color: "rgba(242,237,228,.55)" }}>
+                {igMsg}
+              </p>
+            )}
+          </div>
         )}
 
         {/* футер-примечание */}
         <p className="mt-3 text-center text-[0.6rem] font-bold leading-relaxed" style={{ color: "rgba(242,237,228,.38)" }}>
-          без кошелька и регистрации · выигрыш приходит на баланс мгновенно
+          {t.bet.noWalletNote}
         </p>
       </div>
     </div>

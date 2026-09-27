@@ -34,7 +34,7 @@ function num(name: string, def: number, min: number, max: number): number {
 }
 
 export const ECON = {
-  /** welcome-бонус новому аккаунту (баланс, с которого можно играть сразу) */
+  /** welcome-бонус новому аккаунту: 300 виртуальных монет за регистрацию */
   welcomeBonusCents: Math.round(num("WELCOME_BONUS_CENTS", 300, 0, 100000)),
   /** daily-бонус NR PASS за UTC-день */
   dailyBonusCents: Math.round(num("DAILY_BONUS_CENTS", 50, 0, 100000)),
@@ -48,20 +48,42 @@ export const ECON = {
   utmRewardDailyCap: Math.round(num("UTM_REWARD_DAILY_CAP", 100, 1, 10000)),
   /** пресеты пополнения (крипто-инвойс) */
   depositPresetsCents: [500, 1000, 2000] as const,
+  /**
+   * v7 — бонус-мультипликатор монет за пакет пополнения (%, по индексам
+   * пресетов): 500 монет → +0%, 1000 → +10%, 2000 → +25%. Начисляется тем
+   * же подписанным вебхуком отдельной ledger-строкой deposit_bonus.
+   */
+  depositBonusPcts: parseBonusPcts(process.env.DEPOSIT_BONUS_PERCENTS),
+  /** награда за подписку на Instagram (раз за аккаунт, refKey-идемпотентно) */
+  igRewardCents: Math.round(num("IG_REWARD_CENTS", 300, 0, 100000)),
   /** капс demo-пополнения в сутки (dev/sandbox без 2328-ключей) */
   depositDemoDailyCapCents: Math.round(num("DEPOSIT_DEMO_DAILY_CAP", 1000, 100, 100000)),
   /** минимальный интервал между наградами за клики одного аккаунта, мс */
   clickMinIntervalMs: Math.round(num("CLICK_MIN_INTERVAL_MS", 2000, 0, 60000)),
 } as const;
 
+/** "0,10,25" → [0,10,25]; выравнивание по числу пресетов депозитов (3) */
+function parseBonusPcts(raw: string | undefined): number[] {
+  const fallback = [0, 10, 25];
+  const arr = (raw || "")
+    .split(",")
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .map((n) => (Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) : 0));
+  const out: number[] = [];
+  for (let i = 0; i < 3; i++) out.push(arr[i] ?? fallback[i] ?? 0);
+  return out;
+}
+
 export type LedgerKind =
   | "signup_bonus"
   | "daily_bonus"
   | "click_reward"
   | "utm_reward"
+  | "ig_reward"
   | "bet_stake"
   | "bet_payout"
   | "deposit"
+  | "deposit_bonus"
   | "deposit_demo";
 
 function econLog(event: string, fields: Record<string, unknown>) {
@@ -350,6 +372,8 @@ const base = () =>
 /**
  * Создание инвойса пополнения. Идемпотентно по pending-инвойсу аккаунта:
  * повторный вызов с тем же accountId вернёт существующий заказ.
+ * v7: пакет несёт бонус-мультипликатор монет (0/10/25%) — начислим его
+ * из подписанного вебхука (и в demo — мгновенно).
  * Без 2328-ключей (dev/demo) — мгновенное demo-пополнение с дневным капсом.
  */
 export async function createDeposit(
@@ -359,15 +383,20 @@ export async function createDeposit(
   orderId: string;
   payUrl: string | null;
   mode: "crypto" | "demo";
+  bonusCents: number;
+  bonusPct: number;
   balanceCents: number;
 }> {
-  if (!ECON.depositPresetsCents.includes(amountCents as never)) {
+  const presetIdx = ECON.depositPresetsCents.indexOf(amountCents as never);
+  if (presetIdx < 0) {
     throw new EconError(
       `amount must be one of ${ECON.depositPresetsCents.join(", ")}`,
       400,
       "bad_amount"
     );
   }
+  const bonusPct = ECON.depositBonusPcts[presetIdx] ?? 0;
+  const bonusCents = Math.floor((amountCents * bonusPct) / 100);
   const me = await ensureAccount(accountId);
 
   /* переиспользуем живой pending-инвойс той же суммы (анти-спам 2328) */
@@ -376,11 +405,18 @@ export async function createDeposit(
     orderBy: { createdAt: "desc" },
   });
   if (pending) {
-    return { orderId: pending.orderId, payUrl: null, mode: "crypto", balanceCents: me.balanceCents };
+    return {
+      orderId: pending.orderId,
+      payUrl: null,
+      mode: "crypto",
+      bonusCents: pending.bonusCents,
+      bonusPct,
+      balanceCents: me.balanceCents,
+    };
   }
 
   if (!is2328PaymentConfigured()) {
-    /* demo: зачисляем сразу, но не больше дневного капса */
+    /* demo: зачисляем сразу (сумма + бонус), но не больше дневного капса */
     const dayKey = new Date().toISOString().slice(0, 10);
     const credited = await applyLedger(
       me.id,
@@ -392,13 +428,33 @@ export async function createDeposit(
     if (!credited) {
       throw new EconError("demo top-up cap reached for today", 429, "demo_cap");
     }
-    econLog("deposit_demo", { accountId: me.id, cents: amountCents });
+    if (bonusCents > 0) {
+      /* бонус мультипликатора работает и в demo — флоу одинаков в sandbox */
+      await applyLedger(me.id, bonusCents, "deposit_bonus", `deposit_bonus:demo:${me.id}:${dayKey}:${amountCents}`, {
+        demo: true,
+        pct: bonusPct,
+      });
+    }
+    econLog("deposit_demo", { accountId: me.id, cents: amountCents, bonusCents });
     const fresh = await db.account.findUniqueOrThrow({ where: { id: me.id } });
-    return { orderId: `demo-${dayKey}`, payUrl: null, mode: "demo", balanceCents: fresh.balanceCents };
+    return {
+      orderId: `demo-${dayKey}`,
+      payUrl: null,
+      mode: "demo",
+      bonusCents,
+      bonusPct,
+      balanceCents: fresh.balanceCents,
+    };
   }
 
   const order = await db.depositOrder.create({
-    data: { accountId: me.id, orderId: `dp-${randomUUID()}`, amountCents, mode: "crypto" },
+    data: {
+      accountId: me.id,
+      orderId: `dp-${randomUUID()}`,
+      amountCents,
+      bonusCents,
+      mode: "crypto",
+    },
   });
   try {
     const inv = await create2328Payment({
@@ -417,8 +473,16 @@ export async function createDeposit(
       accountId: me.id,
       orderId: order.orderId,
       cents: amountCents,
+      bonusCents,
     });
-    return { orderId: order.orderId, payUrl: inv.payUrl, mode: "crypto", balanceCents: me.balanceCents };
+    return {
+      orderId: order.orderId,
+      payUrl: inv.payUrl,
+      mode: "crypto",
+      bonusCents,
+      bonusPct,
+      balanceCents: me.balanceCents,
+    };
   } catch (e) {
     await db.depositOrder.updateMany({
       where: { id: order.id, status: "pending" },
@@ -449,12 +513,16 @@ export async function depositStatus(accountId: string, orderId: string) {
   };
 }
 
-/** Подтверждение пополнения из подписанного webhook'а (идемпотентно). */
+/**
+ * Подтверждение пополнения из подписанного webhook'а (идемпотентно).
+ * v7: помимо суммы зачисляем бонус-мультипликатор пакета отдельной
+ * ledger-строкой deposit_bonus:<paymentUuid> — та же идемпотентность.
+ */
 export async function confirmDepositPayment(
   paymentUuid: string,
   orderId: string,
   txid: string | null
-): Promise<{ amountCents: number; accountId: string } | null> {
+): Promise<{ amountCents: number; bonusCents: number; accountId: string } | null> {
   const dep = await db.depositOrder.findFirst({
     where: { OR: [{ paymentId: paymentUuid }, { orderId }] },
   });
@@ -479,13 +547,31 @@ export async function confirmDepositPayment(
     econLog("deposit_credit_conflict", { orderId: dep.orderId, accountId: dep.accountId });
     return null;
   }
+  /* бонус-мультипликатор монет (v7) — идемпотентно по paymentUuid */
+  let bonusCents = 0;
+  if (dep.bonusCents > 0) {
+    bonusCents = (await applyLedger(
+      dep.accountId,
+      dep.bonusCents,
+      "deposit_bonus",
+      `deposit_bonus:${paymentUuid}`,
+      { orderId: dep.orderId }
+    ))
+      ? dep.bonusCents
+      : 0;
+    if (!bonusCents) {
+      econLog("deposit_bonus_conflict", { orderId: dep.orderId, accountId: dep.accountId });
+    }
+  }
+
   econLog("deposit_credited", {
     accountId: dep.accountId,
     orderId: dep.orderId,
     cents: dep.amountCents,
+    bonusCents,
     txid,
   });
-  return { amountCents: dep.amountCents, accountId: dep.accountId };
+  return { amountCents: dep.amountCents, bonusCents, accountId: dep.accountId };
 }
 
 /** Финальный провал инвойса пополнения (cancel/underpaid). */
