@@ -40,12 +40,12 @@
 import { spawn } from "node:child_process";
 import http from "node:http";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
+
+import { q, one, close } from "./lib/supadb.mjs";
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 const MOCK_PORT = 9998;
-const DB_PATH = path.resolve(process.cwd(), "db/custom.db");
 
 function envFromDotenv(name) {
   const line = readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
@@ -69,10 +69,6 @@ function ok(name, cond, extra = "") {
     failed++;
     console.log(`  FAIL ${name}${extra ? ` — ${extra}` : ""}`);
   }
-}
-
-function db() {
-  return new DatabaseSync(DB_PATH);
 }
 
 /* ---------- мок Google token-эндпоинта (:9998) ----------
@@ -224,11 +220,10 @@ async function run() {
   cleanupEmails.add(email1);
   cleanupAccounts.push(uid1);
 
-  const d = db();
-  const acc1 = d.prepare("SELECT id, email, passTier FROM Account WHERE email = ?").get(email1);
-  ok("13. DB: Account создан, passTier=1 (NR PASS)", acc1 && acc1.passTier === 1, acc1 ? `id=${acc1.id.slice(0, 8)}… tier=${acc1.passTier}` : "нет аккаунта");
+  const d1 = await one('SELECT id, email, "passTier" FROM "Account" WHERE email = $1', [email1]);
+  ok("13. DB: Account создан, passTier=1 (NR PASS)", d1 && Number(d1.passTier) === 1, d1 ? `id=${d1.id.slice(0, 8)}… tier=${d1.passTier}` : "нет аккаунта");
 
-  const bonus1 = d.prepare("SELECT delta, kind FROM LedgerTxn WHERE accountId = ? AND kind = 'signup_bonus'").get(uid1);
+  const bonus1 = await one('SELECT delta, kind FROM "LedgerTxn" WHERE "accountId" = $1 AND kind = \'signup_bonus\'', [uid1]);
   ok("14. DB: signup_bonus = +300 монет", bonus1 && Number(bonus1.delta) === 300, bonus1 ? `delta=${bonus1.delta}` : "нет начисления");
 
   const user2 = makeClient("login-again");
@@ -236,18 +231,20 @@ async function run() {
   const uidAgain = r15.cb.cookies.get("nr_uid");
   ok("15. повторный вход тем же email → тот же аккаунт", uidAgain === uid1, `uid=${(uidAgain || "").slice(0, 8)}…`);
 
-  const cntAcc = d.prepare("SELECT COUNT(*) AS n FROM Account WHERE email = ?").get(email1);
-  const cntBonus = d.prepare("SELECT COUNT(*) AS n FROM LedgerTxn WHERE accountId = ? AND kind = 'signup_bonus'").get(uid1);
-  ok("16. DB: без дублей (1 аккаунт, 1 бонус)", Number(cntAcc.n) === 1 && Number(cntBonus.n) === 1, `accounts=${cntAcc.n} bonuses=${cntBonus.n}`);
+  const cntAcc = await one('SELECT COUNT(*)::int AS n FROM "Account" WHERE email = $1', [email1]);
+  const cntBonus = await one('SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE "accountId" = $1 AND kind = \'signup_bonus\'', [uid1]);
+  ok("16. DB: без дублей (1 аккаунт, 1 бонус)", cntAcc.n === 1 && cntBonus.n === 1, `accounts=${cntAcc.n} bonuses=${cntBonus.n}`);
 
   /* 17. привязка гостя: баланс сохраняется */
   const guestId = globalThis.crypto.randomUUID();
-  d.prepare(
-    "INSERT INTO Account (id, balanceCents, createdAt, updatedAt) VALUES (?, 777, ?, ?)"
-  ).run(guestId, new Date().toISOString(), new Date().toISOString());
-  d.prepare(
-    "INSERT INTO LedgerTxn (id, accountId, delta, kind, refKey, meta, createdAt) VALUES (?, ?, 777, 'signup_bonus', ?, '{}', ?)"
-  ).run(globalThis.crypto.randomUUID(), guestId, `signup:${guestId}`, new Date().toISOString());
+  await q(
+    'INSERT INTO "Account" (id, "balanceCents", "createdAt", "updatedAt") VALUES ($1, 777, now(), now())',
+    [guestId]
+  );
+  await q(
+    'INSERT INTO "LedgerTxn" (id, "accountId", delta, kind, "refKey") VALUES ($1, $2, 777, \'signup_bonus\', $3)',
+    [globalThis.crypto.randomUUID(), guestId, `signup:${guestId}`]
+  );
   cleanupAccounts.push(guestId);
 
   const guest = makeClient("guest-link");
@@ -256,20 +253,19 @@ async function run() {
   cleanupEmails.add(emailG);
   const r17 = await googleFlow(guest, { email: emailG, verified: true });
   const uidGuest = r17.cb.cookies.get("nr_uid");
-  const guestAfter = d.prepare("SELECT id, email, passTier, balanceCents FROM Account WHERE id = ?").get(guestId);
+  const guestAfter = await one('SELECT id, email, "passTier", "balanceCents" FROM "Account" WHERE id = $1', [guestId]);
   ok(
     "17. гость привязан: email на нём, PASS, баланс 777 сохранён",
     uidGuest === guestId && guestAfter && guestAfter.email === emailG && guestAfter.passTier === 1 && Number(guestAfter.balanceCents) === 777,
     guestAfter ? `email=${guestAfter.email} tier=${guestAfter.passTier} balance=${guestAfter.balanceCents}` : "гость пропал"
   );
-  const guestBonus = d.prepare("SELECT COUNT(*) AS n FROM LedgerTxn WHERE accountId = ? AND kind = 'signup_bonus'").get(guestId);
-  ok("17b. дубль бонуса гостю не выдан", Number(guestBonus.n) === 1, `txns=${guestBonus.n}`);
+  const guestBonus = await one('SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE "accountId" = $1 AND kind = \'signup_bonus\'', [guestId]);
+  ok("17b. дубль бонуса гостю не выдан", guestBonus.n === 1, `txns=${guestBonus.n}`);
 
   /* 18. /api/me с сессией после google-регистрации */
   const me = await user("/api/me");
   const meAcc = me.json?.account || me.json;
   ok("18. /api/me: сессия жива, баланс ≥ 300", meAcc?.accountId === uid1 && Number(meAcc?.balanceCents ?? 0) >= 300, JSON.stringify({ accountId: meAcc?.accountId?.slice(0, 8), balance: meAcc?.balanceCents }));
-  d.close();
 
   /* --- D. анти-брутфорс (последним) --- */
   console.log("\n[D] анти-брутфорс start");
@@ -286,18 +282,16 @@ async function run() {
 }
 
 /* ---------- cleanup ---------- */
-function cleanupDb() {
+async function cleanupDb() {
   try {
-    const d = db();
     for (const id of cleanupAccounts.filter(Boolean)) {
-      d.prepare("DELETE FROM LedgerTxn WHERE accountId = ?").run(id);
-      d.prepare("DELETE FROM Account WHERE id = ?").run(id);
+      await q('DELETE FROM "LedgerTxn" WHERE "accountId" = $1', [id]);
+      await q('DELETE FROM "Account" WHERE id = $1', [id]);
     }
     for (const email of cleanupEmails) {
-      d.prepare("DELETE FROM Account WHERE email = ?").run(email);
+      await q('DELETE FROM "Account" WHERE email = $1', [email]);
     }
-    d.prepare("DELETE FROM TrackEvent WHERE name IN ('google_signin','google_signup')").run();
-    d.close();
+    await q("DELETE FROM \"TrackEvent\" WHERE name IN ('google_signin','google_signup')");
   } catch (e) {
     console.warn("[cleanup] skip:", e instanceof Error ? e.message : e);
   }
@@ -305,8 +299,8 @@ function cleanupDb() {
 
 const isCleanupOnly = process.argv.includes("--cleanup-only");
 if (isCleanupOnly) {
-  // повторно чистит последние известные email (id уже потеряны)
-  cleanupDb();
+  await cleanupDb();
+  await close();
   console.log("[google-selftest] cleanup done");
 } else {
   let server = null;
@@ -315,7 +309,8 @@ if (isCleanupOnly) {
     console.log(`[google-selftest] мок Google token-эндпоинта: :${MOCK_PORT}`);
     await run();
   } finally {
-    cleanupDb();
+    await cleanupDb();
+    await close();
     server?.close();
   }
   console.log(`\n[google-selftest] ${passed} PASS, ${failed} FAIL`);

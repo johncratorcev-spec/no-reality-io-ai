@@ -43,10 +43,11 @@
 
 import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
 import { readFileSync } from "node:fs";
+
+import { q, one, close } from "./lib/supadb.mjs";
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 const ADMIN_SECRET_ENV = (readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
@@ -54,7 +55,7 @@ const ADMIN_SECRET_ENV = (readFileSync(path.resolve(process.cwd(), ".env"), "utf
   .find((l) => l.startsWith("ADMIN_SECRET=")) || "")
   .split("=")[1]?.replace(/"/g, "")
   .trim();
-const DB_PATH = path.resolve(process.cwd(), "db/custom.db");
+
 const PAYMENT_KEY = "test-payment-key";
 const CLIP = "71vsIPUu";
 const OWNER_CODE = "recontest1";
@@ -82,9 +83,6 @@ function ok(name, cond, extra = "") {
   }
 }
 
-function db() {
-  return new DatabaseSync(DB_PATH);
-}
 
 function sign2328(body, key) {
   const base64 = Buffer.from(JSON.stringify(body), "utf-8").toString("base64");
@@ -221,9 +219,10 @@ async function run() {
   }
   ok("инвойс создан (crypto)", dep.status === 200 && dep.json.mode === "crypto" && String(dep.json.pay_url || "").includes("/pay/"), dep.json.error || dep.json.order_id);
   const depUuid = String(dep.json.pay_url || "").split("/pay/")[1] || "";
-  const depRow = db()
-    .prepare("SELECT id, orderId, status, amountCents, accountId FROM DepositOrder WHERE paymentId = ?")
-    .get(depUuid);
+  const depRow = await one(
+    'SELECT id, "orderId", status, "amountCents", "accountId" FROM "DepositOrder" WHERE "paymentId" = $1',
+    [depUuid]
+  );
   ok("DepositOrder pending, dp-*", depRow?.status === "pending" && String(depRow?.orderId || "").startsWith("dp-"), depRow?.orderId);
   cleanup.deposits.push(depRow?.id);
   cleanup.accounts.push(depRow?.accountId);
@@ -243,7 +242,7 @@ async function run() {
   ok("депозит webhook принят", goodDep === 200);
   const balAfterPaid = await balOf();
   ok("баланс пополнен (+$5)", balAfterPaid === balBefore + 500, `${balBefore} → ${balAfterPaid}`);
-  const depPaid = db().prepare("SELECT status FROM DepositOrder WHERE id = ?").get(depRow.id);
+  const depPaid = await one('SELECT status FROM "DepositOrder" WHERE id = $1', [depRow.id]);
   ok("DepositOrder paid", depPaid?.status === "paid");
 
   const dupDep = await webhook2328(
@@ -251,9 +250,10 @@ async function run() {
     PAYMENT_KEY
   );
   ok("повторный webhook → 200", dupDep === 200);
-  const ledgerDep = db()
-    .prepare("SELECT COUNT(*) AS n FROM LedgerTxn WHERE refKey = ? AND kind = 'deposit'")
-    .get(`deposit:${depUuid}`);
+  const ledgerDep = await one(
+    'SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE "refKey" = $1 AND kind = \'deposit\'',
+    [`deposit:${depUuid}`]
+  );
   ok("двойного зачисления нет (refKey unique)", (ledgerDep?.n ?? 0) === 1, `rows=${ledgerDep?.n}`);
 
   /* --- v7: бонус-мультипликатор пакета (1000 → +10%) --- */
@@ -265,9 +265,10 @@ async function run() {
     `bonus=${depBig.json.bonus_cents}/${depBig.json.bonus_pct}% ${depBig.json.error || ""}`
   );
   const bigUuid = String(depBig.json.pay_url || "").split("/pay/")[1] || "";
-  const bigRow = db()
-    .prepare("SELECT id, orderId, bonusCents FROM DepositOrder WHERE paymentId = ?")
-    .get(bigUuid);
+  const bigRow = await one(
+    'SELECT id, "orderId", "bonusCents" FROM "DepositOrder" WHERE "paymentId" = $1',
+    [bigUuid]
+  );
   ok("DepositOrder.bonusCents = 100", bigRow?.bonusCents === 100, `row=${bigRow?.bonusCents}`);
   cleanup.deposits.push(bigRow?.id);
   cleanup.accounts.push(bigRow?.accountId);
@@ -278,9 +279,10 @@ async function run() {
   ok("бонус-пакет webhook принят", goodBig === 200);
   const balAfterBig = await balOf();
   ok("баланс +1100 (1000 + бонус 10%)", balAfterBig === balBeforeBig + 1100, `${balBeforeBig} → ${balAfterBig}`);
-  const bonusTxn = db()
-    .prepare("SELECT COUNT(*) AS n FROM LedgerTxn WHERE refKey = ? AND kind = 'deposit_bonus'")
-    .get(`deposit_bonus:${bigUuid}`);
+  const bonusTxn = await one(
+    'SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE "refKey" = $1 AND kind = \'deposit_bonus\'',
+    [`deposit_bonus:${bigUuid}`]
+  );
   ok("ledger deposit_bonus записан", (bonusTxn?.n ?? 0) === 1, `rows=${bonusTxn?.n}`);
 
   /* === E. ставка с баланса === */
@@ -368,11 +370,12 @@ async function run() {
   const roundAfter = await U("GET", `/api/round/${round.id}`);
   const rv = roundAfter.json.round;
   ok("раунд resolved", rv?.status === "resolved", `as=${rv?.resolvedAs}`);
-  const betRow = db().prepare("SELECT id, status, payoutCents, mode, accountId FROM Bet WHERE id = ?").get(bet1.json.bet_id);
+  const betRow = await one('SELECT id, status, "payoutCents", mode, "accountId" FROM "Bet" WHERE id = $1', [bet1.json.bet_id]);
   ok("ставка closed по вердикту", betRow?.status === "won" || betRow?.status === "lost", `truth-side=${rv?.resolvedAs}, bet=real`);
-  const payTxn = db()
-    .prepare("SELECT COUNT(*) AS n FROM LedgerTxn WHERE refKey = ? AND kind = 'bet_payout'")
-    .get(`betpay:${bet1.json.bet_id}`);
+  const payTxn = await one(
+    'SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE "refKey" = $1 AND kind = \'bet_payout\'',
+    [`betpay:${bet1.json.bet_id}`]
+  );
   if (betRow?.status === "won") {
     ok("выплата пришла на баланс (LedgerTxn bet_payout)", (payTxn?.n ?? 0) === 1 && (betRow?.payoutCents ?? 0) > 0, `payout=${betRow?.payoutCents}`);
   } else {
@@ -382,40 +385,49 @@ async function run() {
   ok("баланс консистентен с ledger", balFinal === bet1.json.balance_cents + (betRow?.status === "won" ? (betRow?.payoutCents ?? 0) : 0), `final=${balFinal}`);
 
   /* === G. награда за UTM-переходы === */
-  const d6 = db();
-  d6
-    .prepare("INSERT OR REPLACE INTO Account (id, passTier, balanceCents, createdAt, updatedAt) VALUES (?, 1, 0, ?, ?)")
-    .run(`econ-owner-${Date.now()}`, new Date().toISOString(), new Date().toISOString());
-  const ownerAccId = d6
-    .prepare("SELECT id FROM Account WHERE id LIKE 'econ-owner-%' ORDER BY createdAt DESC LIMIT 1")
-    .get()?.id;
+  const ownerAccId = `econ-owner-${Date.now()}`;
+  /* зачистка хвостов прошлых прогонов (в т.ч. убитых по таймауту) */
+  await q(
+    'DELETE FROM "LedgerTxn" WHERE "accountId" IN (SELECT id FROM "Account" WHERE id LIKE $1 OR wallet = $2)',
+    ["econ-owner-%", OWNER_WALLET]
+  );
+  await q('DELETE FROM "UtmClick" WHERE "ownerCode" = $1', [OWNER_CODE]);
+  await q('DELETE FROM "ReferralProfile" WHERE code = $1 OR wallet = $2', [OWNER_CODE, OWNER_WALLET]);
+  await q('DELETE FROM "Account" WHERE id LIKE $1 OR wallet = $2', ["econ-owner-%", OWNER_WALLET]);
+  await q(
+    'INSERT INTO "Account" (id, "passTier", "balanceCents", "createdAt", "updatedAt") VALUES ($1, 1, 0, now(), now()) ON CONFLICT (id) DO UPDATE SET "passTier" = 1, "balanceCents" = 0, "updatedAt" = now()',
+    [ownerAccId]
+  );
   cleanup.accounts.push(ownerAccId);
-  d6
-    .prepare("INSERT OR REPLACE INTO ReferralProfile (wallet, code, createdAt, updatedAt) VALUES (?, ?, ?, ?)")
-    .run(OWNER_WALLET, OWNER_CODE, new Date().toISOString(), new Date().toISOString());
-  d6.prepare("UPDATE Account SET wallet = ? WHERE id = ?").run(OWNER_WALLET, ownerAccId);
+  await q(
+    'INSERT INTO "ReferralProfile" (wallet, code, "createdAt", "updatedAt") VALUES ($1, $2, now(), now()) ON CONFLICT (wallet) DO UPDATE SET code = $2, "updatedAt" = now()',
+    [OWNER_WALLET, OWNER_CODE]
+  );
+  await q('UPDATE "Account" SET wallet = $1 WHERE id = $2', [OWNER_WALLET, ownerAccId]);
   cleanup.refProfiles.push(OWNER_CODE);
 
   const Visitor = makeClient("utm-visitor", "-visitor7");
   const r1 = await Visitor("GET", `/r/${CLIP}?ref=${OWNER_CODE}`);
   ok("UTM-редирект работает", r1.status === 302 || r1.status === 200, `status=${r1.status}`);
-  const utmRow = d6
-    .prepare("SELECT COUNT(*) AS n FROM UtmClick WHERE ownerCode = ? AND targetId = ?")
-    .get(OWNER_CODE, CLIP);
+  const utmRow = await one(
+    'SELECT COUNT(*)::int AS n FROM "UtmClick" WHERE "ownerCode" = $1 AND "targetId" = $2',
+    [OWNER_CODE, CLIP]
+  );
   ok("UtmClick записан", (utmRow?.n ?? 0) >= 1, `rows=${utmRow?.n}`);
   cleanup.utmClicks.push(`${OWNER_CODE}:${CLIP}`);
-  const utmReward = d6
-    .prepare("SELECT COUNT(*) AS n FROM LedgerTxn WHERE kind = 'utm_reward' AND accountId = ?")
-    .get(ownerAccId);
+  const utmReward = await one(
+    'SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE kind = \'utm_reward\' AND "accountId" = $1',
+    [ownerAccId]
+  );
   ok("владельцу ссылки начислена utm_reward", (utmReward?.n ?? 0) === 1, `rows=${utmReward?.n}`);
 
   const Visitor2 = makeClient("utm-visitor", "-visitor7"); // тот же UA → тот же hash
   await Visitor2("GET", `/r/${CLIP}?ref=${OWNER_CODE}`);
-  const utmReward2 = d6
-    .prepare("SELECT COUNT(*) AS n FROM LedgerTxn WHERE kind = 'utm_reward' AND accountId = ?")
-    .get(ownerAccId);
+  const utmReward2 = await one(
+    'SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE kind = \'utm_reward\' AND "accountId" = $1',
+    [ownerAccId]
+  );
   ok("повторный тот же visitor → награды нет", (utmReward2?.n ?? 0) === 1, `rows=${utmReward2?.n}`);
-  d6.close();
 
   /* === G2. v7: claim Instagram-награды (задержка уже прошла) === */
   const igClaim = await Ig("POST", "/api/reward/instagram");
@@ -472,51 +484,51 @@ async function run() {
 }
 
 /* ---------- cleanup ---------- */
-function cleanupDb() {
+async function cleanupDb() {
   try {
-    const d = db();
     if (cleanup.accounts.length) {
       const ids = cleanup.accounts.filter(Boolean);
       for (const id of ids) {
-        d.prepare("DELETE FROM LedgerTxn WHERE accountId = ?").run(id);
-        d.prepare("DELETE FROM DepositOrder WHERE accountId = ?").run(id);
-        d.prepare("DELETE FROM Account WHERE id = ?").run(id);
+        await q('DELETE FROM "LedgerTxn" WHERE "accountId" = $1', [id]);
+        await q('DELETE FROM "DepositOrder" WHERE "accountId" = $1', [id]);
+        await q('DELETE FROM "Account" WHERE id = $1', [id]);
       }
     }
     for (const id of cleanup.deposits.filter(Boolean)) {
-      d.prepare("DELETE FROM DepositOrder WHERE id = ?").run(id);
+      await q('DELETE FROM "DepositOrder" WHERE id = $1', [id]);
     }
     for (const id of cleanup.bets.filter(Boolean)) {
-      d.prepare("DELETE FROM Bet WHERE id = ?").run(id);
+      await q('DELETE FROM "Bet" WHERE id = $1', [id]);
     }
     for (const id of cleanup.rounds.filter(Boolean)) {
-      d.prepare("DELETE FROM Bet WHERE roundId = ?").run(id);
-      d.prepare("DELETE FROM Round WHERE id = ?").run(id);
+      await q('DELETE FROM "Bet" WHERE "roundId" = $1', [id]);
+      await q('DELETE FROM "Round" WHERE id = $1', [id]);
     }
     for (const key of cleanup.utmClicks) {
       const [owner, target] = key.split(":");
-      d.prepare("DELETE FROM UtmClick WHERE ownerCode = ? AND targetId = ?").run(owner, target);
+      await q('DELETE FROM "UtmClick" WHERE "ownerCode" = $1 AND "targetId" = $2', [owner, target]);
     }
     for (const code of cleanup.refProfiles) {
-      d.prepare("DELETE FROM ReferralProfile WHERE code = ?").run(code);
+      await q('DELETE FROM "ReferralProfile" WHERE code = $1', [code]);
     }
-    d.prepare("DELETE FROM TrackEvent WHERE name IN ('welcome_granted','daily_claimed','pass_granted','reward_click','utm_reward','bet_placed','bet_won','bet_lost','ref_converted','topup_open','predict_modal_open')").run();
-    d.close();
+    await q("DELETE FROM \"TrackEvent\" WHERE name IN ('welcome_granted','daily_claimed','pass_granted','reward_click','utm_reward','bet_placed','bet_won','bet_lost','ref_converted','topup_open','predict_modal_open')");
   } catch (e) {
     console.warn("[cleanup] skip:", e instanceof Error ? e.message : e);
+  } finally {
+    await close();
   }
 }
 
 const isCleanupOnly = process.argv.includes("--cleanup-only");
 if (isCleanupOnly) {
-  cleanupDb();
+  await cleanupDb();
   console.log("[economy-selftest] cleanup done");
 } else {
   const mock = await ensureMock();
   try {
     await run();
   } finally {
-    cleanupDb();
+    await cleanupDb();
     if (mock) mock.kill();
   }
 }

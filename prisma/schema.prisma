@@ -8,8 +8,12 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  /* Runtime (Vercel/локалка) — Supavisor pooler, transaction mode :6543
+     (+ pgbouncer=true в строке: отключает prepared statements Prisma).
+     DDL (db push / migrate) идёт через DIRECT_URL (session mode :5432). */
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // Уникальные переходы по UTM-ссылкам.

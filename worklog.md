@@ -1109,3 +1109,27 @@ Stage Summary:
 - Локально: приложение 100% готово (165/165), Google принимает client_id + продовый redirect_uri.
 - Для прода осталось (сторона пользователя, Vercel dashboard): 1) задеплоить v7 (repo уже на main@f8fd0c0), 2) добавить env GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET, 3) БД: prod health db=down — SQLite на Vercel эфемерен, для персистентности нужен Supabase Postgres (направление уже заложено v7-кэш-адаптером).
 - Для локалки по желанию: добавить http://localhost:3000/api/auth/google/callback в Console → локальный consent вернёт код на localhost.
+
+---
+Task ID: v7-supabase-migration
+Agent: Super Z (main agent)
+Task: Комплексная миграция с SQLite на Supabase Postgres (данные пользователя: host/port/db/user/password), комплексное тестирование, скорость, безопасность.
+
+Work Log:
+- Диагностика: прямой хост db.arwdhvfffzdljctryjfw.supabase.co — IPv6-ONLY (A-записи нет), песочница без IPv6 → прямое подключение невозможно; у Vercel тоже нет исходящего IPv6.
+- Поиск региона Supavisor pooler: скрипт scripts/supa_region_probe.mjs (перебор aws-0..3 × регионы × порты, авторизация postgres.<ref>) → проект найден: aws-1-eu-west-3.pooler.supabase.com (IPv4, Париж).
+- .env: DATABASE_URL (pooler session :5432, sslmode=require, connection_limit=10), DIRECT_URL (тот же пулер для DDL/тестов), пароль URL-encoded. GITIGNORED.
+- prisma/schema.prisma: provider sqlite → postgresql + directUrl; prisma db push — 21 таблица создана в Supabase; generate ok.
+- Ловушка №1: в персистентной shell-сессии висел экспорт DATABASE_URL=file:... (унаследовал dev-сервер) → health db:down. Решение: env -u при старте.
+- Ловушка №2: pg v8 трактует sslmode=require как verify-full → self-signed chain у Supavisor. В scripts/lib/supadb.mjs sslmode вырезается, ssl задан явно (rejectUnauthorized:false; трафик шифрован).
+- Ловушка №3: transaction mode :6543 + pgbouncer — каждый запрос 2-13с (churn соединений). Session mode :5432 → ~1с стабильно в песочнице (RTT до Парижа; с Vercel рядом — мс). Для Vercel documented: transaction :6543 + pgbouncer=true&connection_limit=1.
+- Selftests переведены с node:sqlite на pg: новый общий хелпер scripts/lib/supadb.mjs (q/one/close); переписаны economy(26), bet(8), cashout(16), boost(10), google(14) — camelCase-колонки в кавычках, $n-плейсхолдеры, INSERT OR REPLACE → ON CONFLICT, claimed Int → Boolean.
+- Хвосты убитого по таймауту прогона → unique violation (Account_wallet_key); в economy добавлена пре-зачистка, ручной purge выполнен.
+- Безопасность: scripts/supa_enable_rls.mjs — RLS (без политик) на ВСЕ 21 таблицы + revoke у anon/authenticated/public → PostgREST/anon-ключи не видят данные; прямой доступ приложения (владелец таблиц) не затронут. Проверено: health db:up, home 77ms, boost 22/22 после RLS.
+- Комплексное тестирование НА SUPABASE: google 20/20, economy 57/57, bet 30/30, cashout 36/36, boost 22/22 = 165 PASS / 0 FAIL.
+- Секрет-скан коммитимых файлов: чисто (пароль/ключи только в .env).
+
+Stage Summary:
+- Единая БД Supabase Postgres для локалки и прода; schema.prisma = postgresql; данные персистентны (больше не "db:down" на деплое).
+- Для прода: в Vercel env задать DATABASE_URL (transaction :6543 + pgbouncer=true&connection_limit=1), DIRECT_URL, GOOGLE_CLIENT_ID/SECRET, ADMIN_SECRET; регион функции ближе к eu-west-3 (Paris/Frankfurt).
+- Файлы: prisma/schema.prisma; scripts/lib/supadb.mjs (нов); scripts/{economy,bet,cashout,boost,google}_selftest.mjs; scripts/supa_{region_probe,diag,enable_rls}.mjs (нов); .env.example.

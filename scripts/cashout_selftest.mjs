@@ -31,12 +31,12 @@
 
 import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
+import { q, one, close } from "./lib/supadb.mjs";
+
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
-const DB_PATH = path.resolve(process.cwd(), "db/custom.db");
 const PAYMENT_KEY = "test-payment-key";
 const PAYOUT_KEY = "test-payout-key";
 
@@ -54,9 +54,6 @@ function ok(name, cond, extra = "") {
   }
 }
 
-function db() {
-  return new DatabaseSync(DB_PATH);
-}
 
 function sign2328(body, key) {
   const base64 = Buffer.from(JSON.stringify(body), "utf-8").toString("base64");
@@ -93,14 +90,13 @@ function makeClient(name) {
 
 /** легаси crypto-ставка (v7 снимает crypto-путь из API, но webhook-цепочка
     rb-* жива для инвойсов «в полёте») — создаём pending-строку как делал API */
-function seedLegacyCryptoBet(roundId, clipCode, bettorId, side, amountCents, refCode) {
+async function seedLegacyCryptoBet(roundId, clipCode, bettorId, side, amountCents, refCode) {
   const betId = randomUUID();
-  const d = db();
-  d.prepare(
-    `INSERT INTO Bet (id, roundId, clipCode, side, amountCents, bettorId, fingerprint, refCode, mode, orderId, status, claimed, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, 'cashout-selftest', ?, 'crypto', ?, 'pending', 0, datetime('now'), datetime('now'))`
-  ).run(betId, roundId, clipCode, side, amountCents, bettorId, refCode || null, `rb-${betId}`);
-  d.close();
+  await q(
+    `INSERT INTO "Bet" (id, "roundId", "clipCode", side, "amountCents", "bettorId", fingerprint, "refCode", mode, "orderId", status, claimed, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, $6, 'cashout-selftest', $7, 'crypto', $8, 'pending', FALSE, now(), now())`,
+    [betId, roundId, clipCode, side, amountCents, bettorId, refCode || null, `rb-${betId}`]
+  );
   return betId;
 }
 
@@ -161,14 +157,14 @@ async function run() {
   /* v7: crypto-инвойс per-bet снят с производства — легаси-цепочку симулируем
      строкой в БД (как инвойс, созданный до миграции), вебхуки те же */
   const bettorA = /nr_bet=([^;]+)/.exec(A.jar.cookie || "")?.[1];
-  const b1id = seedLegacyCryptoBet(round.id, created.clip, bettorA, "real", 100, null);
+  const b1id = await seedLegacyCryptoBet(round.id, created.clip, bettorA, "real", 100, null);
   const paymentUuid = randomUUID();
   ok("легаси crypto-ставка создана (pending)", Boolean(b1id) && Boolean(bettorA), b1id.slice(0, 8));
   created.bets.push(b1id);
-  const orderRow0 = db().prepare("SELECT orderId FROM Bet WHERE id = ?").get(b1id);
+  const orderRow0 = await one('SELECT "orderId" FROM "Bet" WHERE id = $1', [b1id]);
   ok("orderId rb-* записан", String(orderRow0?.orderId || "").startsWith("rb-"), orderRow0?.orderId);
 
-  const betRow0 = db().prepare("SELECT status FROM Bet WHERE id = ?").get(b1id);
+  const betRow0 = await one('SELECT status FROM "Bet" WHERE id = $1', [b1id]);
   ok("в пуле до оплаты ставки нет", betRow0?.status === "pending");
 
   /* === 2. битая подпись → 401 === */
@@ -184,7 +180,7 @@ async function run() {
     "wrong-key-XXXX"
   );
   ok("webhook с битой подписью → 401", badSign === 401);
-  const stillPending = db().prepare("SELECT status FROM Bet WHERE id = ?").get(b1id);
+  const stillPending = await one('SELECT status FROM "Bet" WHERE id = $1', [b1id]);
   ok("после 401 ставка осталась pending", stillPending?.status === "pending");
 
   /* === 3. верная подпись → active + пул === */
@@ -200,13 +196,13 @@ async function run() {
     PAYMENT_KEY
   );
   ok("payment webhook принят", good === 200);
-  const activeRow = db().prepare("SELECT status FROM Bet WHERE id = ?").get(b1id);
+  const activeRow = await one('SELECT status FROM "Bet" WHERE id = $1', [b1id]);
   ok("ставка active после оплаты", activeRow?.status === "active");
 
   /* вторая ставка: D, $5 SYNTH, с реферальным кодом (проиграет) */
   await D("GET", `/api/round?clip=${created.clip}`); // nr_bet cookie
   const bettorD = /nr_bet=([^;]+)/.exec(D.jar.cookie || "")?.[1];
-  const b2id = seedLegacyCryptoBet(round.id, created.clip, bettorD, "synth", 500, "rselftest99");
+  const b2id = await seedLegacyCryptoBet(round.id, created.clip, bettorD, "synth", 500, "rselftest99");
   ok("легаси crypto-ставка D с рефом создана", Boolean(b2id) && Boolean(bettorD), b2id.slice(0, 8));
   created.bets.push(b2id);
   const uuidD = randomUUID();
@@ -221,7 +217,7 @@ async function run() {
     },
     PAYMENT_KEY
   );
-  const poolRow = db().prepare("SELECT poolRealCents, poolSynthCents FROM Round WHERE id = ?").get(round.id);
+  const poolRow = await one('SELECT "poolRealCents", "poolSynthCents" FROM "Round" WHERE id = $1', [round.id]);
   ok("пулы после оплаты: 100/500", poolRow?.poolRealCents === 100 && poolRow?.poolSynthCents === 500, `real=${poolRow?.poolRealCents} synth=${poolRow?.poolSynthCents}`);
 
   /* === 4. резолв === */
@@ -244,9 +240,10 @@ async function run() {
   ok("D: lost, payout=0", betD?.status === "lost" && betD.payoutCents === 0, `status=${betD?.status} payout=${betD?.payoutCents}`);
 
   /* === 5. рефералка === */
-  const refRow = db()
-    .prepare("SELECT payoutUsdt, amountUsdt FROM ReferralEvent WHERE orderId = ?")
-    .get(`rr-${round.id}-rselftest99`);
+  const refRow = await one(
+    'SELECT "payoutUsdt", "amountUsdt" FROM "ReferralEvent" WHERE "orderId" = $1',
+    [`rr-${round.id}-rselftest99`]
+  );
   const expectRef = Math.floor(60 * 0.2 * (500 / 600));
   ok(
     "ReferralEvent bet_rake (реф проигравшего тоже атрибутируется)",
@@ -271,10 +268,8 @@ async function run() {
   ok("сумма кэшаута = claimable", co.json.amountCents === expectA);
 
   /* === 8. БД: claimed + повторный кэшаут === */
-  const claimedRow = db()
-    .prepare("SELECT claimed, payoutOrderId FROM Bet WHERE id = ?")
-    .get(b1id);
-  ok("bet.claimed=1", claimedRow?.claimed === 1, `payoutOrderId=${claimedRow?.payoutOrderId}`);
+  const claimedRow = await one('SELECT claimed, "payoutOrderId" FROM "Bet" WHERE id = $1', [b1id]);
+  ok("bet.claimed=true", claimedRow?.claimed === true, `payoutOrderId=${claimedRow?.payoutOrderId}`);
   ok("payoutOrderId bw-*", String(claimedRow?.payoutOrderId || "").startsWith("bw-"));
 
   const again = await A("POST", "/api/me/cashout", { wallet: W });
@@ -300,8 +295,8 @@ async function run() {
     PAYOUT_KEY
   );
   ok("payout failed webhook принят", failedSt === 200);
-  const unclaimedRow = db().prepare("SELECT claimed, payoutOrderId FROM Bet WHERE id = ?").get(b1id);
-  ok("claimed снят после failed", unclaimedRow?.claimed === 0);
+  const unclaimedRow = await one('SELECT claimed, "payoutOrderId" FROM "Bet" WHERE id = $1', [b1id]);
+  ok("claimed снят после failed", unclaimedRow?.claimed === false);
 
   const sum3 = await A("GET", "/api/me/cashout");
   ok("claimable вернулся к 540", sum3.json.claimableCents === expectA, `claimable=${sum3.json.claimableCents}`);
@@ -309,8 +304,8 @@ async function run() {
   /* повторный кэшаут после отката */
   const co2 = await A("POST", "/api/me/cashout", { wallet: W });
   ok("повторный кэшаут после отката ok", co2.status === 200 && co2.json.amountCents === expectA, `new bw-${co2.json.cashoutId}`);
-  const reClaimed = db().prepare("SELECT payoutOrderId, claimed FROM Bet WHERE id = ?").get(b1id);
-  ok("новый payoutOrderId", reClaimed?.claimed === 1 && reClaimed.payoutOrderId !== bwId);
+  const reClaimed = await one('SELECT "payoutOrderId", claimed FROM "Bet" WHERE id = $1', [b1id]);
+  ok("новый payoutOrderId", reClaimed?.claimed === true && reClaimed.payoutOrderId !== bwId);
 
   /* === 10. completed → остаётся claimed === */
   const doneSt = await webhook2328(
@@ -327,8 +322,8 @@ async function run() {
     PAYOUT_KEY
   );
   ok("payout completed webhook принят", doneSt === 200);
-  const finalRow = db().prepare("SELECT claimed FROM Bet WHERE id = ?").get(b1id);
-  ok("после completed claimed=1", finalRow?.claimed === 1);
+  const finalRow = await one('SELECT claimed FROM "Bet" WHERE id = $1', [b1id]);
+  ok("после completed claimed=true", finalRow?.claimed === true);
 
   /* === 11. позиции в /api/me/bets === */
   const pos = await A("GET", "/api/me/bets");
@@ -341,12 +336,11 @@ async function run() {
   await V("GET", `/api/round?clip=${created.clip}`); // nr_bet cookie
   const bettorV = /nr_bet=([^;]+)/.exec(V.jar.cookie || "")?.[1];
   const vb = randomUUID();
-  const dv = db();
-  dv.prepare(
-    `INSERT INTO Bet (id, roundId, clipCode, side, amountCents, bettorId, fingerprint, mode, status, payoutCents, claimed, createdAt, updatedAt)
-     VALUES (?, ?, ?, 'synth', 300, ?, 'balance-winner', 'balance', 'won', 900, 0, datetime('now'), datetime('now'))`
-  ).run(vb, round.id, created.clip, bettorV);
-  dv.close();
+  await q(
+    `INSERT INTO "Bet" (id, "roundId", "clipCode", side, "amountCents", "bettorId", fingerprint, mode, status, "payoutCents", claimed, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, 'synth', 300, $4, 'balance-winner', 'balance', 'won', 900, FALSE, now(), now())`,
+    [vb, round.id, created.clip, bettorV]
+  );
   created.bets.push(vb);
   const sumV = await V("GET", "/api/me/cashout");
   ok("v7-guard: balance-won не попадает в claimable", sumV.json.claimableCents === 0, `claimable=${sumV.json.claimableCents}`);
@@ -355,18 +349,17 @@ async function run() {
 }
 
 /* ---------- очистка ---------- */
-function cleanup() {
-  const con = db();
-  const del = (table, col, ids) => {
-    if (!ids.length) return;
-    const q = con.prepare(`DELETE FROM ${table} WHERE ${col} = ?`);
-    for (const id of ids) q.run(id);
+async function cleanup() {
+  const del = async (table, col, ids) => {
+    for (const id of ids) {
+      await q(`DELETE FROM "${table}" WHERE "${col}" = $1`, [id]);
+    }
   };
-  del("ReferralEvent", "orderId", created.referrals);
-  del("Bet", "roundId", created.rounds);
-  del("Round", "id", created.rounds);
-  con.prepare("DELETE FROM TrackEvent WHERE clipCode = ?").run(created.clip);
-  con.close();
+  await del("ReferralEvent", "orderId", created.referrals);
+  await del("Bet", "roundId", created.rounds);
+  await del("Round", "id", created.rounds);
+  await q('DELETE FROM "TrackEvent" WHERE "clipCode" = $1', [created.clip]);
+  await close();
   console.log(`\n[cleanup] тестовые данные вычищены (rounds=${created.rounds.length})`);
 }
 
@@ -379,7 +372,7 @@ try {
   failed++;
 } finally {
   if (mockChild) mockChild.kill();
-  cleanup();
+  await cleanup();
   console.log(`\n=== ИТОГ: ${passed} PASS / ${failed} FAIL ===\n`);
   process.exit(failed ? 1 : 0);
 }

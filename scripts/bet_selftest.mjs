@@ -20,10 +20,11 @@
  * Ожидает BET_WINDOW_SEC=25 (sandbox .env).
  */
 
-import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { readFileSync } from "node:fs";
+
+import { q, one, close } from "./lib/supadb.mjs";
 
 const BASE = process.env.TEST_BASE_URL || "http://localhost:3000";
 const ADMIN_SECRET_ENV = (readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
@@ -31,7 +32,7 @@ const ADMIN_SECRET_ENV = (readFileSync(path.resolve(process.cwd(), ".env"), "utf
   .find((l) => l.startsWith("ADMIN_SECRET=")) || "")
   .split("=")[1]?.replace(/"/g, "")
   .trim();
-const DB_PATH = path.resolve(process.cwd(), "db/custom.db");
+
 const CSV_PATH = path.resolve(process.cwd(), "data/posts.csv");
 
 let passed = 0;
@@ -61,9 +62,6 @@ function truthOf(code) {
   return "";
 }
 
-function db() {
-  return new DatabaseSync(DB_PATH);
-}
 
 /* ---------- cookie-jar fetch ---------- */
 function makeClient(name) {
@@ -196,11 +194,11 @@ async function run() {
 
   /* === 8. рефералка: rr-<roundId>-rselftest99 ===
      refCut = floor(rake * 0.2 * 300/700) = floor(70*0.2*3/7)=6 монет */
-  const con = db();
   const refOrderId = `rr-${round.id}-rselftest99`;
-  const refRow = con
-    .prepare("SELECT refCode, kind, amountUsdt, payoutUsdt FROM ReferralEvent WHERE orderId = ?")
-    .get(refOrderId);
+  const refRow = await one(
+    'SELECT "refCode", kind, "amountUsdt", "payoutUsdt" FROM "ReferralEvent" WHERE "orderId" = $1',
+    [refOrderId]
+  );
   const expectRef = Math.floor(rake * 0.2 * (300 / total));
   ok("ReferralEvent bet_rake создан", Boolean(refRow), refRow ? `payout=${refRow.payoutUsdt}` : "нет строки");
   ok(
@@ -210,7 +208,7 @@ async function run() {
   );
   created.referrals.push(refOrderId);
 
-  const roundRow = con.prepare("SELECT rakeCents, authorShareCents, refShareCents FROM Round WHERE id = ?").get(round.id);
+  const roundRow = await one('SELECT "rakeCents", "authorShareCents", "refShareCents" FROM "Round" WHERE id = $1', [round.id]);
   ok("рейк записан на раунде", roundRow?.rakeCents === rake, `rake=${roundRow?.rakeCents}`);
   ok(
     "authorShare = 15% рейка",
@@ -220,11 +218,10 @@ async function run() {
   ok("refShare = сумме реферальных", roundRow?.refShareCents === expectRef, `ref=${roundRow?.refShareCents}`);
 
   /* === 9. аналитика === */
-  const evPlaced = con.prepare("SELECT COUNT(*) c FROM TrackEvent WHERE name='bet_placed' AND clipCode=?").get(code);
-  const evWon = con.prepare("SELECT COUNT(*) c FROM TrackEvent WHERE name IN ('bet_won','bet_lost') AND clipCode=?").get(code);
+  const evPlaced = await one("SELECT COUNT(*)::int AS c FROM \"TrackEvent\" WHERE name='bet_placed' AND \"clipCode\"=$1", [code]);
+  const evWon = await one("SELECT COUNT(*)::int AS c FROM \"TrackEvent\" WHERE name IN ('bet_won','bet_lost') AND \"clipCode\"=$1", [code]);
   ok("TrackEvent bet_placed пишутся", evPlaced.c >= 3, `count=${evPlaced.c}`);
   ok("TrackEvent bet_won/lost пишутся", evWon.c >= 3, `count=${evWon.c}`);
-  con.close();
 
   /* === 10. админ-cron === */
   const noKey = await makeClient("cron")("POST", "/api/round/expired/resolve");
@@ -237,18 +234,17 @@ async function run() {
 }
 
 /* ---------- очистка ---------- */
-function cleanup() {
-  const con = db();
-  const del = (table, col, ids) => {
-    if (!ids.length) return;
-    const q = con.prepare(`DELETE FROM ${table} WHERE ${col} = ?`);
-    for (const id of ids) q.run(id);
+async function cleanup() {
+  const del = async (table, col, ids) => {
+    for (const id of ids) {
+      await q(`DELETE FROM "${table}" WHERE "${col}" = $1`, [id]);
+    }
   };
-  del("ReferralEvent", "orderId", created.referrals);
-  del("Bet", "roundId", created.rounds);
-  del("Round", "id", created.rounds);
-  con.prepare("DELETE FROM TrackEvent WHERE clipCode = ?").run("71vsIPUu");
-  con.close();
+  await del("ReferralEvent", "orderId", created.referrals);
+  await del("Bet", "roundId", created.rounds);
+  await del("Round", "id", created.rounds);
+  await q('DELETE FROM "TrackEvent" WHERE "clipCode" = $1', ["71vsIPUu"]);
+  await close();
   console.log(`\n[cleanup] тестовые данные вычищены (rounds=${created.rounds.length})`);
 }
 
@@ -258,7 +254,7 @@ try {
   console.error("[bet-selftest] crash:", e);
   failed++;
 } finally {
-  cleanup();
+  await cleanup();
   console.log(`\n=== ИТОГ: ${passed} PASS / ${failed} FAIL ===\n`);
   process.exit(failed ? 1 : 0);
 }

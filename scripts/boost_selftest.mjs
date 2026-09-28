@@ -32,11 +32,12 @@
 
 import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
+import { q, one, close } from "./lib/supadb.mjs";
+
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
-const DB_PATH = path.resolve(process.cwd(), "db/custom.db");
+
 const PAYMENT_KEY = "test-payment-key";
 const CLIP = "71vsIPUu";
 
@@ -54,9 +55,6 @@ function ok(name, cond, extra = "") {
   }
 }
 
-function db() {
-  return new DatabaseSync(DB_PATH);
-}
 
 function sign2328(body, key) {
   const base64 = Buffer.from(JSON.stringify(body), "utf-8").toString("base64");
@@ -137,7 +135,7 @@ async function run() {
   ok("boost checkout принял", bo.status === 200 && typeof bo.json.payUrl === "string", bo.json.error || bo.json.amountUsdt);
   ok("буст $9.00 за 3 дня", bo.json.amountUsdt === "9.00", bo.json.amountUsdt);
   const boostUuid = String(bo.json.payUrl || "").split("/pay/")[1] || "";
-  const boostRow = db().prepare("SELECT id, orderId, status, days, amountUsdt FROM BoostOrder WHERE paymentId = ?").get(boostUuid);
+  const boostRow = await one('SELECT id, "orderId", status, days, "amountUsdt" FROM "BoostOrder" WHERE "paymentId" = $1', [boostUuid]);
   ok("BoostOrder pending в БД", boostRow?.status === "pending" && boostRow?.days === 3, boostRow?.status);
   ok("orderId bs-*", String(boostRow?.orderId || "").startsWith("bs-"), boostRow?.orderId);
   cleanup.boosts.push(boostRow?.id);
@@ -153,7 +151,7 @@ async function run() {
     PAYMENT_KEY
   );
   ok("boost payment webhook принят", bGood === 200);
-  const paidBoost = db().prepare("SELECT status, paidUntil FROM BoostOrder WHERE id = ?").get(boostRow.id);
+  const paidBoost = await one('SELECT status, "paidUntil" FROM "BoostOrder" WHERE id = $1', [boostRow.id]);
   ok("буст paid, paidUntil установлен", paidBoost?.status === "paid" && Boolean(paidBoost?.paidUntil), paidBoost?.paidUntil);
   const paidUntilMs = paidBoost?.paidUntil ? new Date(paidBoost.paidUntil).getTime() : 0;
   const expectMs = Date.now() + 3 * 24 * 3600 * 1000;
@@ -165,7 +163,7 @@ async function run() {
     PAYMENT_KEY
   );
   ok("повторный webhook → 200 (идемпотентно)", dup === 200);
-  const dupBoost = db().prepare("SELECT paidUntil FROM BoostOrder WHERE id = ?").get(boostRow.id);
+  const dupBoost = await one('SELECT "paidUntil" FROM "BoostOrder" WHERE id = $1', [boostRow.id]);
   ok("paidUntil не сдвинулся", String(dupBoost?.paidUntil) === String(paidBoost?.paidUntil));
 
   /* статус-эндпоинт видит активный буст */
@@ -175,19 +173,20 @@ async function run() {
   /* cancel → failed на свежем ордере */
   const bo2 = await B("POST", "/api/boost/checkout", { code: CLIP, days: 1 });
   const uuid2 = String(bo2.json.payUrl || "").split("/pay/")[1] || "";
-  const row2 = db().prepare("SELECT id, orderId FROM BoostOrder WHERE paymentId = ?").get(uuid2);
+  const row2 = await one('SELECT id, "orderId" FROM "BoostOrder" WHERE "paymentId" = $1', [uuid2]);
   cleanup.boosts.push(row2?.id);
   const cancelled = await webhook2328(
     { uuid: uuid2, order_id: row2.orderId, payment_status: "cancel", txid: null, amount: "3.00", currency: "USDT" },
     PAYMENT_KEY
   );
   ok("cancel webhook принят", cancelled === 200);
-  const failedRow = db().prepare("SELECT status FROM BoostOrder WHERE id = ?").get(row2.id);
+  const failedRow = await one('SELECT status FROM "BoostOrder" WHERE id = $1', [row2.id]);
   ok("буст cancel → failed", failedRow?.status === "failed", failedRow?.status);
 
-  const evBoost = db()
-    .prepare("SELECT COUNT(*) AS n FROM TrackEvent WHERE name = 'boost_purchase' AND clipCode = ?")
-    .get(CLIP);
+  const evBoost = await one(
+    "SELECT COUNT(*)::int AS n FROM \"TrackEvent\" WHERE name = 'boost_purchase' AND \"clipCode\" = $1",
+    [CLIP]
+  );
   ok("TrackEvent boost_purchase", (evBoost?.n ?? 0) >= 1);
   cleanup.events.push("boost_purchase");
 
@@ -220,32 +219,32 @@ async function run() {
 }
 
 /* ---------- cleanup тестовых строк ---------- */
-function cleanupDb() {
+async function cleanupDb() {
   try {
-    const d = db();
     for (const id of cleanup.boosts) {
       if (!id) continue;
-      d.prepare("DELETE FROM BoostOrder WHERE id = ?").run(id);
+      await q('DELETE FROM "BoostOrder" WHERE id = $1', [id]);
     }
     if (cleanup.events.length) {
-      d.prepare("DELETE FROM TrackEvent WHERE name IN ('boost_purchase')").run();
+      await q("DELETE FROM \"TrackEvent\" WHERE name IN ('boost_purchase')");
     }
-    d.close();
   } catch (e) {
     console.warn("[cleanup] skip:", e instanceof Error ? e.message : e);
+  } finally {
+    await close();
   }
 }
 
 const isCleanupOnly = process.argv.includes("--cleanup-only");
 if (isCleanupOnly) {
-  cleanupDb();
+  await cleanupDb();
   console.log("[boost-selftest] cleanup done");
 } else {
   const mock = await ensureMock();
   try {
     await run();
   } finally {
-    cleanupDb();
+    await cleanupDb();
     if (mock) mock.kill();
   }
 }
