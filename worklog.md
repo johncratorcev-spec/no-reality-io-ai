@@ -1133,3 +1133,25 @@ Stage Summary:
 - Единая БД Supabase Postgres для локалки и прода; schema.prisma = postgresql; данные персистентны (больше не "db:down" на деплое).
 - Для прода: в Vercel env задать DATABASE_URL (transaction :6543 + pgbouncer=true&connection_limit=1), DIRECT_URL, GOOGLE_CLIENT_ID/SECRET, ADMIN_SECRET; регион функции ближе к eu-west-3 (Paris/Frankfurt).
 - Файлы: prisma/schema.prisma; scripts/lib/supadb.mjs (нов); scripts/{economy,bet,cashout,boost,google}_selftest.mjs; scripts/supa_{region_probe,diag,enable_rls}.mjs (нов); .env.example.
+
+---
+Task ID: v7-1-remove-wallet-connect
+Agent: Super Z (main agent)
+Task: Убрать с сайта подключение криптокошелька + выяснить, почему на Vercel до сих пор нет кнопки авторизации.
+
+Work Log:
+- ДИАГНОЗ ВЕРСЕЛЯ: прод УЖЕ на v7-коде (fingerprint: /api/auth/google/start → 503 google_not_configured, /api/wallet/deposit → bad_amount), но env НЕ заданы: GOOGLE_CLIENT_ID/SECRET отсутствуют → status enabled=false → кнопка Google скрыта ДИЗАЙНОМ; DATABASE_URL отсутствует → health db:down. "version":"v6" в health — обманчивый фолбэк npm_package_version (недоступен в рантайме Vercel) → заменён на APP_VERSION || "v7.1".
+- УДАЛЕНИЕ КРИПТО-КОШЕЛЬКА (UI): WalletButton.tsx переписан в account-кнопку (гость → только «G google», google-сессия → чип email + дропдаун: баланс/бейджи/избранное/invite/sign out); BetPanel — убраны useWalletSession + кнопка walletPass + wallet-пропсы; PredictModal — убраны wallet/onConnectWallet/walletConnecting + connect-CTA; PnlWallet — убран connect, identity = легаси localStorage demo-адрес (read-only); Menu — секция "wallet" → "account"; ReferralPanel.tsx удалён (мёртвый код, ноль импортов).
+- УДАЛЕНИЕ КРИПТО-КОШЕЛЬКА (клиентские либы): src/lib/use-wallet.ts и src/lib/cryo/wallet.ts удалены (Phantom sign-in, MetaMask eth_requestAccounts, payUsdc SPL-перевод — всё было завязано только на них).
+- УДАЛЕНИЕ КРИПТО-КОШЕЛЬКА (API): /api/auth/phantom, /api/auth/metamask (подписи ed25519/personal_sign), /api/me/link-wallet (PASS через кошелёк), /api/me/attach-bets — роуты удалены; lib/account.ts: linkWallet() удалён; PASS теперь выдаёт только google/magic-вход.
+- ЕДИНАЯ ИДЕНТИЧНОСТЬ nr_uid: favorites/profile/referrals получили nr_uid-fallback в sessionWallet() (субъект "uid:<uuid>"; легаси-куки кошельков ещё читаются — старые сессии не теряют избранное/рефералку); accountView отдаёт email (UI отличает google-сессию от гостя); НОВЫЙ роут POST /api/auth/signout — сброс nr_uid+nr_email.
+- i18n: walletPass/walletCta/walletConnecting удалены → googlePass/googleCta; noWalletNote переписан ("no wallets, no forms").
+- ИНФРАСТРУКТУРА: .env сбился после рестарта песочницы (остался file:sqlite) — восстановлен на Supabase pooler (aws-1-eu-west-3, session :5432, пароль URL-encoded) + Google ключи + ADMIN_SECRET; pg добавлен в package.json dependencies (ранее был ad-hoc, потерялся при reset node_modules).
+- ТЕСТЫ: economy — link-wallet PASS-шаг заменён на прямой SQL passTier=1 (56 проверок); boost — attach-bets проверка удалена (21). Полный прогон НА SUPABASE: google 20/20, economy 56/56, bet 30/30, cashout 36/36, boost 21/21 = 163 PASS / 0 FAIL.
+- Ловушка selftest-окружения: сервер надо поднимать с GOOGLE_TOKEN_URL=:9998/token + TWOTHOUSAND328_* (моки) — без них exchange→google_profile и deposit→demo_cap. tsc 0 ошибок, eslint чист, next build успешен.
+- Секрет-скан стейджа: чисто (.env gitignored).
+
+Stage Summary:
+- Крипто-кошелёк как метод входа удалён полностью: ни одной connect-кнопки, ни одного sign-in роута; остались ТОЛЬКО депозиты/бусты/кэшаут через 2328.io (реальные инвойсы не тронуты — payment-цепочка v7 цела: economy/bet/cashout/boost selftests зелёные).
+- Авторизация сайта: мгновенный гость (nr_uid) + Google Sign-In (+ magic по серверному флагу); избранное/профиль/рефералка работают на аккаунте без кошелька.
+- Для появления кнопки Google на Vercel нужно (сторона владельца): 1) задать env GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET, 2) задать DATABASE_URL (transaction pooler :6543 + pgbouncer=true&connection_limit=1) и DIRECT_URL (:5432), ADMIN_SECRET, 3) НЕ задавать PUBLIC_BASE_URL=localhost (redirect_uri считается от него; дефолт — https://no-reality.fun), 4) Redeploy. После деплоя health должен показать version=v7.1, db=up.

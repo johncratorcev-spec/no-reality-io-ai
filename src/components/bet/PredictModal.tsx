@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Coins, Gift, Instagram, Wallet, X, Zap } from "lucide-react";
+import { Coins, Gift, Instagram, X, Zap } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
 import {
   DEPOSIT_PRESETS_CENTS,
@@ -27,8 +27,8 @@ import { useLang } from "@/lib/i18n";
  *              v7: пакеты несут бонус-мультипликатор монет (+10%/+25%).
  * ig-задание:  подписка на Instagram @mmayrday → +300 монет (раз за аккаунт).
  *
- * Воронка (крипто-адаптированная): никаких email/форм — вход Google
- * опционален, кошелёк нужен только для NR PASS / leaderboard.
+ * Воронка (v7.1): никаких email/форм и никаких крипто-кошельков — вход
+ * Google опционален (кнопка в шапке), ставка работает у мгновенного гостя.
  */
 
 type Side = "real" | "synth";
@@ -39,9 +39,6 @@ interface PredictModalProps {
   /** null = открыта только для пополнения (без ставки) */
   side: Side | null;
   account: AccountView | null;
-  wallet: string | null;
-  onConnectWallet: () => void;
-  walletConnecting: boolean;
   onClose: () => void;
   /** ставка прошла — панель обновляет раунд/пул */
   onPlaced: (resp: PlacedResponse) => void;
@@ -67,9 +64,6 @@ export default function PredictModal({
   clipCode,
   side,
   account,
-  wallet,
-  onConnectWallet,
-  walletConnecting,
   onClose,
   onPlaced,
   onAccountUpdate,
@@ -490,19 +484,6 @@ export default function PredictModal({
               <p className="mt-3 text-center text-[0.85rem] font-black" style={{ color: "var(--nb-poison)" }}>
                 {t.bet.topupDone}
               </p>
-            )}
-
-            {/* мягкий CTA на кошелёк (опционально): PASS + ежедневный бонус */}
-            {!wallet && !deposit && (
-              <button
-                onClick={onConnectWallet}
-                disabled={walletConnecting}
-                className="nb-btn mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[0.78rem] font-bold"
-                style={{ border: "1px dashed rgba(242,237,228,.28)", color: "rgba(242,237,228,.7)" }}
-              >
-                <Wallet className="h-4 w-4" />
-                {walletConnecting ? t.bet.walletConnecting : t.bet.walletCta}
-              </button>
             )}
           </div>
         )}

@@ -18,7 +18,7 @@
  *     5. повторный клик target1 → duplicate (посуточный дедуп)
  *     6. бот-UA → bot
  *  C. NR PASS:
- *     7. link-wallet → passTier 1
+ *     7. passTier=1 (сессия google/magic; крипто-привязка удалена v7.1 — прямой SQL)
  *     8. daily-бонус → credited, streak 1
  *     9. повторный daily в тот же UTC-день → no-op
  *  D. крипто-пополнение (внутренний баланс = источник истины):
@@ -200,9 +200,12 @@ async function run() {
 
   /* === C. NR PASS === */
   const W = makeClient("wallet-user");
-  const link = await W("POST", "/api/me/link-wallet", { wallet: "0xecontest1111111111111111111111111111aaa1" });
-  ok("кошелёк привязан → PASS", link.json.account?.isPass === true, `passTier=${link.json.account?.passTier}`);
-  cleanup.accounts.push(link.json.account?.accountId);
+  const meW = await W("GET", "/api/me");
+  cleanup.accounts.push(meW.json.account?.accountId);
+  /* v7.1: PASS выдаёт google/magic-вход; здесь эмулируем уже-вошедшего
+     пользователя прямым SQL (роут /api/me/link-wallet удалён вместе
+     с крипто-подключением) */
+  await q('UPDATE "Account" SET "passTier" = 1 WHERE id = $1', [meW.json.account?.accountId]);
   const d1 = await W("POST", "/api/me/daily");
   ok("daily-бонус PASS → credited", d1.json.credited === true && d1.json.streakDays === 1, `+${d1.json.amountCents}`);
   const d2 = await W("POST", "/api/me/daily");

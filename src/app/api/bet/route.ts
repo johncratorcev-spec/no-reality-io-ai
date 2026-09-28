@@ -65,8 +65,9 @@ export async function POST(req: NextRequest) {
   const bettor = readBettor(req);
   const fingerprint = visitorHashOf(ip, ua);
   const refCode = normalizeRefCode(body.ref);
-  /* v5: кошелёк из сессии (если подключён) — сразу пишем в ставку
-     (Best Eyes Leaderboard + кэшаут). Доаттрибуция старых — /api/me/attach-bets */
+  /* v5: легаси-куки кошелька (если остались от старой сессии) — сразу пишем
+     в ставку (Best Eyes Leaderboard + кэшаут). v7.1: крипто-подключение
+     удалено, новые кошелёчные сессии не появляются. */
   const walletCookie =
     req.cookies.get("nr_wallet")?.value?.toLowerCase() ||
     req.cookies.get("nr_phantom")?.value?.toLowerCase() ||

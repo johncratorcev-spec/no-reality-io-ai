@@ -6,11 +6,12 @@ import { deriveRefCode } from "@/lib/referral";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/me/referrals — реферальный прогресс текущего кошелька (v5).
+ * GET /api/me/referrals — реферальный прогресс текущей сессии (v5 → v7.1).
  *
  * Видимость заработка (ТЗ v5): сколько приведённые ставки/покупки принесли
- * в USDT, сколько людей конвертировалось, последние события. Кошелёк —
- * из сессии (cookie nr_wallet / nr_phantom); без сессии — нули.
+ * в USDT, сколько людей конвертировалось, последние события. Субъект —
+ * nr_uid (мгновенный аккаунт / google / magic); legacy-куки кошельков
+ * читаются для старых сессий. Без сессии — нули.
  */
 export async function GET(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
@@ -23,13 +24,22 @@ export async function GET(req: NextRequest) {
     req.cookies.get("nr_wallet")?.value?.toLowerCase() ||
     req.cookies.get("nr_phantom")?.value?.toLowerCase() ||
     null;
-
   if (!wallet) {
+    /* v7.1: единый аккаунт nr_uid — рефералка работает без кошелька */
+    const uid = req.cookies.get("nr_uid")?.value;
+    if (uid && /^[0-9a-f-]{36}$/i.test(uid)) {
+      return referralView(`uid:${uid.toLowerCase()}`);
+    }
     return NextResponse.json({ connected: false, ratePct: 0.2 });
   }
 
+  return referralView(wallet);
+}
+
+/** реферальный реестр по субъекту сессии (uid:/legacy-кошелёк) */
+async function referralView(subject: string) {
   try {
-    const code = deriveRefCode(wallet);
+    const code = deriveRefCode(subject);
     const events = await db.referralEvent.findMany({
       where: { refCode: code, kind: "paid" },
       orderBy: { createdAt: "desc" },

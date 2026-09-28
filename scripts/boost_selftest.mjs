@@ -21,10 +21,10 @@
  *     7. GET /api/bet/live → betting:number
  *     8. GET /api/bet/hard → codes:array
  *     9. GET /api/bet/leaderboard → rows:array
- *    10. POST /api/me/attach-bets без кошелька → 400
+ *    (v7.1: attach-bets удалён вместе с крипто-подключением)
  *  D. продажа промптов удалена:
- *    11. GET /market → 308 на /bet
- *    12. POST /api/prompts/x/checkout → 404
+ *    10. GET /market → 308 на /bet
+ *    11. POST /api/prompts/x/checkout → 404
  *
  * Запуск: node scripts/boost_selftest.mjs
  * Мок 2328: scripts/mock-2328.mjs (:9999) — поднимается автоматически.
@@ -198,8 +198,6 @@ async function run() {
   ok("bet/hard отвечает", hard.status === 200 && Array.isArray(hard.json.codes), `codes=${hard.json.codes?.length ?? 0}`);
   const lb = await V("GET", "/api/bet/leaderboard");
   ok("bet/leaderboard отвечает", lb.status === 200 && Array.isArray(lb.json.rows), `rows=${lb.json.rows?.length ?? 0}`);
-  const attachNoWallet = await V("POST", "/api/me/attach-bets");
-  ok("attach-bets без кошелька → 400", attachNoWallet.status === 400);
 
   /* boost checkout на несуществующий клип → 404 */
   const badClip = await V("POST", "/api/boost/checkout", { code: "zzzzzzzz", days: 1 });

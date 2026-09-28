@@ -244,7 +244,8 @@ export interface AccountView {
   balanceCents: number;
   passTier: number;
   isPass: boolean;
-  wallet: string | null;
+  /** v7.1: email google/magic-сессии — null у мгновенного гостя */
+  email: string | null;
   streakDays: number;
   dailyAvailable: boolean;
 }
@@ -253,7 +254,7 @@ export function accountView(a: {
   id: string;
   balanceCents: number;
   passTier: number;
-  wallet: string | null;
+  email?: string | null;
   streakDays: number;
   lastDailyAt: Date | null;
 }): AccountView {
@@ -262,7 +263,7 @@ export function accountView(a: {
     balanceCents: a.balanceCents,
     passTier: a.passTier,
     isPass: a.passTier > 0,
-    wallet: a.wallet,
+    email: a.email ?? null,
     streakDays: a.streakDays,
     dailyAvailable: a.passTier > 0 && !sameUtcDay(a.lastDailyAt, new Date()),
   };
@@ -279,47 +280,9 @@ function sameUtcDay(a: Date | null, b: Date): boolean {
 
 /* ------------------------------------------------------------------ */
 /*  NR PASS — пасс авторизованного пользователя                        */
+/*  v7.1: пасс выдаётся google/magic-входом (signInWithGoogle и        */
+/*  magic-link); крипто-привязка кошелька удалена с сайта.             */
 /* ------------------------------------------------------------------ */
-
-/**
- * Привязка кошелька: открывает NR PASS. Если кошелёк уже привязан к другому
- * аккаунту (юзер чистил cookies) — возвращаем старый аккаунт: балансы не
- * теряются, cookie перезапишется на стороне клиента.
- */
-export async function linkWallet(
-  accountId: string,
-  walletRaw: string
-): Promise<{ account: { id: string; passTier: number; passGranted: boolean } }> {
-  const wallet = walletRaw.toLowerCase().slice(0, 64);
-  if (!/^[0-9a-z_:]{20,64}$/.test(wallet)) {
-    throw new EconError("bad wallet", 400, "bad_wallet");
-  }
-
-  const existing = await db.account.findUnique({ where: { wallet } });
-  if (existing && existing.id !== accountId) {
-    /* чужая cookie + знакомый кошелёк → возвращаем настоящий аккаунт */
-    return { account: { id: existing.id, passTier: existing.passTier, passGranted: false } };
-  }
-
-  const me = await ensureAccount(accountId);
-  if (me.passTier >= 1) {
-    if (me.wallet !== wallet) {
-      await db.account.update({ where: { id: me.id }, data: { wallet } });
-    }
-    return { account: { id: me.id, passTier: me.passTier, passGranted: false } };
-  }
-
-  const updated = await db.account.updateMany({
-    where: { id: me.id, passTier: 0 },
-    data: { passTier: 1, wallet },
-  });
-  const passGranted = updated.count > 0;
-  if (passGranted) {
-    econLog("pass_granted", { accountId: me.id, wallet });
-    void trackEvent("pass_granted", { meta: { wallet } });
-  }
-  return { account: { id: me.id, passTier: 1, passGranted } };
-}
 
 /** Daily-бонус NR PASS: раз в UTC-день, streak растёт при непрерывности. */
 export async function claimDailyBonus(accountId: string): Promise<{

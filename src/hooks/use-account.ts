@@ -12,7 +12,8 @@ export interface AccountView {
   balanceCents: number;
   passTier: number;
   isPass: boolean;
-  wallet: string | null;
+  /** email google/magic-сессии — null у мгновенного гостя (v7.1) */
+  email?: string | null;
   streakDays: number;
   dailyAvailable: boolean;
 }

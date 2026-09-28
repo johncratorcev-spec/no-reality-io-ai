@@ -171,7 +171,7 @@ export default function Menu({ variant = "light" }: { variant?: "light" | "dark"
             </a>
           ))}
 
-          {/* разделитель + кошелёк (MetaMask-сессия и invite-ссылка) */}
+          {/* разделитель + аккаунт (Google-сессия, избранное, invite) */}
           <div aria-hidden className={`mx-3 my-2 h-px ${dark ? "bg-white/10" : "bg-[#10161d]/8"}`} />
           <div className="px-1.5 pb-1.5 pt-0.5">
             <p
@@ -179,7 +179,7 @@ export default function Menu({ variant = "light" }: { variant?: "light" | "dark"
                 dark ? "text-white/40" : "text-[#10161d]/40"
               }`}
             >
-              wallet
+              account
             </p>
             <WalletButton />
           </div>

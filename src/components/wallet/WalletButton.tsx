@@ -1,77 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useWalletSession } from "@/lib/use-wallet";
+import { useCallback, useEffect, useState } from "react";
+import { useAccount } from "@/hooks/use-account";
 import {
   hydrateFavorites,
-  resetFavoritesAfterAuth,
   useFavoritesStore,
 } from "@/lib/favorites";
 
 /* ================================================================
-   Кнопка-кошелёк в шапке (task 42/43): connect Phantom (Solana,
-   основной) или MetaMask (фолбэк) → сессия (cookie 30 дней) →
-   в выпадашке pnl-кошелёк, избранное и пригласительная ссылка.
+   ACCOUNT-кнопка в шапке (v7.1).
 
-   Task 44: в выпадашке — бесплатные прогнозы и бейджи профиля;
-   Magic Link вход (email) за серверным флагом /api/auth/magic/status.
+   Крипто-кошелёк больше не метод входа: идентичность — мгновенный
+   аккаунт (cookie nr_uid) + опциональный Google Sign-In (email в
+   /api/me). Гостю показываем «G google» (если ключи настроены),
+   google-пользователю — чип с email и дропдаун: баланс, бейджи,
+   избранное, пригласительная ссылка, выход.
 
-   Сердце на карточке (task 43) диспатчит "nr-wallet-connect", когда
-   зритель без сессии тапает «в избранное» — здесь ловим событие и
-   открываем connect-флоу; после успеха перегидратуем избранное.
+   Magic Link (email) остаётся серверным флагом /api/auth/magic/status.
    ================================================================ */
 
-function short(wallet: string): string {
-  return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
+function emailShort(email: string): string {
+  const [name] = email.split("@");
+  return name.length > 12 ? `${name.slice(0, 11)}…` : name;
+}
+
+interface ProfileData {
+  refCode: string | null;
+  inviteUrl: string | null;
+  bonusCredits: number;
+  badges: string[];
 }
 
 export default function WalletButton() {
-  const {
-    wallet,
-    provider,
-    ready,
-    connecting,
-    error,
-    inviteUrl,
-    connect,
-    disconnect,
-  } = useWalletSession();
+  const { account, ready, refresh } = useAccount();
   const favs = useFavoritesStore();
-  const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
 
+  /* v7: Google Sign-In — статус сервера (кнопка прячется без ключей) */
+  const [googleEnabled, setGoogleEnabled] = useState(false);
   /* task 44: бонусы/бейджи профиля + доступность Magic Link */
-  const [bonusCredits, setBonusCredits] = useState<number | null>(null);
-  const [badges, setBadges] = useState<string[]>([]);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [magicEnabled, setMagicEnabled] = useState(false);
   const [magicEmail, setMagicEmail] = useState("");
   const [magicState, setMagicState] = useState<"idle" | "sending" | "sent">("idle");
-  /* v7: Google Sign-In — статус сервера (кнопка прячется без ключей) */
-  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  /* сердце на карточке просит кошелёк → открываем connect-флоу */
-  useEffect(() => {
-    const onRequest = () => {
-      if (wallet) return;
-      void (async () => {
-        await connect();
-        // успешный коннект ставит cookie — перегидратуем избранное;
-        // при неудаче hydrate просто снова выставит authNeeded
-        resetFavoritesAfterAuth();
-      })();
-    };
-    window.addEventListener("nr-wallet-connect", onRequest);
-    return () => window.removeEventListener("nr-wallet-connect", onRequest);
-  }, [wallet, connect]);
-
-  /* панель открыта — догружаем свежий список избранного */
-  useEffect(() => {
-    if (open && wallet) void hydrateFavorites();
-  }, [open, wallet]);
-
-  /* v7 fix: статус Google спрашиваем при маунте. Раньше фетч жил внутри
-     open-эффекта, а дропдаун без кошелька не открыть — для гостя кнопка
-     Google не появлялась никогда, даже с настроенными ключами. */
+  /* Google-кнопка спрашивается при маунте (v7 fix: не внутри open-эффекта,
+     иначе гость никогда её не увидит) */
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -89,7 +64,8 @@ export default function WalletButton() {
     };
   }, []);
 
-  /* панель открыта — профиль (бонусы/бейджи) + флаг Magic Link */
+  /* панель открыта — профиль (бонусы/бейджи/invite) + флаг Magic Link +
+     свежее избранное */
   useEffect(() => {
     if (!open) return;
     void (async () => {
@@ -97,19 +73,23 @@ export default function WalletButton() {
         const r = await fetch("/api/profile", { cache: "no-store" });
         if (r.ok) {
           const d = (await r.json()) as {
+            refCode?: string | null;
+            inviteUrl?: string | null;
             bonusCredits?: number;
             badges?: string[];
           };
-          setBonusCredits(d.bonusCredits ?? 0);
-          setBadges(Array.isArray(d.badges) ? d.badges : []);
+          setProfile({
+            refCode: d.refCode ?? null,
+            inviteUrl: d.inviteUrl ?? null,
+            bonusCredits: d.bonusCredits ?? 0,
+            badges: Array.isArray(d.badges) ? d.badges : [],
+          });
         }
       } catch {
         /* без профиля просто без бонусной строки */
       }
       try {
-        const r = await fetch("/api/auth/magic/status", {
-          cache: "no-store",
-        });
+        const r = await fetch("/api/auth/magic/status", { cache: "no-store" });
         if (r.ok) {
           const d = (await r.json()) as { enabled?: boolean };
           setMagicEnabled(Boolean(d.enabled));
@@ -118,6 +98,7 @@ export default function WalletButton() {
         /* magic остаётся выключенным */
       }
     })();
+    void hydrateFavorites();
   }, [open]);
 
   const sendMagic = async () => {
@@ -137,9 +118,9 @@ export default function WalletButton() {
   };
 
   const copyInvite = async () => {
-    if (!inviteUrl) return;
+    if (!profile?.inviteUrl) return;
     try {
-      await navigator.clipboard.writeText(inviteUrl);
+      await navigator.clipboard.writeText(profile.inviteUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -147,209 +128,183 @@ export default function WalletButton() {
     }
   };
 
+  /* v7.1: выход — сброс nr_uid/nr_email; google-аккаунт вернётся по email */
+  const signOut = useCallback(async () => {
+    try {
+      await fetch("/api/auth/signout", { method: "POST" });
+    } catch {
+      /* best-effort */
+    }
+    setOpen(false);
+    await refresh();
+    window.location.reload();
+  }, [refresh]);
+
+  /* ---------- рендер ---------- */
+  if (!ready) {
+    return (
+      <span
+        aria-hidden
+        className="inline-block h-6 w-16 animate-pulse rounded-full bg-white/10"
+      />
+    );
+  }
+
+  const email = account?.email ?? null;
+
   return (
     <div className="relative">
-      {!ready ? (
-        <span
-          aria-hidden
-          className="inline-block h-6 w-16 animate-pulse rounded-full bg-black/5"
-        />
-      ) : wallet ? (
-        <button
-          onClick={() => setOpen((v) => !v)}
-          className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f0ff] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#6d4fc2] transition-all duration-300 hover:scale-105 hover:bg-[#eae4ff] active:scale-95"
-          aria-expanded={open}
-          title={`wallet session — ${provider ?? "wallet"}`}
-        >
-          <span aria-hidden>{provider === "phantom" ? "🦇" : "🦊"}</span>
-          {short(wallet)}
-        </button>
-      ) : (
-        <div className="flex items-center gap-1.5">
-          {googleEnabled && (
-            <a
-              href="/api/auth/google/start"
-              title="sign in with Google"
-              className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#1f2937] ring-1 ring-[#e5e7eb] transition-all duration-300 hover:scale-105 hover:bg-[#f9fafb] active:scale-95"
-            >
-              <span aria-hidden className="text-[0.8rem] font-black">G</span>
-              google
-            </a>
-          )}
+      {email ? (
+        /* ----- google/magic-сессия: чип + дропдаун аккаунта ----- */
+        <>
           <button
-            onClick={connect}
-            disabled={connecting}
-            className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f0ff] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#6d4fc2] transition-all duration-300 hover:scale-105 hover:bg-[#eae4ff] active:scale-95 disabled:opacity-60"
-            title="sign in with Phantom or MetaMask"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f0ff] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#6d4fc2] transition-all duration-300 hover:scale-105 hover:bg-[#eae4ff] active:scale-95"
+            aria-expanded={open}
+            title={`account — ${email}`}
           >
-            <span aria-hidden>🦇</span>
-            {connecting ? "connecting…" : "connect"}
+            <span aria-hidden className="text-[0.8rem] font-black">G</span>
+            {emailShort(email)}
           </button>
-        </div>
-      )}
 
-      {error && (
-        <p className="nr-glass-deep absolute right-0 top-[calc(100%+6px)] z-50 w-56 rounded-xl px-3 py-2 text-[0.62rem] font-semibold leading-snug text-[#c26d3f]">
-          {error.includes("not found") || error.includes("No wallet") ? (
-            <>
-              {error}{" "}
-              <a
-                href="https://phantom.app/download/"
-                target="_blank"
-                rel="noreferrer"
-                className="underline"
-              >
-                install Phantom
-              </a>
-              .
-            </>
-          ) : (
-            error
-          )}
-        </p>
-      )}
-
-      {wallet && open && (
-        <div className="nr-glass-deep absolute right-0 top-[calc(100%+6px)] z-50 w-64 rounded-2xl p-4 text-[#10161d]">
-          <p className="text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
-            {provider === "phantom" ? "phantom wallet" : "metamask wallet"}
-          </p>
-          <p className="mt-1.5 font-mono text-[0.66rem] leading-relaxed text-[#10161d]/70">
-            {wallet}
-          </p>
-          <a
-            href="/pnl"
-            className="mt-3 flex items-center justify-between rounded-xl bg-[#e9f2fb] px-3.5 py-2 text-[0.7rem] font-extrabold text-[#2b6cb0] ring-1 ring-[#a8cfea] transition-colors hover:bg-[#dcecf9]"
-          >
-            <span>◇ pnl wallet</span>
-            <span aria-hidden className="text-[0.62rem] font-bold text-[#2b6cb0]/60">
-              positions · claims · reach
-            </span>
-          </a>
-
-          {/* ---------- бонусы и бейджи (task 44 §6) ---------- */}
-          {(bonusCredits !== null && (bonusCredits > 0 || badges.length > 0)) && (
-            <p className="mt-3 flex flex-wrap items-center gap-1.5">
-              {badges.map((b) => (
-                <span
-                  key={b}
-                  className="rounded-full bg-[#f3f0ff] px-2.5 py-1 text-[0.58rem] font-extrabold uppercase tracking-[0.12em] text-[#6d4fc2]"
-                >
-                  ◈ {b}
-                </span>
-              ))}
-              {bonusCredits > 0 && (
-                <span className="rounded-full bg-[#fff1e8] px-2.5 py-1 text-[0.58rem] font-extrabold uppercase tracking-[0.12em] text-[#c2410c]">
-                  ❄ {bonusCredits} free
-                </span>
-              )}
-            </p>
-          )}
-
-          {/* ---------- избранное (task 43) ---------- */}
-          {favs.ready && favs.items.length > 0 && (
-            <>
-              <p className="mt-3 flex items-center justify-between text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
-                <span>♥ favorites</span>
-                <span className="text-[#6d4fc2]/60">{favs.items.length}</span>
+          {open && (
+            <div className="nr-glass-deep absolute right-0 top-[calc(100%+6px)] z-50 w-64 rounded-2xl p-4 text-[#10161d]">
+              <p className="text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
+                google account
               </p>
-              <ul className="mt-1.5 space-y-1">
-                {favs.items.slice(0, 5).map((f) => (
-                  <li key={f.postCode}>
-                    <a
-                      href={`/v/${f.postCode}`}
-                      className="block truncate rounded-lg px-2 py-1 text-[0.66rem] font-bold text-[#10161d]/75 transition-colors hover:bg-[#10161d]/5 hover:text-[#10161d]"
+              <p className="mt-1.5 break-all font-mono text-[0.66rem] leading-relaxed text-[#10161d]/70">
+                {email}
+              </p>
+
+              {/* ---------- бонусы и бейджи (task 44 §6) ---------- */}
+              {profile && (profile.bonusCredits > 0 || profile.badges.length > 0) && (
+                <p className="mt-3 flex flex-wrap items-center gap-1.5">
+                  {profile.badges.map((b) => (
+                    <span
+                      key={b}
+                      className="rounded-full bg-[#f3f0ff] px-2.5 py-1 text-[0.58rem] font-extrabold uppercase tracking-[0.12em] text-[#6d4fc2]"
                     >
-                      {f.title || f.author || `/v/${f.postCode}`}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-              {favs.items.length > 5 && (
-                <a
-                  href="/pnl"
-                  className="mt-1 block text-right text-[0.6rem] font-extrabold text-[#6d4fc2]/70 transition-colors hover:text-[#6d4fc2]"
-                >
-                  all favorites →
-                </a>
-              )}
-            </>
-          )}
-          {inviteUrl && (
-            <>
-              <p className="mt-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
-                your invite link
-              </p>
-              <p className="mt-1.5 font-mono text-[0.66rem] leading-relaxed text-[#10161d]/70">
-                {inviteUrl ?? "…"}
-              </p>
-              <p className="mt-2 text-[0.6rem] font-semibold leading-snug text-[#10161d]/50">
-                anyone who pays through it earns you{" "}
-                <span className="text-[#6d4fc2]">20%</span> of the invoice.
-              </p>
-              <button
-                onClick={copyInvite}
-                className="mt-3 rounded-full bg-[#10161d]/5 px-3.5 py-1.5 text-[0.66rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10"
-              >
-                {copied ? "copied ✓" : "copy invite"}
-              </button>
-            </>
-          )}
-
-          {/* ---------- Google Sign-In (v7): вход/регистрация одним тапом ---------- */}
-          {googleEnabled && (
-            <a
-              href="/api/auth/google/start"
-              className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-white px-3.5 py-2 text-[0.7rem] font-extrabold text-[#1f2937] ring-1 ring-[#e5e7eb] transition-colors hover:bg-[#f9fafb]"
-            >
-              <span aria-hidden className="text-[0.9rem] font-black">G</span>
-              sign in with Google
-            </a>
-          )}
-
-          {/* ---------- Magic Link (task 44 §6): email-вход как дополнение ---------- */}
-          {magicEnabled && (
-            <>
-              <p className="mt-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
-                email sign-in
-              </p>
-              {magicState === "sent" ? (
-                <p className="mt-1.5 text-[0.64rem] font-semibold leading-snug text-[#1d7a3e]">
-                  link sent ✓ — check your inbox, it works once and expires in
-                  15 minutes.
+                      ◈ {b}
+                    </span>
+                  ))}
+                  {profile.bonusCredits > 0 && (
+                    <span className="rounded-full bg-[#fff1e8] px-2.5 py-1 text-[0.58rem] font-extrabold uppercase tracking-[0.12em] text-[#c2410c]">
+                      ❄ {profile.bonusCredits} free
+                    </span>
+                  )}
                 </p>
-              ) : (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <input
-                    type="email"
-                    inputMode="email"
-                    value={magicEmail}
-                    onChange={(e) => setMagicEmail(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void sendMagic();
-                    }}
-                    placeholder="you@mail.com"
-                    aria-label="Email for magic sign-in link"
-                    className="min-w-0 flex-1 rounded-xl bg-[#10161d]/5 px-3 py-2 text-[0.66rem] font-semibold text-[#10161d] outline-none placeholder:text-[#10161d]/35 focus:ring-2 focus:ring-[#a8cfea]"
-                  />
-                  <button
-                    onClick={() => void sendMagic()}
-                    disabled={magicState === "sending" || !magicEmail.trim()}
-                    className="rounded-xl bg-[#10161d]/5 px-3 py-2 text-[0.62rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10 disabled:opacity-50"
-                  >
-                    {magicState === "sending" ? "…" : "send link"}
-                  </button>
-                </div>
               )}
-            </>
+
+              {/* ---------- избранное (task 43) ---------- */}
+              {favs.ready && favs.items.length > 0 && (
+                <>
+                  <p className="mt-3 flex items-center justify-between text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
+                    <span>♥ favorites</span>
+                    <span className="text-[#6d4fc2]/60">{favs.items.length}</span>
+                  </p>
+                  <ul className="mt-1.5 space-y-1">
+                    {favs.items.slice(0, 5).map((f) => (
+                      <li key={f.postCode}>
+                        <a
+                          href={`/v/${f.postCode}`}
+                          className="block truncate rounded-lg px-2 py-1 text-[0.66rem] font-bold text-[#10161d]/75 transition-colors hover:bg-[#10161d]/5 hover:text-[#10161d]"
+                        >
+                          {f.title || f.author || `/v/${f.postCode}`}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                  {favs.items.length > 5 && (
+                    <a
+                      href="/pnl"
+                      className="mt-1 block text-right text-[0.6rem] font-extrabold text-[#6d4fc2]/70 transition-colors hover:text-[#6d4fc2]"
+                    >
+                      all favorites →
+                    </a>
+                  )}
+                </>
+              )}
+
+              {/* ---------- пригласительная ссылка ---------- */}
+              {profile?.inviteUrl && (
+                <>
+                  <p className="mt-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
+                    your invite link
+                  </p>
+                  <p className="mt-1.5 break-all font-mono text-[0.66rem] leading-relaxed text-[#10161d]/70">
+                    {profile.inviteUrl}
+                  </p>
+                  <p className="mt-2 text-[0.6rem] font-semibold leading-snug text-[#10161d]/50">
+                    anyone who pays through it earns you{" "}
+                    <span className="text-[#6d4fc2]">20%</span> of the invoice.
+                  </p>
+                  <button
+                    onClick={copyInvite}
+                    className="mt-3 rounded-full bg-[#10161d]/5 px-3.5 py-1.5 text-[0.66rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10"
+                  >
+                    {copied ? "copied ✓" : "copy invite"}
+                  </button>
+                </>
+              )}
+
+              {/* ---------- Magic Link (task 44 §6): email-вход как дополнение ---------- */}
+              {magicEnabled && (
+                <>
+                  <p className="mt-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
+                    email sign-in
+                  </p>
+                  {magicState === "sent" ? (
+                    <p className="mt-1.5 text-[0.64rem] font-semibold leading-snug text-[#1d7a3e]">
+                      link sent ✓ — check your inbox, it works once and expires in
+                      15 minutes.
+                    </p>
+                  ) : (
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      <input
+                        type="email"
+                        inputMode="email"
+                        value={magicEmail}
+                        onChange={(e) => setMagicEmail(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void sendMagic();
+                        }}
+                        placeholder="you@mail.com"
+                        aria-label="Email for magic sign-in link"
+                        className="min-w-0 flex-1 rounded-xl bg-[#10161d]/5 px-3 py-2 text-[0.66rem] font-semibold text-[#10161d] outline-none placeholder:text-[#10161d]/35 focus:ring-2 focus:ring-[#a8cfea]"
+                      />
+                      <button
+                        onClick={() => void sendMagic()}
+                        disabled={magicState === "sending" || !magicEmail.trim()}
+                        className="rounded-xl bg-[#10161d]/5 px-3 py-2 text-[0.62rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10 disabled:opacity-50"
+                      >
+                        {magicState === "sending" ? "…" : "send link"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <button
+                onClick={() => void signOut()}
+                className="mt-3 block text-[0.62rem] font-bold text-[#10161d]/40 transition-colors hover:text-[#10161d]/75"
+              >
+                sign out
+              </button>
+            </div>
           )}
-          <button
-            onClick={disconnect}
-            className="mt-3 block text-[0.62rem] font-bold text-[#10161d]/40 transition-colors hover:text-[#10161d]/75"
+        </>
+      ) : (
+        /* ----- гость: только Google-вход (крипто-кнопки больше нет) ----- */
+        googleEnabled ? (
+          <a
+            href="/api/auth/google/start"
+            title="sign in with Google"
+            className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#1f2937] ring-1 ring-[#e5e7eb] transition-all duration-300 hover:scale-105 hover:bg-[#f9fafb] active:scale-95"
           >
-            disconnect
-          </button>
-        </div>
+            <span aria-hidden className="text-[0.8rem] font-black">G</span>
+            google
+          </a>
+        ) : null
       )}
     </div>
   );

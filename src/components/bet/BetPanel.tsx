@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Coins, Gift, Share2, Wallet } from "lucide-react";
+import { Coins, Gift, Share2 } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
 import { fmtBalance } from "@/lib/econ";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
-import { useWalletSession } from "@/lib/use-wallet";
 import { useAccount, type AccountView } from "@/hooks/use-account";
 import type { RoundView } from "@/lib/bet/roundView";
 import PredictModal from "./PredictModal";
@@ -23,7 +22,7 @@ import ShareSeam from "./ShareSeam";
  * deep link + «поделиться результатом» + «следующий»).
  *
  * Порог входа = 0: аккаунт создаётся сам (cookie nr_uid + welcome-бонус),
- * ни кошелька, ни форм. Кошелёк — опционален (NR PASS/leaderboard/кэшаут).
+ * ни кошелька, ни форм. Google-вход — опционален (NR PASS/leaderboard).
  * Не хватает баланса → модалка сама предлагает крипто-пополнение (2328.io)
  * и после вебхука дожимает ставку.
  *
@@ -72,7 +71,6 @@ function crashFrame(clip: string, kind: "nb-crush" | "nb-glitch") {
 
 export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPanelProps) {
   const { t } = useLang();
-  const { wallet, connecting: walletConnecting, connect } = useWalletSession();
   const { account, refresh: refreshAccount, setAccount, claimDaily } = useAccount();
 
   const [round, setRound] = useState<RoundView | null>(null);
@@ -623,16 +621,6 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                     {t.bet.bonus}
                   </button>
                 )}
-                {!account?.isPass && (
-                  <button
-                    onClick={() => void connect()}
-                    className="nb-btn ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[0.58rem] font-bold"
-                    style={{ border: "1px dashed rgba(242,237,228,.3)", color: "rgba(242,237,228,.6)" }}
-                  >
-                    <Wallet className="h-3 w-3" />
-                    {t.bet.walletPass}
-                  </button>
-                )}
               </div>
             )}
 
@@ -699,9 +687,6 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
           clipCode={clipCode}
           side={chosenSide}
           account={account}
-          wallet={wallet}
-          onConnectWallet={() => void connect()}
-          walletConnecting={walletConnecting}
           onClose={closeModal}
           onPlaced={onPlaced}
           onAccountUpdate={setAccount}

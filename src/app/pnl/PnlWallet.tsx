@@ -2,29 +2,39 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Heart } from "lucide-react";
-import { useWalletSession } from "@/lib/use-wallet";
-import { peekCryoWallet } from "@/lib/cryo/wallet";
 import type { CryoPnlSummary } from "@/lib/cryo/core";
 import { hookCryoAudioUnlock, playCryoSfx } from "@/lib/cryo/audio";
 import { hydrateFavorites, useFavoritesStore } from "@/lib/favorites";
 
 /* ================================================================
-   PNL WALLET (task 42, пункт 8) — позиции, выплаты, клейм USDC.
+   PNL WALLET (task 42 → v7.1) — legacy-слой предикшен-позиций.
 
-   Identity: сессия Phantom (cookie) или гостевой demo-адрес из
-   localStorage (peekCryoWallet — без поп-апов). Данные —
-   GET /api/cryo/pnl, клейм — POST /api/cryo/claim.
+   Крипто-кошелёк больше не метод входа: идентичность demo-позиций —
+   гостевой адрес из localStorage (peek-читалка, без поп-апов).
+   Данные — GET /api/cryo/pnl, клейм — POST /api/cryo/claim.
+   Новые ставки идут виртуальными монетами на аккаунте (/pnl сверху).
    ================================================================ */
 
 function short(w: string): string {
   return w.length > 14 ? `${w.slice(0, 6)}…${w.slice(-4)}` : w;
 }
 
+const GUEST_KEY = "nr-cryo-wallet";
+
+/** read-only guest identity (localStorage) — новых адресов не создаём */
+function peekGuestAddress(): string | null {
+  try {
+    const saved = localStorage.getItem(GUEST_KEY);
+    if (saved && /^demo:guest-[a-z0-9]{10}$/.test(saved)) return saved;
+  } catch {
+    /* приватный режим */
+  }
+  return null;
+}
+
 type Flash = { id: number; text: string } | null;
 
 export default function PnlWallet() {
-  const { wallet: sessionWallet, provider, ready, connecting, connect } =
-    useWalletSession();
   const favs = useFavoritesStore();
   const [guestWallet, setGuestWallet] = useState<string | null>(null);
   const [pnl, setPnl] = useState<CryoPnlSummary | null>(null);
@@ -36,12 +46,12 @@ export default function PnlWallet() {
 
   /* гостевой адрес (demo-позиции) — read-only, без поп-апов */
   useEffect(() => {
-    void peekCryoWallet().then((w) => setGuestWallet(w));
+    setGuestWallet(peekGuestAddress());
     void hydrateFavorites();
     hookCryoAudioUnlock();
   }, []);
 
-  const wallet = sessionWallet ?? guestWallet;
+  const wallet = guestWallet;
 
   const load = useCallback(async () => {
     if (!wallet) {
@@ -108,32 +118,21 @@ export default function PnlWallet() {
     [wallet, claiming, load]
   );
 
-  if (!ready) {
-    return (
-      <div className="nr-glass-deep mx-auto max-w-md animate-pulse rounded-3xl px-8 py-12 text-center text-[0.8rem] font-bold text-[#10161d]/40">
-        loading wallet…
-      </div>
-    );
-  }
-
-  /* ---------- нет кошелька: CTA ---------- */
+  /* ---------- нет legacy-идентичности: мягкая заглушка ---------- */
   if (!wallet) {
     return (
       <div className="nr-glass-deep mx-auto max-w-md rounded-3xl px-8 py-12 text-center">
-        <p className="text-[1.05rem] font-extrabold tracking-tight">
-          connect a wallet to see your pnl
-        </p>
+        <p className="text-[0.95rem] font-extrabold">no legacy positions</p>
         <p className="mx-auto mt-2 max-w-xs text-[0.78rem] font-semibold leading-relaxed text-[#10161d]/55">
-          Phantom keeps your prediction positions, payouts and claims in one
-          place. MetaMask works too.
+          call the ending in the feed — your virtual positions live in the
+          ledger above. old demo positions (if any) would show up here.
         </p>
-        <button
-          onClick={connect}
-          disabled={connecting}
-          className="mt-6 rounded-full bg-[#0a0a0a] px-6 py-3 text-[0.8rem] font-extrabold text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-60"
+        <a
+          href="/feed"
+          className="mt-6 inline-block rounded-full bg-[#0a0a0a] px-6 py-3 text-[0.8rem] font-extrabold text-white transition-transform hover:scale-105 active:scale-95"
         >
-          🦇 {connecting ? "connecting…" : "connect wallet"}
-        </button>
+          ▸ open the feed
+        </a>
       </div>
     );
   }
@@ -175,13 +174,13 @@ export default function PnlWallet() {
 
   return (
     <div className="relative">
-      {/* кошелёк + обновление */}
+      {/* адрес + обновление */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="nr-glass-deep inline-flex items-center gap-2 rounded-full px-4 py-2 font-mono text-[0.72rem] font-bold text-[#10161d]/80">
-          <span aria-hidden>{provider === "phantom" ? "🦇" : "👻"}</span>
+          <span aria-hidden>👻</span>
           {short(wallet!)}
           <em className="not-italic text-[0.6rem] font-extrabold uppercase tracking-[0.18em] text-[#3d7db8]">
-            {provider === "phantom" ? "phantom" : "guest demo"}
+            guest demo
           </em>
         </span>
         <button
@@ -303,7 +302,7 @@ export default function PnlWallet() {
 
       <p className="mt-6 text-center text-[0.64rem] font-semibold leading-relaxed text-[#10161d]/40">
         pari-mutuel: winners split the pool minus 3% · demo positions are
-        marked guest · real claims land in your USDC wallet.
+        marked guest.
       </p>
 
       {/* ---------- избранное (task 43) ---------- */}

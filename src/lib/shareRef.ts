@@ -15,7 +15,7 @@ import { REFERRAL } from "@/lib/site";
 const MINE_KEY = "nr-my-ref";
 const CODE_RE = /^r[a-z0-9]{5,11}$/;
 
-/** auth-роуты/use-wallet сохраняют СВОЙ код после успешного входа */
+/** auth-флоу сохраняет СВОЙ код после успешного входа (v7.1: google) */
 export function storeMyRef(code: string | null | undefined): void {
   try {
     if (code && CODE_RE.test(code)) localStorage.setItem(MINE_KEY, code);

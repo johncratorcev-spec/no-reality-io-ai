@@ -12,9 +12,10 @@ export const dynamic = "force-dynamic";
 /* ================================================================
    GET /api/profile — профиль текущей сессии (task 44, §4+§5).
 
-   Личность: nr_phantom (Solana) → nr_wallet (EVM) → nr_email (Magic Link).
-   Отдаёт:
-     - wallet/email, персональный refCode + inviteUrl;
+   Личность (v7.1): nr_uid (мгновенный аккаунт / google / magic) —
+   основной субъект; legacy-куки кошельков ещё читаются для старых
+   сессий. Отдаёт:
+     - uid/email, персональный refCode + inviteUrl;
      - виральные бонусы: bonusCredits (free predictions) + бейджи;
      - reach: переходы по персональным ссылкам (total / unique /
        разбивка по типам объектов — video/market/banner/prompt/page);
@@ -38,6 +39,9 @@ function sessionWallet(req: NextRequest): string | null {
   }
   const evm = req.cookies.get(WALLET_COOKIE)?.value?.toLowerCase();
   if (evm && /^0x[a-f0-9]{40}$/.test(evm)) return evm;
+  /* v7.1: единый аккаунт nr_uid — профиль/рефералка работают без кошелька */
+  const uid = req.cookies.get("nr_uid")?.value;
+  if (uid && /^[0-9a-f-]{36}$/i.test(uid)) return `uid:${uid.toLowerCase()}`;
   return null;
 }
 
@@ -62,13 +66,13 @@ export async function GET(req: NextRequest) {
   const email = emailSession(req);
   if (!wallet && !email) {
     return NextResponse.json(
-      { error: "connect a wallet or sign in" },
+      { error: "session required" },
       { status: 401 }
     );
   }
 
   try {
-    // реферальный код: от кошелька; у email-only сессии кода пока нет
+    // реферальный код: от субъекта сессии (uid:/legacy-кошелёк); email-only — кода пока нет
     const refCode = wallet
       ? ((await upsertReferralProfile(wallet)) ?? deriveRefCode(wallet))
       : null;
@@ -152,7 +156,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        wallet: wallet ?? null,
+        uid: wallet ?? null,
         email: email ?? null,
         refCode,
         inviteUrl: refCode ? `${origin(req)}/bet?ref=${refCode}` : null,

@@ -9,15 +9,16 @@ import { invalidateFavoriteCounts } from "@/lib/favstats";
 export const dynamic = "force-dynamic";
 
 /**
- * Favorites (task 43): wallet-session-gated video bookmarks.
+ * Favorites (task 43): session-gated video bookmarks.
  *
  * GET    → { favorites: [{ postCode, title, author, hasVideo, createdAt }] }
  * POST   { postCode }  → add (200, returns the full list)
  * DELETE { postCode }  → remove (200, returns the full list)
  *
- * Identity: httpOnly session cookie — nr_phantom (Solana base58) first,
- * nr_wallet (EVM 0x…) as a fallback. No session → 401: the heart button
- * triggers the wallet-connect flow instead.
+ * Identity (v7.1): nr_uid (мгновенный аккаунт / google / magic) — основной
+ * субъект; legacy-куки кошельков (nr_phantom / nr_wallet / nr_email) ещё
+ * читаются, чтобы старые сессии не потеряли сохранённое. Crypto-wallet
+ * connect удалён с сайта — новых кошелёчных сессий не появляется.
  */
 
 const PHANTOM_COOKIE = "nr_phantom";
@@ -46,6 +47,9 @@ function sessionWallet(req: NextRequest): string | null {
   if (evm && /^0x[a-f0-9]{40}$/.test(evm)) return evm;
   const email = req.cookies.get(EMAIL_COOKIE)?.value?.toLowerCase();
   if (email && EMAIL_RE.test(email)) return `email:${email}`;
+  /* v7.1: единый аккаунт nr_uid — favorites живут на аккаунте, а не на кошельке */
+  const uid = req.cookies.get("nr_uid")?.value;
+  if (uid && /^[0-9a-f-]{36}$/i.test(uid)) return `uid:${uid.toLowerCase()}`;
   return null;
 }
 
@@ -96,7 +100,7 @@ async function listFavorites(wallet: string) {
 
 function denied() {
   return NextResponse.json(
-    { error: "connect a wallet to save favorites" },
+    { error: "session required to save favorites" },
     { status: 401 }
   );
 }

@@ -25,7 +25,9 @@ export async function GET() {
       ok: true,
       db: dbState,
       ts: new Date().toISOString(),
-      version: process.env.npm_package_version || "v6",
+      /* v7.1: явный отпечаток билда — раньше фолбэк "v6" маскировал
+         актуальный деплой (npm_package_version недоступен в рантайме) */
+      version: process.env.APP_VERSION || "v7.1",
     },
     { headers: { "Cache-Control": "no-store" } }
   );
