@@ -1092,3 +1092,20 @@ Stage Summary:
 - Кнопка Google починена на 100% со стороны приложения: ключи в .env, статус-фетч при маунте, подтверждено скриншотами и selftest 20/20.
 - Единственный оставшийся шаг — на стороне владельца: в Google Cloud Console → Credentials → OAuth 2.0 Client ID добавить Authorized redirect URI: https://no-reality.fun/api/auth/google/callback (для локалки: http://localhost:3000/api/auth/google/callback), и задать GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET в env хостинга (прод).
 - Изменённые файлы: src/components/wallet/WalletButton.tsx, src/lib/auth/google.ts, .env.example, scripts/google_selftest.mjs (нов), scripts/economy_selftest.mjs.
+
+---
+Task ID: v7-google-comprehensive-check
+Agent: Super Z (main agent)
+Task: Пользователь добавил redirect URI в Google Cloud Console — комплексная проверка всего флоу.
+
+Work Log:
+- Прод-чек: no-reality.fun на Vercel, но крутится v6 (health: version=v6, db=down), google status enabled=false → v7 ещё не задеплоен/env не заданы.
+- .env восстановлен (потерял ключи в ходе rebase-операций): GOOGLE_CLIENT_ID/SECRET + PUBLIC_BASE_URL=http://localhost:3000 + dev ADMIN_SECRET.
+- Полный прогон selftest'ов на тестовом окружении: google 20/20, economy 57/57, bet 30/30, cashout 36/36, boost 22/22 = 165 PASS / 0 FAIL.
+- Реальный Google E2E (браузер): клик «G google» → accounts.google.com. С redirect_uri=localhost — по-прежнему Error 400: redirect_uri_mismatch (localhost URI в Console НЕ добавлен). С redirect_uri=https://no-reality.fun/api/auth/google/callback — Google показывает реальную страницу «Sign in to continue to no-reality.fun» (скриншот google-consent-OK.png) → продовый URI принят, OAuth-хендшейк валиден до consent-экрана.
+- Парольный шаг consent автоматизировать нельзя (аккаунт Google пользователя) — это единственная часть флоу вне песочницы.
+
+Stage Summary:
+- Локально: приложение 100% готово (165/165), Google принимает client_id + продовый redirect_uri.
+- Для прода осталось (сторона пользователя, Vercel dashboard): 1) задеплоить v7 (repo уже на main@f8fd0c0), 2) добавить env GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET, 3) БД: prod health db=down — SQLite на Vercel эфемерен, для персистентности нужен Supabase Postgres (направление уже заложено v7-кэш-адаптером).
+- Для локалки по желанию: добавить http://localhost:3000/api/auth/google/callback в Console → локальный consent вернёт код на localhost.
