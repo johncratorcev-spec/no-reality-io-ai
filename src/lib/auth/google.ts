@@ -72,9 +72,14 @@ export interface GoogleProfile {
   picture?: string;
 }
 
+/** Токен-эндпоинт Google; GOOGLE_TOKEN_URL перекрывается только в selftest (мок). */
+export function googleTokenUrl(): string {
+  return process.env.GOOGLE_TOKEN_URL || "https://oauth2.googleapis.com/token";
+}
+
 /** Обмен code → id_token → профиль (запрос к Google с client_secret). */
 export async function exchangeCode(code: string): Promise<GoogleProfile | null> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
+  const res = await fetch(googleTokenUrl(), {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({

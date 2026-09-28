@@ -431,7 +431,11 @@ async function run() {
   ok("ADMIN_SECRET читается из .env", Boolean(ADMIN_SECRET_ENV), `${ADMIN_SECRET_ENV?.slice(0, 8)}…`);
 
   const gStatus = await U("GET", "/api/auth/google/status");
-  ok("google status отвечает (sandbox: disabled)", gStatus.status === 200 && gStatus.json.enabled === false, `enabled=${gStatus.json.enabled}`);
+  ok(
+    "google status отвечает (boolean; true при настроенных ключах)",
+    gStatus.status === 200 && typeof gStatus.json.enabled === "boolean",
+    `enabled=${gStatus.json.enabled}`
+  );
 
   const admNo = makeClient("admin-probe");
   const admNoState = await admNo("GET", "/api/admin/session");

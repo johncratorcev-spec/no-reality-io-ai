@@ -69,6 +69,26 @@ export default function WalletButton() {
     if (open && wallet) void hydrateFavorites();
   }, [open, wallet]);
 
+  /* v7 fix: статус Google спрашиваем при маунте. Раньше фетч жил внутри
+     open-эффекта, а дропдаун без кошелька не открыть — для гостя кнопка
+     Google не появлялась никогда, даже с настроенными ключами. */
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/auth/google/status", { cache: "no-store" });
+        if (!r.ok || !alive) return;
+        const d = (await r.json()) as { enabled?: boolean };
+        if (alive) setGoogleEnabled(Boolean(d.enabled));
+      } catch {
+        /* google остаётся выключенным */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   /* панель открыта — профиль (бонусы/бейджи) + флаг Magic Link */
   useEffect(() => {
     if (!open) return;
@@ -96,15 +116,6 @@ export default function WalletButton() {
         }
       } catch {
         /* magic остаётся выключенным */
-      }
-      try {
-        const r = await fetch("/api/auth/google/status", { cache: "no-store" });
-        if (r.ok) {
-          const d = (await r.json()) as { enabled?: boolean };
-          setGoogleEnabled(Boolean(d.enabled));
-        }
-      } catch {
-        /* google остаётся выключенным */
       }
     })();
   }, [open]);
