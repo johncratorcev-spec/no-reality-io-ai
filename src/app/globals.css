@@ -464,6 +464,14 @@
   -ms-overflow-style: none;
   overscroll-behavior-y: contain;
 }
+
+/* v8-fix: в bet-режиме лента имеет padding-top 44px (ряд mood-фильтров).
+   Без scroll-padding scrollIntoView/snap выравнивают карточку по верхнему
+   краю контейнера — карточка уезжает на 44px выше, а снизу выглядит
+   следующая (наложение карточек друг на друга у футера). */
+.nr-feed-bet {
+  scroll-padding-top: 2.75rem;
+}
 .nr-feed::-webkit-scrollbar {
   display: none;
 }

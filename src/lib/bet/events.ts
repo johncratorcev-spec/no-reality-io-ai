@@ -40,7 +40,11 @@ export type TrackName =
   | "pass_granted"
   | "google_signin"
   | "google_signup"
-  | "ig_reward_claimed"
+  | "password_signin"
+  | "password_signup"
+  | "watch_reward"
+  | "guess_reward"
+  | "video_reward"
   | "deposit_bonus_paid"
   | "reward_click"
   | "utm_reward"
@@ -76,6 +80,11 @@ const NAMES = new Set<string>([
   "welcome_granted",
   "daily_claimed",
   "pass_granted",
+  "password_signin",
+  "password_signup",
+  "watch_reward",
+  "guess_reward",
+  "video_reward",
   "reward_click",
   "utm_reward",
   "onboarding_done",

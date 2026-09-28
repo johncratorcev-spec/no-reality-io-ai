@@ -22,11 +22,17 @@ export const DAILY_BONUS_CENTS = 50;
 /** welcome-бонус нового аккаунта: 300 виртуальных монет за регистрацию */
 export const WELCOME_BONUS_CENTS = 300;
 
-/** награда за подписку на Instagram @mmayrday (раз за аккаунт) */
-export const IG_REWARD_CENTS = 300;
+/** награда за просмотр ленты: +N монет за каждые EVERY уникальных клипов в сутки */
+export const WATCH_REWARD_CENTS = 10;
+export const WATCH_REWARD_EVERY_CLIPS = 3;
+/** дневной капс наград за просмотр ленты (монет за UTC-день) */
+export const WATCH_REWARD_DAILY_CAP_CENTS = 100;
 
-/** хэндл Instagram-задания */
-export const IG_HANDLE = "mmayrday";
+/** награда за угадывание: фиксированный бонус за каждую верную ставку */
+export const GUESS_REWARD_CENTS = 10;
+
+/** награда за добавление видео в ленту (куратору панели) */
+export const VIDEO_REWARD_CENTS = 100;
 
 /** формат баланса в МОНЕТАХ: 237 → "237", 1250 → "1250" */
 export function fmtCoins(cents: number): string {

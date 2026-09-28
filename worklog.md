@@ -1155,3 +1155,27 @@ Stage Summary:
 - Крипто-кошелёк как метод входа удалён полностью: ни одной connect-кнопки, ни одного sign-in роута; остались ТОЛЬКО депозиты/бусты/кэшаут через 2328.io (реальные инвойсы не тронуты — payment-цепочка v7 цела: economy/bet/cashout/boost selftests зелёные).
 - Авторизация сайта: мгновенный гость (nr_uid) + Google Sign-In (+ magic по серверному флагу); избранное/профиль/рефералка работают на аккаунте без кошелька.
 - Для появления кнопки Google на Vercel нужно (сторона владельца): 1) задать env GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET, 2) задать DATABASE_URL (transaction pooler :6543 + pgbouncer=true&connection_limit=1) и DIRECT_URL (:5432), ADMIN_SECRET, 3) НЕ задавать PUBLIC_BASE_URL=localhost (redirect_uri считается от него; дефолт — https://no-reality.fun), 4) Redeploy. После деплоя health должен показать version=v7.1, db=up.
+
+---
+Task ID: 8 (v8)
+Agent: Super Z (main agent)
+Task: Регистрация/авторизация через свою форму (Supabase, без подтверждения учётки); проверка слоя данных Supabase; проверка UI беттинга (наложение элементов); проверка что 2328.io-инвойсы только на спец-событиях; убрать награду за подписку на Instagram → награды за просмотр ленты / добавление видео / угадывания; проверка админ-панели. Выход: полный флоу с виртуальными монетами + платные бусты за реальные инвойсы.
+
+Work Log:
+- prisma/schema.prisma: модель EmailAuth (accountId PK → Account 1:1, email unique, passwordHash scrypt). db push в Supabase Postgres (22 таблицы). RLS включён на EmailAuth (supa_enable_rls.mjs, 22 таблицы default-deny).
+- src/lib/auth/password.ts + /api/auth/password: «если есть аккаунт — зашёл, почта уникальна — создан профиль». scrypt (node:crypto, timing-safe), email lowercase, пароль 8..128, rate limit 5/мин/IP. Гостевой nr_uid связывается транзакционно (updateMany — фильтр по не-unique email в update запрещён Prisma; первый прогон упал на этом, исправлено). Сессия — тот же httpOnly nr_uid.
+- WalletButton v8: гостю — кнопка «@ email» (всегда) + «G google» (если ключи); дропдаун своя форма (email+пароль, enter/create), открывается ВВЕРХ (bottom-full — раньше обрезался низом меню). Инпутам поднят контраст под тёмное меню.
+- Instagram-задание снято: /api/reward/instagram и src/lib/rewards/instagram.ts удалены; PredictModal — IG-блок заменён на «earn coins» (Eye/Target/Video, i18n EN/RU); ECON.igRewardCents и LedgerKind ig_reward удалены; econ.ts — IG-константы → WATCH/GUESS/VIDEO.
+- Награда за просмотр ленты: /api/reward/watch (ledger-отметка watch:<acc>:<день>:<клип> delta=0, unique-refKey дедуп; каждые 3 уникальных клипа → +10, капс 100/день). Хуки: BetPanel (клип активен) + ClipCard (/feed, не-bet режим).
+- Награда за угадывание: resolveRound → guess_reward +10 на аккаунт won-ставки (refKey guess:<betId>, идемпотентно; баланс-инвариант Σdelta=balance проверен).
+- Награда за добавление видео: POST /api/admin/events → video_reward +100 куратору (nr_uid из сессии панели, refKey video:<код>, best-effort); ответ несёт rewardCents.
+- 2328.io инвойсы только на спец-событиях: проверено тестами — /api/bet mode=crypto/demo → bet_mode_disabled (ставки только виртуальные, balance); инвойсы существуют только bs-* (бусты) и dp-* (пополнение); у аккаунтов после auth/наград — 0 BoostOrder/DepositOrder.
+- Фикс наложения в UI беттинга: .nr-feed-bet { scroll-padding-top: 2.75rem } — scrollIntoView/goTo выравнивали карточки по верхнему краю контейнера, игнорируя pt-11 ряда mood-фильтров → карточка уезжала на 44px вверх, следующая выглядывала из-под футера, кнопки результата наезжали на соседнюю карточку. Теперь карточка = заподлицо с футером (gap 0, замерено).
+- Инфра-фикс: scripts/dev_up.sh экспортирует .env построчно (значения с & рвались bash-source'ом; системный DATABASE_URL=file:... побеждал Supabase → /api/health показывал db:down). Теперь db:up.
+- scripts/supa_check.mjs: 39 проверок слоя данных (22 таблицы, RLS, anon grants=0, unique-констрейнты идемпотентности, EmailAuth без сирот, отсутствие дрейфа баланса).
+- scripts/v8_auth_admin_selftest.mjs: 20 проверок (сценарии входа/регистрации, хеш в БД, video_reward, boost-инвойс bs-*, 0 инвойсов у обычных действий, admin stats/referrals/events).
+- Самотесты обновлены (economy: watch/guess/IG-404/инвариант-леджера) и прогнаны против Supabase: google 20, economy 60, bet 30, cashout 36, boost 21, v8 20, supa_check 39 = 226 PASS / 0 FAIL.
+- E2E браузером: /bet 375px и 1440px, онбординг, фильтры, вердикт-карта (без наложений), PredictModal c earn-блоком, регистрация через форму → чип аккаунта с email + invite-ссылка. Скриншоты в download/v8-*.png.
+
+Stage Summary:
+- v8 готов: своя форма входа на Supabase (без письма-подтверждения), награды за просмотр/угадывания/добавление видео вместо Instagram, инвойсы 2328.io строго на бустах и пополнении, UI-наложения беттинга устранены, админ-панель работает, слой данных Supabase 39/39. Full suite 226/226. Health fingerprint v8.

@@ -61,13 +61,22 @@ export default function ClipCard({
     if (!v) return;
     if (isActive) {
       v.play().catch(() => {});
+      /* v8: награда за просмотр ленты (не bet-режим — там шлёт BetPanel);
+         сервер дедуплицирует за UTC-день и капсит — fire-and-forget */
+      if (!isBet) {
+        void fetch("/api/reward/watch", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ clipCode: post.utmCode }),
+        }).catch(() => {});
+      }
     } else {
       v.pause();
       try {
         v.currentTime = 0;
       } catch {}
     }
-  }, [isActive, shouldLoad]);
+  }, [isActive, shouldLoad, isBet, post.utmCode]);
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current;

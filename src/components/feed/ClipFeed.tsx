@@ -315,7 +315,7 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
           role="region"
           aria-label={isBet ? "Raffle feed" : "Video feed"}
           className={`nr-feed h-full w-full snap-y snap-mandatory overflow-y-auto outline-none ${
-            isBet ? "pt-11" : ""
+            isBet ? "pt-11 nr-feed-bet" : ""
           }`}
         >
           {filteredPosts.map((post, i) => (

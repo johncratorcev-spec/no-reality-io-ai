@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { getPostByCode } from "@/lib/csv";
 import { BET, betDemoEnabled } from "./config";
 import { trackEvent } from "./events";
-import { applyLedger } from "@/lib/account";
+import { applyLedger, ECON } from "@/lib/account";
 import { is2328PaymentConfigured, create2328Payment } from "@/lib/2328/payment";
 
 /**
@@ -647,6 +647,31 @@ export async function resolveRound(
           betId: b.id,
           accountId: b.accountId,
           payoutCents: payout,
+        });
+      }
+    }
+
+    /* v8: награда за УГАДЫВАНИЕ — фиксированный бонус поверх пари-мьютюэль
+       выплаты за каждую верную ставку аккаунта (идемпотентно по
+       guess:<betId>; повторный резолв не задвоит) */
+    if (won && ECON.guessRewardCents > 0 && b.accountId) {
+      const g = await applyLedger(
+        b.accountId,
+        ECON.guessRewardCents,
+        "guess_reward",
+        `guess:${b.id}`,
+        { betId: b.id, roundId: round.id, clip: round.clipCode, side: b.side }
+      );
+      if (g) {
+        moneyLog("guess_reward", {
+          betId: b.id,
+          accountId: b.accountId,
+          cents: ECON.guessRewardCents,
+        });
+        void trackEvent("guess_reward", {
+          clipCode: round.clipCode,
+          visitorHash: b.fingerprint,
+          meta: { betId: b.id, cents: ECON.guessRewardCents },
         });
       }
     }

@@ -32,11 +32,16 @@
  *    16. ставка сверх баланса → insufficient_balance (402)
  *  F. резолв → выплата на баланс:
  *    17. после closesAt раунд resolved, win → LedgerTxn bet_payout, баланс вырос
+ *    17b. v8: верная ставка → guess_reward +10 (идемпотентный refKey)
  *  G. награда за UTM-переходы:
  *    18. GET /r/<clip>?ref=<owner> (новый visitor) → UtmClick + utm_reward
  *    19. повторный заход того же visitor → дубля нет
+ *  W. v8: награда за просмотр ленты (вместо Instagram-задания):
+ *    20. три разных клипа → на 3-м credited +10; повтор клипа → already
+ *    21. 4-й клип → не кратен N → без начисления
+ *    22./routes /api/reward/instagram удалены (404)
  *  H. сервис жив:
- *    20. GET /api/health → ok, db:up
+ *    23. GET /api/health → ok, db:up
  *
  * Запуск: node scripts/economy_selftest.mjs
  */
@@ -353,19 +358,26 @@ async function run() {
   });
   ok("сверх баланса → insufficient_balance (402)", poorBet.status === 402 && poorBet.json.error === "insufficient_balance", poorBet.json.error);
 
-  /* === F0. Instagram-задание: open сейчас, claim после ожидания резолва
-     (мин. задержка 25с между open и claim пройдёт во время ожидания F) === */
-  const Ig = makeClient("ig-user");
-  const igMe = await Ig("GET", "/api/me");
-  cleanup.accounts.push(igMe.json.account?.accountId);
-  const igOpen = await Ig("GET", "/api/reward/instagram?open=1");
-  ok("IG open → 302 на instagram", igOpen.status === 302 && String(igOpen.location || "").includes("instagram.com"), igOpen.location);
-  const igClaimFast = await Ig("POST", "/api/reward/instagram");
-  ok("IG claim сразу → too_fast (425)", igClaimFast.status === 425, `status=${igClaimFast.status}`);
-  const igNoCookie = makeClient("ig-nocookie");
-  await igNoCookie("GET", "/api/me");
-  const igClaimNoOpen = await igNoCookie("POST", "/api/reward/instagram");
-  ok("IG claim без open-куки → 403", igClaimNoOpen.status === 403, `status=${igClaimNoOpen.status}`);
+  /* === W0. v8: награда за просмотр ленты (вместо Instagram-задания) ===
+     Свежий аккаунт: 0 отметок сегодня → детерминированная арифметика
+     (every=3 клипа, +10 монет, капс 100/день). Идём до F — пока
+     идёт ожидание closesAt, ничего не мешаем. */
+  const Wc = makeClient("watch-user");
+  const wMe = await Wc("GET", "/api/me");
+  cleanup.accounts.push(wMe.json.account?.accountId);
+  const wBal0 = wMe.json.account?.balanceCents ?? 0;
+  const w1 = await Wc("POST", "/api/reward/watch", { clipCode: CLIP });
+  ok("watch: 1-й клип → отметка без монет", w1.status === 200 && w1.json.ok === true && w1.json.credited === false, `watched=${w1.json.watchedToday}`);
+  const w2 = await Wc("POST", "/api/reward/watch", { clipCode: CLIP });
+  ok("watch: повтор того же клипа → already", w2.json.ok === true && w2.json.already === true && w2.json.credited === false);
+  await Wc("POST", "/api/reward/watch", { clipCode: "zXMNjL2F" });
+  const w3 = await Wc("POST", "/api/reward/watch", { clipCode: "wcDJIxC1" });
+  ok("watch: 3-й уникальный клип → credited +10", w3.json.credited === true && w3.json.rewardCents === 10, `+${w3.json.rewardCents}`);
+  ok("watch: баланс вырос на 10", (w3.json.account?.balanceCents ?? 0) === wBal0 + 10, `${wBal0} → ${w3.json.account?.balanceCents}`);
+  const w4 = await Wc("POST", "/api/reward/watch", { clipCode: "AOABUGXd" });
+  ok("watch: 4-й клип (некратен 3) → без монет", w4.json.credited === false, `watched=${w4.json.watchedToday}`);
+  const wBad = await Wc("POST", "/api/reward/watch", { clipCode: "<script>" });
+  ok("watch: мусорный clipCode → 400", wBad.status === 400, `status=${wBad.status}`);
 
   /* === F. резолв → выплата на баланс === */
   console.log("  … ждём closesAt раунда (окно 45с в sandbox) …");
@@ -384,8 +396,26 @@ async function run() {
   } else {
     ok("проигрыш: выплаты нет — корректно", (payTxn?.n ?? 0) === 0);
   }
+
+  /* v8: награда за угадывание — +10 поверх пари-мьютюэль за верную ставку */
+  const guessTxn = await one(
+    'SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE "refKey" = $1 AND kind = \'guess_reward\'',
+    [`guess:${bet1.json.bet_id}`]
+  );
+  if (betRow?.status === "won") {
+    ok("угадал → guess_reward +10 (LedgerTxn)", (guessTxn?.n ?? 0) === 1, `rows=${guessTxn?.n}`);
+  } else {
+    ok("не угадал → guess_reward нет — корректно", (guessTxn?.n ?? 0) === 0);
+  }
+
   const balFinal = await balOf();
-  ok("баланс консистентен с ledger", balFinal === bet1.json.balance_cents + (betRow?.status === "won" ? (betRow?.payoutCents ?? 0) : 0), `final=${balFinal}`);
+  /* инвариант экономики: Σ delta по журналу = кэш баланса (включая все
+     новые награды v8 — проверка переживает любую арифметику) */
+  const ledgerSum = await one(
+    'SELECT COALESCE(SUM(delta),0)::int AS s FROM "LedgerTxn" WHERE "accountId" = $1',
+    [accId]
+  );
+  ok("баланс консистентен с ledger (Σdelta = balance)", balFinal === (ledgerSum?.s ?? -999), `bal=${balFinal} Σ=${ledgerSum?.s}`);
 
   /* === G. награда за UTM-переходы === */
   const ownerAccId = `econ-owner-${Date.now()}`;
@@ -432,11 +462,11 @@ async function run() {
   );
   ok("повторный тот же visitor → награды нет", (utmReward2?.n ?? 0) === 1, `rows=${utmReward2?.n}`);
 
-  /* === G2. v7: claim Instagram-награды (задержка уже прошла) === */
-  const igClaim = await Ig("POST", "/api/reward/instagram");
-  ok("IG claim → ok +300", igClaim.status === 200 && igClaim.json.ok === true && igClaim.json.rewardCents === 300, igClaim.json.error || `+${igClaim.json.rewardCents}`);
-  const igDup = await Ig("POST", "/api/reward/instagram");
-  ok("IG повторный claim → already_claimed (409)", igDup.status === 409 && igDup.json.error === "already_claimed", igDup.json.error);
+  /* === G2. v8: Instagram-задание снято с производства (роут удалён) === */
+  const igGone = await U("POST", "/api/reward/instagram");
+  ok("IG claim → 404 (роут удалён)", igGone.status === 404, `status=${igGone.status}`);
+  const igGoneGet = await U("GET", "/api/reward/instagram");
+  ok("IG open → 404 (роут удалён)", igGoneGet.status === 404, `status=${igGoneGet.status}`);
 
   /* === H. живость === */
   const health = await U("GET", "/api/health");
@@ -514,7 +544,7 @@ async function cleanupDb() {
     for (const code of cleanup.refProfiles) {
       await q('DELETE FROM "ReferralProfile" WHERE code = $1', [code]);
     }
-    await q("DELETE FROM \"TrackEvent\" WHERE name IN ('welcome_granted','daily_claimed','pass_granted','reward_click','utm_reward','bet_placed','bet_won','bet_lost','ref_converted','topup_open','predict_modal_open')");
+    await q("DELETE FROM \"TrackEvent\" WHERE name IN ('welcome_granted','daily_claimed','pass_granted','reward_click','utm_reward','bet_placed','bet_won','bet_lost','ref_converted','topup_open','predict_modal_open','watch_reward','guess_reward','video_reward','password_signin','password_signup')");
   } catch (e) {
     console.warn("[cleanup] skip:", e instanceof Error ? e.message : e);
   } finally {

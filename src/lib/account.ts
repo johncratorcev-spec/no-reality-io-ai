@@ -54,8 +54,20 @@ export const ECON = {
    * же подписанным вебхуком отдельной ledger-строкой deposit_bonus.
    */
   depositBonusPcts: parseBonusPcts(process.env.DEPOSIT_BONUS_PERCENTS),
-  /** награда за подписку на Instagram (раз за аккаунт, refKey-идемпотентно) */
-  igRewardCents: Math.round(num("IG_REWARD_CENTS", 300, 0, 100000)),
+  /**
+   * v8 — награды за активность (замена Instagram-задания):
+   *  - просмотр ленты: каждые N уникальных клипов за UTC-день → монеты,
+   *    с дневным капсом (api/reward/watch);
+   *  - угадывание: фиксированный бонус за каждую выигравшую ставку
+   *    (resolveRound, refKey guess:<betId>);
+   *  - добавление видео в ленту: куратору панели при публикации события
+   *    (api/admin/events, refKey video:<clipCode>).
+   */
+  watchRewardCents: Math.round(num("WATCH_REWARD_CENTS", 10, 0, 1000)),
+  watchRewardEveryClips: Math.round(num("WATCH_REWARD_EVERY_CLIPS", 3, 1, 100)),
+  watchRewardDailyCapCents: Math.round(num("WATCH_REWARD_DAILY_CAP_CENTS", 100, 0, 100000)),
+  guessRewardCents: Math.round(num("GUESS_REWARD_CENTS", 10, 0, 1000)),
+  videoRewardCents: Math.round(num("VIDEO_REWARD_CENTS", 100, 0, 100000)),
   /** капс demo-пополнения в сутки (dev/sandbox без 2328-ключей) */
   depositDemoDailyCapCents: Math.round(num("DEPOSIT_DEMO_DAILY_CAP", 1000, 100, 100000)),
   /** минимальный интервал между наградами за клики одного аккаунта, мс */
@@ -79,7 +91,10 @@ export type LedgerKind =
   | "daily_bonus"
   | "click_reward"
   | "utm_reward"
-  | "ig_reward"
+  | "watch_view" // v8: отметка просмотра клипа (delta=0, дедуп за UTC-день)
+  | "watch_reward" // v8: монеты за каждые N уникальных просмотров
+  | "guess_reward" // v8: бонус за верное предсказание (won-ставка)
+  | "video_reward" // v8: бонус куратору за добавление видео в ленту
   | "bet_stake"
   | "bet_payout"
   | "deposit"

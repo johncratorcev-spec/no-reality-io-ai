@@ -5,6 +5,7 @@ import Papa from "papaparse";
 import { hasAdminSession } from "@/lib/admin/session";
 import { rateLimit } from "@/lib/rateLimit";
 import { getPostsFromCSV } from "@/lib/csv";
+import { ECON, applyLedger, ensureAccount } from "@/lib/account";
 
 export const dynamic = "force-dynamic";
 
@@ -140,7 +141,33 @@ export async function POST(req: NextRequest) {
     fs.writeFileSync(tmp, out.endsWith("\n") ? out : `${out}\n`, "utf-8");
     fs.renameSync(tmp, CSV_PATH);
     console.log(`[admin/events] created: code=${row.utm_code} truth=${truth} media=${videoUrl ? "video" : "photo"}`);
-    return NextResponse.json({ ok: true, code: row.utm_code, media: videoUrl ? "video" : "photo" });
+
+    /* v8: награда за ДОБАВЛЕНИЕ ВИДЕО В ЛЕНТУ — куратору панели монеты
+       на аккаунт (nr_uid из той же сессии браузера), идемпотентно по
+       refKey video:<clipCode> — повторная публикация кода невозможна,
+       а дубль ledger-строки отсеет unique-констрейнт. best-effort. */
+    let rewardCents = 0;
+    const curatorUid = req.cookies.get("nr_uid")?.value;
+    if (ECON.videoRewardCents > 0 && curatorUid && /^[0-9a-f-]{36}$/i.test(curatorUid)) {
+      try {
+        const curator = await ensureAccount(curatorUid);
+        const credited = await applyLedger(
+          curator.id,
+          ECON.videoRewardCents,
+          "video_reward",
+          `video:${row.utm_code}`,
+          { clip: row.utm_code, title: title.slice(0, 80) }
+        );
+        if (credited) {
+          rewardCents = ECON.videoRewardCents;
+          console.log(`[money-op][econ] video_reward`, JSON.stringify({ accountId: curator.id, clip: row.utm_code, cents: rewardCents }));
+        }
+      } catch (e) {
+        console.error("[admin/events] video reward failed:", e instanceof Error ? e.message : e);
+      }
+    }
+
+    return NextResponse.json({ ok: true, code: row.utm_code, media: videoUrl ? "video" : "photo", rewardCents });
   } catch (e) {
     console.error("[admin/events] write failed:", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "csv_write_failed" }, { status: 500 });

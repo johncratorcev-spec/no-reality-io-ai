@@ -139,10 +139,26 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     /* воронка v5: prediction_view (предикшен-лента) + legacy clip_view */
     track("prediction_view", clipCode);
     track("clip_view", clipCode);
+    /* v8: награда за просмотр ленты — каждые N уникальных клипов за день
+       дают монеты; сервер сам дедуплицирует и капсит (fire-and-forget) */
+    void (async () => {
+      try {
+        const r = await fetch("/api/reward/watch", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ clipCode }),
+        });
+        if (!r.ok) return;
+        const d = (await r.json()) as { account?: AccountView };
+        if (d.account) setAccount(d.account);
+      } catch {
+        /* награда не критична */
+      }
+    })();
     return () => {
       alive = false;
     };
-  }, [isActive, clipCode]);
+  }, [isActive, clipCode, setAccount]);
 
   /* ---- seam-tear: при деактивации карточки с панелью ---- */
   useEffect(() => {

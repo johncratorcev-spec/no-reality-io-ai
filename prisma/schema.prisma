@@ -192,6 +192,7 @@ model Account {
 
   txns   LedgerTxn[]
   deposits DepositOrder[]
+  emailAuth EmailAuth?
 
   @@index([wallet])
 }
@@ -305,6 +306,26 @@ model MagicUser {
   wallet    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v8 — вход/регистрация через СВОЮ форму (email + пароль) на Supabase Postgres.
+//
+// БЕЗ подтверждения учётной записи: почта не проверяется письмом. Если email
+// уже существует — игрок входит (сверка scrypt-хеша); если почта уникальна —
+// профиль создаётся (привязка к мгновенному Account, NR PASS поднимается).
+//
+// ХРАНИМ ТОЛЬКО ХЕШ: scrypt (node:crypto, N=16384), формат
+// `scrypt$<saltHex>$<hashHex>`. Утечка БД не раскрывает пароли.
+// Сессия — тот же httpOnly-cookie nr_uid, что и у google/magic-входа.
+model EmailAuth {
+  accountId    String   @id // 1:1 с Account.id
+  email        String   @unique // lowercase
+  passwordHash String // scrypt$salt$hash
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

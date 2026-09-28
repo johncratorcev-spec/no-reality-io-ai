@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Coins, Gift, Instagram, X, Zap } from "lucide-react";
+import { Coins, Gift, Eye, Target, Video, X, Zap } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
 import {
   DEPOSIT_PRESETS_CENTS,
   DEPOSIT_BONUS_PCTS,
   DAILY_BONUS_CENTS,
-  IG_REWARD_CENTS,
+  GUESS_REWARD_CENTS,
+  VIDEO_REWARD_CENTS,
+  WATCH_REWARD_CENTS,
+  WATCH_REWARD_EVERY_CLIPS,
   fmtCoins,
 } from "@/lib/econ";
 import { track } from "@/lib/bet/trackClient";
@@ -25,10 +28,12 @@ import { useLang } from "@/lib/i18n";
  *              вебхука: модалка поллит статус инвойса, и как только webhook
  *              зачислил деньги — выбранная ставка дожимается автоматически.
  *              v7: пакеты несут бонус-мультипликатор монет (+10%/+25%).
- * ig-задание:  подписка на Instagram @mmayrday → +300 монет (раз за аккаунт).
+ * v8: награды за активность (просмотр ленты / угадывания / добавление видео)
+ *      приходят сами — блок «earn coins» вместо Instagram-задания.
  *
- * Воронка (v7.1): никаких email/форм и никаких крипто-кошельков — вход
- * Google опционален (кнопка в шапке), ставка работает у мгновенного гостя.
+ * Воронка (v8): никаких email-подтверждений и никаких крипто-кошельков — вход
+ * своя форма (email+пароль) или Google, оба опциональны, ставка работает
+ * у мгновенного гостя.
  */
 
 type Side = "real" | "synth";
@@ -57,7 +62,6 @@ interface PlacedResponse {
 
 const POLL_MS = 2500;
 const POLL_MAX = 150_000;
-const IG_MIN_DELAY_MS = 26_000;
 
 export default function PredictModal({
   roundId,
@@ -78,10 +82,6 @@ export default function PredictModal({
   const [awaitingNetwork, setAwaitingNetwork] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const aliveRef = useRef(true);
-
-  /* ig-задание: idle → opened (ждём delay) → claim */
-  const [igState, setIgState] = useState<"idle" | "opened" | "done">("idle");
-  const [igMsg, setIgMsg] = useState("");
 
   const balance = account?.balanceCents ?? 0;
   const pendingSide = side ?? "real";
@@ -256,40 +256,6 @@ export default function PredictModal({
     const d = (await r.json()) as { credited?: boolean; account?: AccountView };
     if (d.account) onAccountUpdate(d.account);
   }, [onAccountUpdate]);
-
-  /* ---------- Instagram-задание (@mmayrday → +300 монет) ---------- */
-  const igOpen = useCallback(() => {
-    try {
-      window.open("/api/reward/instagram?open=1", "_blank", "noopener");
-    } catch {}
-    setIgState("opened");
-    window.setTimeout(() => {
-      if (aliveRef.current) setIgMsg("");
-    }, IG_MIN_DELAY_MS - 1000);
-  }, []);
-
-  const igClaim = useCallback(async () => {
-    setBusy(true);
-    setIgMsg("");
-    try {
-      const r = await fetch("/api/reward/instagram", { method: "POST" });
-      const d = (await r.json()) as { ok?: boolean; error?: string; account?: AccountView };
-      if (r.ok && d.ok) {
-        if (d.account) onAccountUpdate(d.account);
-        setIgState("done");
-        setIgMsg(t.bet.igDone);
-      } else if (d.error === "already_claimed") {
-        setIgState("done");
-        setIgMsg(t.bet.igAlready);
-      } else if (d.error === "too_fast" || d.error === "open_instagram_first") {
-        setIgMsg(t.bet.igWait);
-      }
-    } catch {
-      setIgMsg(t.bet.networkDown);
-    } finally {
-      if (aliveRef.current) setBusy(false);
-    }
-  }, [onAccountUpdate, t]);
 
   const pickAmount = (amountCents: number) => {
     if (amountCents > balance) {
@@ -507,42 +473,34 @@ export default function PredictModal({
           </button>
         )}
 
-        {/* ---------- IG-задание: @mmayrday → +300 монет ---------- */}
-        {igState !== "done" && (
-          <div
-            className="mt-3 rounded-2xl px-3.5 py-3"
-            style={{ border: "1px dashed rgba(255,0,60,.35)", background: "rgba(255,0,60,.05)" }}
-          >
-            <p className="flex items-center gap-2 text-[0.74rem] font-black" style={{ color: "var(--nb-bone)" }}>
-              <Instagram className="h-4 w-4" style={{ color: "var(--nb-blood)" }} />
-              {t.bet.igTask} ·{" "}
-              <span style={{ color: "var(--nb-poison)" }}>{t.bet.igReward}</span>
-            </p>
-            <div className="mt-2 flex gap-2">
-              <button
-                onClick={igOpen}
-                disabled={igState === "opened"}
-                className="nb-btn flex-1 rounded-xl px-3 py-2 text-[0.68rem] font-black"
-                style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
-              >
-                {t.bet.igOpen}
-              </button>
-              <button
-                onClick={() => void igClaim()}
-                disabled={busy || igState !== "opened"}
-                className="nb-btn flex-1 rounded-xl px-3 py-2 text-[0.68rem] font-black disabled:opacity-50"
-                style={{ border: "1px solid rgba(200,255,0,.4)", color: "var(--nb-poison)" }}
-              >
-                {t.bet.igClaim}
-              </button>
-            </div>
-            {igMsg && (
-              <p className="mt-1.5 text-[0.62rem] font-bold" style={{ color: "rgba(242,237,228,.55)" }}>
-                {igMsg}
-              </p>
-            )}
-          </div>
-        )}
+        {/* ---------- v8: как заработать монет (вместо IG-задания) ---------- */}
+        <div
+          className="mt-3 rounded-2xl px-3.5 py-3"
+          style={{ border: "1px dashed rgba(200,255,0,.3)", background: "rgba(200,255,0,.05)" }}
+        >
+          <p className="flex items-center gap-2 text-[0.72rem] font-black uppercase tracking-[0.14em]" style={{ color: "var(--nb-poison)" }}>
+            <Zap className="h-3.5 w-3.5" />
+            {t.bet.earnTitle}
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            <li className="flex items-center gap-2 text-[0.68rem] font-bold" style={{ color: "rgba(242,237,228,.8)" }}>
+              <Eye className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--nb-bone)" }} />
+              <span>
+                {t.bet.earnWatch
+                  .replace("{N}", fmtCoins(WATCH_REWARD_CENTS))
+                  .replace("{every}", String(WATCH_REWARD_EVERY_CLIPS))}
+              </span>
+            </li>
+            <li className="flex items-center gap-2 text-[0.68rem] font-bold" style={{ color: "rgba(242,237,228,.8)" }}>
+              <Target className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--nb-bone)" }} />
+              <span>{t.bet.earnGuess.replace("{N}", fmtCoins(GUESS_REWARD_CENTS))}</span>
+            </li>
+            <li className="flex items-center gap-2 text-[0.68rem] font-bold" style={{ color: "rgba(242,237,228,.8)" }}>
+              <Video className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--nb-bone)" }} />
+              <span>{t.bet.earnVideo.replace("{N}", fmtCoins(VIDEO_REWARD_CENTS))}</span>
+            </li>
+          </ul>
+        </div>
 
         {/* футер-примечание */}
         <p className="mt-3 text-center text-[0.6rem] font-bold leading-relaxed" style={{ color: "rgba(242,237,228,.38)" }}>
