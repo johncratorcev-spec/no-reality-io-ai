@@ -9,7 +9,7 @@ import pg from "pg";
 import fs from "node:fs";
 import path from "node:path";
 
-function passwordFromEnvFile(): string | null {
+function passwordFromEnvFile() {
   try {
     const line = fs
       .readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
