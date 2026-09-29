@@ -16,5 +16,9 @@ export async function POST() {
   const clear = { httpOnly: true as const, maxAge: 0, path: "/" };
   res.cookies.set("nr_uid", "", clear);
   res.cookies.set("nr_email", "", clear);
+  /* v9: маркер членства — обязателен к сбросу, иначе middleware
+     продолжит пускать на закрытые страницы после «выхода» */
+  res.cookies.set("nr_auth", "", clear);
+  res.cookies.set("nr_promo_pending", "", clear);
   return res;
 }

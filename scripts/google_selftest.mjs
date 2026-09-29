@@ -41,6 +41,7 @@ import { spawn } from "node:child_process";
 import http from "node:http";
 import path from "node:path";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 import { q, one, close } from "./lib/supadb.mjs";
 
@@ -51,7 +52,8 @@ function envFromDotenv(name) {
   const line = readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
     .split("\n")
     .find((l) => l.startsWith(`${name}=`));
-  return line ? line.slice(name.length + 1).trim() : "";
+  /* кавычки обязательны к срезу: иначе aud-мисматч (сервер берёт env без кавычек) */
+  return line ? line.slice(name.length + 1).trim().replace(/^"|"$/g, "") : "";
 }
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || envFromDotenv("GOOGLE_CLIENT_ID");
@@ -60,6 +62,26 @@ let passed = 0;
 let failed = 0;
 const cleanupAccounts = []; // id аккаунтов на удаление
 const cleanupEmails = new Set();
+const cleanupWaitlist = new Set(); // v9: заявки листа ожидания
+
+/* v9: свои промокоды selftest-партии (отличаются от v8: G/H/K; NR + 12 тела) */
+const SEED = ["NR2345GGGGGGGG", "NR2345HHHHHHHH", "NR2345KKKKKKKK", "NR2345MMMMMMMM"];
+const ADMIN_SECRET_ENV = envFromDotenv("ADMIN_SECRET").replace(/"/g, "");
+/* фиктивный XFF — детерминированный ipHash и изолированный бюджет */
+const TEST_IP = "203.0.113.9";
+const LOCAL_IP_HASH = createHash("sha256")
+  .update(`${TEST_IP}|${ADMIN_SECRET_ENV}`)
+  .digest("hex")
+  .slice(0, 32);
+
+async function seedPromos() {
+  for (const code of SEED) {
+    await q(
+      'INSERT INTO "PromoCode" (id, code, batch) VALUES (gen_random_uuid(), $1, \'selftest\') ON CONFLICT (code) DO NOTHING',
+      [code]
+    );
+  }
+}
 
 function ok(name, cond, extra = "") {
   if (cond) {
@@ -123,6 +145,7 @@ function makeClient(name) {
       method: "GET",
       headers: {
         ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        "x-forwarded-for": TEST_IP,
         "user-agent": `Mozilla/5.0 google-selftest/1.0 ${name}`,
       },
       redirect: "manual",
@@ -150,8 +173,10 @@ function makeClient(name) {
 }
 
 /** полный флоу: start → state из cookie → callback с мок-code */
-async function googleFlow(client, { email, aud, verified, next }) {
-  const start = await client("/api/auth/google/start");
+async function googleFlow(client, { email, aud, verified, next, promo }) {
+  const start = await client(
+    `/api/auth/google/start${promo ? `?promo=${encodeURIComponent(promo)}` : ""}`
+  );
   const state = start.cookies.get("nr_g_state");
   const loc = new URL(start.location);
   const cbCode = `mock:${email}:${aud || CLIENT_ID}:${verified ? 1 : 0}`;
@@ -163,6 +188,7 @@ async function googleFlow(client, { email, aud, verified, next }) {
 
 /* ---------- тесты ---------- */
 async function run() {
+  await seedPromos();
   /* --- A. статус и start --- */
   console.log("\n[A] статус и start");
   const anon = makeClient("anon");
@@ -190,7 +216,7 @@ async function run() {
   const badState = makeClient("bad-state");
   await badState("/api/auth/google/start"); // своя state-cookie
   const r7 = await badState("/api/auth/google/callback?code=mock:x@t.local:aud:1&state=AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA");
-  ok("7. чужой state → auth=google_state, сессии нет", (r7.location || "").includes("auth=google_state") && !r7.cookies.get("nr_uid"), r7.location || "");
+  ok("7. чужой state → auth=google_state, сессии нет", (r7.location || "").includes("auth=google_state") && (r7.location || "").includes("/auth") && !r7.cookies.get("nr_uid"), r7.location || "");
 
   const noCookie = makeClient("no-cookie");
   const r8 = await noCookie("/api/auth/google/callback?code=mock:x@t.local:aud:1&state=whatever");
@@ -205,18 +231,18 @@ async function run() {
   ok("10. aud чужой → google_profile (токен подделки отклонён)", (r10.cb.location || "").includes("auth=google_profile") && !wrongAud.cookies.get("nr_uid"), r10.cb.location || "");
 
   const openRedir = makeClient("open-redirect");
-  const r11 = await googleFlow(openRedir, { email: "redir@test.local", verified: true, next: "//evil.com" });
-  ok("11. открытый редирект санитизирован → /bet", (r11.cb.location || "").endsWith("/bet") && !(r11.cb.location || "").includes("evil.com"), r11.cb.location || "");
+  const r11 = await googleFlow(openRedir, { email: "redir@test.local", verified: true, next: "//evil.com", promo: SEED[0] });
+  ok("11. открытый редирект санитизирован → /bet (регистрация с промо)", (r11.cb.location || "").endsWith("/bet") && !(r11.cb.location || "").includes("evil.com") && r11.cb.cookies.get("nr_auth") === "1", r11.cb.location || "");
   cleanupEmails.add("redir@test.local");
   cleanupAccounts.push(r11.cb.cookies.get("nr_uid"));
 
-  /* --- C. вход/регистрация --- */
-  console.log("\n[C] регистрация / вход / привязка гостя");
+  /* --- C. вход/регистрация (v9: регистрация ТОЛЬКО с промо) --- */
+  console.log("\n[C] регистрация / вход / привязка гостя (гейт промо)");
   const user = makeClient("signup");
   const email1 = "g-signup-1@test.local";
-  const r12 = await googleFlow(user, { email: email1, verified: true });
+  const r12 = await googleFlow(user, { email: email1, verified: true, promo: SEED[3] });
   const uid1 = r12.cb.cookies.get("nr_uid");
-  ok("12. регистрация → 303 + nr_uid (uuid)", r12.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uid1 || ""), `uid=${(uid1 || "").slice(0, 8)}… loc=${r12.cb.location}`);
+  ok("12. регистрация с промо → 303 + nr_uid + nr_auth", r12.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uid1 || "") && r12.cb.cookies.get("nr_auth") === "1", `uid=${(uid1 || "").slice(0, 8)}… loc=${r12.cb.location}`);
   cleanupEmails.add(email1);
   cleanupAccounts.push(uid1);
 
@@ -251,7 +277,7 @@ async function run() {
   guest.cookies.set("nr_uid", guestId);
   const emailG = "g-guest-link@test.local";
   cleanupEmails.add(emailG);
-  const r17 = await googleFlow(guest, { email: emailG, verified: true });
+  const r17 = await googleFlow(guest, { email: emailG, verified: true, promo: SEED[1] });
   const uidGuest = r17.cb.cookies.get("nr_uid");
   const guestAfter = await one('SELECT id, email, "passTier", "balanceCents" FROM "Account" WHERE id = $1', [guestId]);
   ok(
@@ -267,6 +293,51 @@ async function run() {
   const meAcc = me.json?.account || me.json;
   ok("18. /api/me: сессия жива, баланс ≥ 300", meAcc?.accountId === uid1 && Number(meAcc?.balanceCents ?? 0) >= 300, JSON.stringify({ accountId: meAcc?.accountId?.slice(0, 8), balance: meAcc?.balanceCents }));
 
+  /* --- C2. v9: google-гейт (закрытый запуск) --- */
+  console.log("\n[C2] v9 google-гейт: без промо → лист ожидания");
+
+  /* 19. новый google-email БЕЗ промо → /auth?waitlisted=1, сессии нет */
+  const gated = makeClient("gated");
+  const emailGate = "g-gated-waitlist@test.local";
+  cleanupEmails.add(emailGate);
+  const r19 = await googleFlow(gated, { email: emailGate, verified: true });
+  ok(
+    "19. новый email без промо → waitlisted на /auth (сессии нет)",
+    r19.cb.status === 303 && (r19.cb.location || "").includes("/auth?waitlisted=1") && (r19.cb.location || "").includes("reason=no_code") && !r19.cb.cookies.get("nr_uid"),
+    r19.cb.location || ""
+  );
+  const wlG = await one('SELECT source FROM "WaitlistEntry" WHERE email = $1', [emailGate]);
+  ok("19b. DB: WaitlistEntry(source=google)", wlG?.source === "google");
+  cleanupWaitlist.add(emailGate);
+
+  /* 20. повторный google-вход того же waitlisted-email С промо → аккаунт */
+  const gated2 = makeClient("gated2");
+  const r20 = await googleFlow(gated2, { email: emailGate, verified: true, promo: SEED[2] });
+  const uidGate = r20.cb.cookies.get("nr_uid");
+  ok(
+    "20. тот же email + промо → registered + nr_auth",
+    r20.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uidGate || "") && r20.cb.cookies.get("nr_auth") === "1" && (r20.cb.location || "").endsWith("/bet"),
+    r20.cb.location || ""
+  );
+  cleanupAccounts.push(uidGate);
+  const wlG2 = await one('SELECT "convertedAccountId" FROM "WaitlistEntry" WHERE email = $1', [emailGate]);
+  ok("20b. DB: WaitlistEntry апрувнут после регистрации", wlG2?.convertedAccountId === uidGate);
+
+  /* 21. pending-promo cookie: геометрия проверяется на start */
+  const pend = makeClient("pending");
+  const r21ok = await pend("/api/auth/google/start?promo=NR2345GGGGGGGG");
+  ok(
+    "21. start?promo=<валидная геометрия> → nr_promo_pending выставлен",
+    r21ok.status === 303 && pend.cookies.get("nr_promo_pending") === "NR2345GGGGGGGG",
+    pend.cookies.get("nr_promo_pending") || "нет cookie"
+  );
+  const pend2 = makeClient("pending2");
+  await pend2("/api/auth/google/start?promo=GARBAGE-CODE");
+  ok(
+    "22. start?promo=<мусор> → cookie НЕ выставлен (геометрия отсечена)",
+    !pend2.cookies.get("nr_promo_pending")
+  );
+
   /* --- D. анти-брутфорс (последним) --- */
   console.log("\n[D] анти-брутфорс start");
   const brutes = makeClient("brute");
@@ -278,7 +349,7 @@ async function run() {
       break;
     }
   }
-  ok("19. лавина /start → 429 (rate limit)", got429);
+  ok("23. лавина /start → 429 (rate limit)", got429);
 }
 
 /* ---------- cleanup ---------- */
@@ -291,7 +362,12 @@ async function cleanupDb() {
     for (const email of cleanupEmails) {
       await q('DELETE FROM "Account" WHERE email = $1', [email]);
     }
-    await q("DELETE FROM \"TrackEvent\" WHERE name IN ('google_signin','google_signup')");
+    for (const email of cleanupWaitlist) {
+      await q('DELETE FROM "WaitlistEntry" WHERE email = $1', [email]);
+    }
+    await q('DELETE FROM "PromoCode" WHERE batch = \'selftest\'', []);
+    await q('DELETE FROM "PromoAttempt" WHERE "ipHash" = $1', [LOCAL_IP_HASH]);
+    await q("DELETE FROM \"TrackEvent\" WHERE name IN ('google_signin','google_signup','google_waitlist','promo_redeemed','waitlist_signup')");
   } catch (e) {
     console.warn("[cleanup] skip:", e instanceof Error ? e.message : e);
   }

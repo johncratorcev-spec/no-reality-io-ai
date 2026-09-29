@@ -70,3 +70,9 @@ __pycache__/
 # extrakt kadrov dlya prompt drop (binarnye artefakty sredy)
 scripts/extract_out/
 scripts/url_check_report.json
+
+# v9: промокоды закрытого запуска — секреты, в git не попадают
+# (xlsx/csv выдаются владельцу через download/, дамп — рабочий артефакт)
+/scripts/v9_promos_dump.json
+/download/no-reality-promo-codes-3000.xlsx
+/download/no-reality-promo-codes-3000.csv

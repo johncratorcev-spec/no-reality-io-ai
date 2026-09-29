@@ -30,6 +30,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 import { q, one, close } from "./lib/supadb.mjs";
 
@@ -57,7 +58,28 @@ const cleanup = {
   accounts: [],
   emailAuths: [],
   boostOrders: [],
+  waitlistEmails: [],
 };
+
+/* v9: ipHash по ФИКТИВНОМУ XFF — детерминированный и изолированный бюджет
+   (Next dev подставляет ::ffff:127.0.0.1 в x-forwarded-for) */
+const TEST_IP = "203.0.113.8";
+const LOCAL_IP_HASH = createHash("sha256")
+  .update(`${TEST_IP}|${ADMIN_SECRET_ENV}`)
+  .digest("hex")
+  .slice(0, 32);
+
+/* v9: собственные промокоды selftest-партии (геометрия: NR + 12 символов
+   алфавита без 0/O/1/I/L) — создаются в начале, удаляются в cleanup */
+const SELFTEST_PROMOS = ["NR2345AAAAAAAA", "NR2345BBBBBBBB", "NR2345CCCCCCCC"];
+async function seedPromos() {
+  for (const code of SELFTEST_PROMOS) {
+    await q(
+      'INSERT INTO "PromoCode" (id, code, batch) VALUES (gen_random_uuid(), $1, \'selftest\') ON CONFLICT (code) DO NOTHING',
+      [code]
+    );
+  }
+}
 
 function ok(name, cond, extra = "") {
   if (cond) {
@@ -79,6 +101,7 @@ function makeClient(name, uaSuffix = "") {
       headers: {
         ...(body ? { "Content-Type": "application/json" } : {}),
         ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        "x-forwarded-for": TEST_IP,
         "user-agent": `Mozilla/5.0 v8-selftest/1.0 ${name}${uaSuffix}`,
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -130,9 +153,10 @@ async function ensureMock() {
 }
 
 async function run() {
-  console.log(`\n[v8-selftest] ${BASE} — своя форма + награды + инвойсы + админка\n`);
+  console.log(`\n[v8-selftest] ${BASE} — своя форма + промо-гейт + награды + инвойсы + админка\n`);
+  await seedPromos();
 
-  /* === A. password-аутентификация (лимит 5/мин на IP — ровно 5 POST) === */
+  /* === A. password-аутентификация v9 (регистрация — ТОЛЬКО с промо) === */
   const stamp = Date.now();
   const email1 = `pw-linked-${stamp}@test.dev`;
   const email2 = `pw-fresh-${stamp}@test.dev`;
@@ -146,10 +170,11 @@ async function run() {
   const reg = await Guest("POST", "/api/auth/password", {
     email: email1,
     password: "supersecret1",
+    promo: SELFTEST_PROMOS[0],
   });
   ok(
-    "регистрация гостя → ok, isNew, linked",
-    reg.status === 200 && reg.json.ok === true && reg.json.isNew === true && reg.json.linked === true,
+    "регистрация гостя с промо → ok, isNew, linked, registered",
+    reg.status === 200 && reg.json.ok === true && reg.json.isNew === true && reg.json.linked === true && reg.json.status === "registered",
     reg.json.error || `linked=${reg.json.linked}`
   );
   ok(
@@ -157,6 +182,11 @@ async function run() {
     reg.json.account?.accountId === guestId && reg.json.account?.balanceCents === guestBal,
     `${guestBal} → ${reg.json.account?.balanceCents}`
   );
+  const regPromoRow = await one(
+    'SELECT "usedBy" FROM "PromoCode" WHERE code = $1',
+    [SELFTEST_PROMOS[0]]
+  );
+  ok("промокод погашен этим аккаунтом (usedBy)", regPromoRow?.usedBy === guestId);
 
   const Login = makeClient("pw-login");
   const login = await Login("POST", "/api/auth/password", {
@@ -183,16 +213,47 @@ async function run() {
   ok("чужой пароль → 401 wrong_password", wrong.status === 401 && wrong.json.error === "wrong_password", wrong.json.error);
 
   const Fresh = makeClient("pw-fresh");
+  /* v9: без промо → лист ожидания (сессия НЕ выдаётся) */
   const fresh = await Fresh("POST", "/api/auth/password", {
     email: email2,
     password: "another-pass-9",
   });
   ok(
-    "уникальная почта без nr_uid → новый профиль + welcome",
-    fresh.status === 200 && fresh.json.isNew === true && fresh.json.linked === false && fresh.json.account?.balanceCents >= 300,
-    `balance=${fresh.json.account?.balanceCents}`
+    "уникальная почта БЕЗ промо → waitlisted, без сессии",
+    fresh.status === 200 && fresh.json.ok === true && fresh.json.status === "waitlisted" && fresh.json.reason === "no_code" && fresh.json.account === undefined,
+    JSON.stringify(fresh.json.error || fresh.json.reason)
   );
-  const freshId = fresh.json.account?.accountId;
+  const wlRow = await one(
+    'SELECT "passwordHash", source FROM "WaitlistEntry" WHERE email = $1',
+    [email2]
+  );
+  ok(
+    "WaitlistEntry создан (source=form, хеш пароля)",
+    String(wlRow?.passwordHash || "").startsWith("scrypt$") && wlRow?.source === "form"
+  );
+  cleanup.waitlistEmails.push(email2);
+
+  /* v9: тот же email + промо → аккаунт (лист ожидания апрувится) */
+  const freshPromo = await Fresh("POST", "/api/auth/password", {
+    email: email2,
+    password: "another-pass-9",
+    promo: SELFTEST_PROMOS[1],
+  });
+  ok(
+    "тот же email с промо → registered + welcome",
+    freshPromo.status === 200 && freshPromo.json.status === "registered" && freshPromo.json.isNew === true && (freshPromo.json.account?.balanceCents ?? 0) >= 300,
+    `balance=${freshPromo.json.account?.balanceCents}`
+  );
+  const freshId = freshPromo.json.account?.accountId;
+  const wlApproved = await one(
+    'SELECT "convertedAccountId" FROM "WaitlistEntry" WHERE email = $1',
+    [email2]
+  );
+  ok(
+    "лист ожидания апрувнут (convertedAccountId)",
+    wlApproved?.convertedAccountId === freshId,
+    freshId?.slice(0, 8)
+  );
   cleanup.accounts.push(freshId);
   cleanup.emailAuths.push(email1, email2);
 
@@ -304,6 +365,11 @@ async function cleanupDb() {
       await q('DELETE FROM "DepositOrder" WHERE "accountId" = $1', [id]);
       await q('DELETE FROM "Account" WHERE id = $1', [id]);
     }
+    for (const email of cleanup.waitlistEmails) {
+      await q('DELETE FROM "WaitlistEntry" WHERE email = $1', [email]);
+    }
+    await q('DELETE FROM "PromoCode" WHERE batch = \'selftest\'', []);
+    await q('DELETE FROM "PromoAttempt" WHERE "ipHash" = $1', [LOCAL_IP_HASH]);
   } catch (e) {
     console.warn("[cleanup] db skip:", e instanceof Error ? e.message : e);
   }

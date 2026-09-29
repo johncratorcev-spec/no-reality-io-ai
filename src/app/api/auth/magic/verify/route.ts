@@ -67,6 +67,15 @@ export async function GET(req: NextRequest) {
     maxAge: MAX_AGE,
     path: "/",
   });
+  /* v9: magic-вход тоже открывает гейт (флаг magic обычно выключен;
+     включён — пусть работает согласованно с остальными входами) */
+  res.cookies.set("nr_auth", "1", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: true,
+    maxAge: MAX_AGE,
+    path: "/",
+  });
   return res;
 }
 

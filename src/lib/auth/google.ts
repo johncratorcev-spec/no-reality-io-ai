@@ -169,3 +169,101 @@ export async function signInWithGoogle(
 function randomId(): string {
   return globalThis.crypto.randomUUID();
 }
+
+/* ==================================================================== */
+/*  v9 — закрытый запуск: google-регистрация ТОЖЕ по промокоду          */
+/* ==================================================================== */
+
+export type GoogleAuthOutcome =
+  | { kind: "login"; accountId: string; linked: boolean }
+  | { kind: "registered"; accountId: string; linked: boolean }
+  | { kind: "rate_limited" }
+  | {
+      kind: "waitlisted";
+      reason: "no_code" | "invalid_code" | "promo_used";
+    };
+
+/**
+ * v9: существующий google-email → вход; новый google-email → аккаунт
+ * ТОЛЬКО с валидным промокодом (pendingPromo из cookie /auth-формы),
+ * иначе — строка в WaitlistEntry и экран «you are on the list».
+ *
+ * Промокод погашается атомарно (claimPromo, guard usedBy=null), бюджет
+ * промахов — тот же DB-бюджет, что у формы (kind=promo).
+ */
+export async function signInWithGoogleGated(
+  profile: GoogleProfile,
+  req: NextRequest,
+  pendingPromo: string | null,
+  ipHash: string,
+  helpers: {
+    budgetOk: (ipHash: string, kind: "promo") => Promise<{ allowed: boolean }>;
+    record: (ipHash: string, kind: "promo", ok: boolean, subject: string) => void;
+    claim: (flat: string, accountId: string) => Promise<{ outcome: string }>;
+    waitlist: (email: string, source: string) => Promise<void>;
+    newId: () => string;
+  }
+): Promise<GoogleAuthOutcome> {
+  /* 1. существующий аккаунт по email — вход без гейта */
+  const byEmail = await db.account.findUnique({ where: { email: profile.email } });
+  if (byEmail) {
+    if (!byEmail.passTier) {
+      await db.account.updateMany({
+        where: { id: byEmail.id, passTier: 0 },
+        data: { passTier: 1 },
+      });
+    }
+    void trackEvent("google_signin", { meta: { linked: true } });
+    return { kind: "login", accountId: byEmail.id, linked: false };
+  }
+
+  /* 2. новый google-email БЕЗ промо → лист ожидания */
+  if (!pendingPromo) {
+    await helpers.waitlist(profile.email, "google");
+    void trackEvent("google_waitlist", { meta: { source: "google" } });
+    return { kind: "waitlisted", reason: "no_code" };
+  }
+
+  /* 3. с промо: бюджет → claim → аккаунт (или лист ожидания) */
+  const budget = await helpers.budgetOk(ipHash, "promo");
+  if (!budget.allowed) {
+    return { kind: "rate_limited" }; /* callback перебросит на /auth?auth=rate_limited */
+  }
+
+  const accountId = helpers.newId();
+  await ensureAccount(accountId);
+  const claim = await helpers.claim(pendingPromo, accountId);
+  if (claim.outcome !== "claimed") {
+    void helpers.record(ipHash, "promo", false, pendingPromo);
+    await helpers.waitlist(profile.email, "google");
+    return {
+      kind: "waitlisted",
+      reason: claim.outcome === "used" ? "promo_used" : "invalid_code",
+    };
+  }
+
+  /* код наш: либо входим в гостевой nr_uid (баланс сохраняется), либо новый */
+  const guestId = req.cookies.get("nr_uid")?.value;
+  if (guestId && /^[0-9a-f-]{36}$/i.test(guestId)) {
+    const guest = await db.account.findUnique({ where: { id: guestId } });
+    if (guest && !guest.email) {
+      const linked = await db.account
+        .update({ where: { id: guest.id }, data: { email: profile.email, passTier: 1 } })
+        .then(() => true)
+        .catch(() => false);
+      if (linked) {
+        await ensureAccount(guest.id);
+        void helpers.record(ipHash, "promo", true, pendingPromo);
+        void trackEvent("google_signup", { meta: { linked: true } });
+        return { kind: "registered", accountId: guest.id, linked: true };
+      }
+    }
+  }
+
+  await db.account
+    .update({ where: { id: accountId }, data: { email: profile.email, passTier: 1 } })
+    .catch(() => null);
+  void helpers.record(ipHash, "promo", true, pendingPromo);
+  void trackEvent("google_signup", { meta: {} });
+  return { kind: "registered", accountId, linked: false };
+}

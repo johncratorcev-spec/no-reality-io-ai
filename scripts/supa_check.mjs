@@ -30,6 +30,7 @@ const EXPECTED_TABLES = [
   "Account", "LedgerTxn", "DepositOrder", "UtmClick", "UserProfile",
   "MagicLogin", "MagicUser", "EmailAuth",
   "Round", "Bet", "TrackEvent", "BoostOrder",
+  "PromoCode", "WaitlistEntry", "PromoAttempt",
 ];
 
 const EXPECTED_UNIQUE = [
@@ -39,6 +40,8 @@ const EXPECTED_UNIQUE = [
   { table: "BoostOrder", column: "orderId", why: "инвойс bs-* один-к-одному бусту" },
   { table: "EmailAuth", column: "email", why: "одна учётка на email (v8)" },
   { table: "Account", column: "email", why: "email уникален на аккаунте" },
+  { table: "PromoCode", column: "code", why: "код одноразовый и уникальный (v9)" },
+  { table: "WaitlistEntry", column: "email", why: "анти-спам листа ожидания: одна запись на email (v9)" },
 ];
 
 async function run() {

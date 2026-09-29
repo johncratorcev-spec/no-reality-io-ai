@@ -329,6 +329,66 @@ model EmailAuth {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// v9 — закрытый запуск: промокоды + лист ожидания + анти-брутфорс.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Одноразовый промокод закрытого запуска. Регистрация с валидным кодом
+// создаёт аккаунт сразу; без кода (или с чужим/использованным) —
+// WaitlistEntry. Код выкупается АТОМАРНО: updateMany с guard'ом
+// usedBy=null → повторное применение того же кода физически невозможно
+// (гонка двух регистраций с одним кодом даёт ровно один победителя).
+//
+// Формат NR-XXXX-XXXX-XXXX, алфавит 31 символ без 0/O/1/I/L:
+// 31^12 ≈ 7.9e17 вариантов — перебор бессмыслен даже с сетью.
+model PromoCode {
+  id        String    @id @default(uuid())
+  code      String    @unique // NR-… в верхнем регистре
+  batch     String    @default("v9") // партия печати ("launch-2026-09", "selftest")
+  usedBy    String? // Account.id, погасивший код
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([usedBy])
+  @@index([batch])
+}
+
+// Лист ожидания: регистрация БЕЗ промокода (или с недействительным).
+// Email уникален — повторная регистрация того же email обновляет пароль
+// и не плодит строк (анти-спам upsert). passwordHash храним, чтобы
+// будущий апрув мог создать EmailAuth без повторного ввода пароля
+// (google-записи приходят с пустым хешем — пароля у Google нет).
+model WaitlistEntry {
+  id                 String    @id @default(uuid())
+  email              String    @unique // lowercase
+  passwordHash       String    @default("") // scrypt$… | "" для google-заявок
+  source             String    @default("form") // form | google
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  approvedAt         DateTime? // когда переведён в аккаунт
+  convertedAccountId String?
+
+  @@index([createdAt])
+}
+
+// Журнал попыток подбора (БД, а не память: у Vercel много изолят-процессов,
+// in-memory лимит видит только свой процесс). Храним sha256(ip + соль) —
+// не персональные данные, но стабильный ключ бюджета на атакующего.
+// kind: promo (попытка применить код) | password (неверный пароль).
+// Бюджеты: 8 промо-промахов/час и 20/сутки на ipHash; 10 неверных
+// паролей/час на ipHash → 429 с Retry-After.
+model PromoAttempt {
+  id        String   @id @default(uuid())
+  ipHash    String
+  kind      String // promo | password
+  ok        Boolean  @default(false)
+  subject   String   @default("") // нормализованный код или email, ≤ 64 симв.
+  createdAt DateTime @default(now())
+
+  @@index([ipHash, kind, createdAt])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // v2 — ставки REAL/SYNTH на клип (ТЗ v2 §4.1): вертикальный фид синтетического
 // кино + спор на каждый клип. Пари-мьютюэль: пул реальных против пула
 // синтетических, рейк платформе, доля автора клипа, доля реферера.

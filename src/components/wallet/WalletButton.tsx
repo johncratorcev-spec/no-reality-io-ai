@@ -37,39 +37,14 @@ export default function WalletButton() {
   const favs = useFavoritesStore();
   const [open, setOpen] = useState(false);
 
-  /* v8: форма email+пароль (своя форма на Supabase) — guest-режим */
-  const [pwEmail, setPwEmail] = useState("");
-  const [pwPassword, setPwPassword] = useState("");
-  const [pwState, setPwState] = useState<"idle" | "busy" | "done">("idle");
-  const [pwMsg, setPwMsg] = useState("");
-
-  /* v7: Google Sign-In — статус сервера (кнопка прячется без ключей) */
-  const [googleEnabled, setGoogleEnabled] = useState(false);
+  /* v9: статус Google больше не нужен в шапке — гостевой блок уведён на
+     /auth (там свой статус-фетч); здесь остаётся только аккаунт-чип */
   /* task 44: бонусы/бейджи профиля + доступность Magic Link */
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [magicEnabled, setMagicEnabled] = useState(false);
   const [magicEmail, setMagicEmail] = useState("");
   const [magicState, setMagicState] = useState<"idle" | "sending" | "sent">("idle");
   const [copied, setCopied] = useState(false);
-
-  /* Google-кнопка спрашивается при маунте (v7 fix: не внутри open-эффекта,
-     иначе гость никогда её не увидит) */
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        const r = await fetch("/api/auth/google/status", { cache: "no-store" });
-        if (!r.ok || !alive) return;
-        const d = (await r.json()) as { enabled?: boolean };
-        if (alive) setGoogleEnabled(Boolean(d.enabled));
-      } catch {
-        /* google остаётся выключенным */
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   /* панель открыта — профиль (бонусы/бейджи/invite) + флаг Magic Link +
      свежее избранное */
@@ -135,44 +110,7 @@ export default function WalletButton() {
     }
   };
 
-  /* v8: вход/регистрация своей формой — сервер сам разберётся:
-     email есть → сверит пароль и впустит; почта уникальна → создаст профиль */
-  const submitPassword = async () => {
-    if (pwState !== "idle" || !pwEmail.trim() || !pwPassword) return;
-    setPwState("busy");
-    setPwMsg("");
-    try {
-      const r = await fetch("/api/auth/password", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: pwEmail.trim(), password: pwPassword }),
-      });
-      const d = (await r.json()) as {
-        ok?: boolean;
-        isNew?: boolean;
-        error?: string;
-      };
-      if (r.ok && d.ok) {
-        setPwState("done");
-        setPwMsg("");
-        setOpen(false);
-        await refresh();
-        window.location.reload();
-        return;
-      }
-      setPwState("idle");
-      if (d.error === "wrong_password") setPwMsg("wrong password — this email already has an account");
-      else if (d.error === "bad_password") setPwMsg("password: 8+ characters");
-      else if (d.error === "bad_email") setPwMsg("check the email address");
-      else if (d.error === "too_many_requests") setPwMsg("too many attempts — wait a minute");
-      else setPwMsg("auth failed — try again");
-    } catch {
-      setPwState("idle");
-      setPwMsg("network blinked — try again");
-    }
-  };
-
-  /* v7.1: выход — сброс nr_uid/nr_email; google-аккаунт вернётся по email */
+  /* v7.1: выход — сброс nr_uid/nr_auth; google-аккаунт вернётся по email */
   const signOut = useCallback(async () => {
     try {
       await fetch("/api/auth/signout", { method: "POST" });
@@ -338,74 +276,18 @@ export default function WalletButton() {
           )}
         </>
       ) : (
-        /* ----- гость: своя форма email+пароль (всегда) + Google (если настроен) ----- */
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setOpen((v) => !v)}
-            title="sign in or create account with email"
-            className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#1f2937] ring-1 ring-[#e5e7eb] transition-all duration-300 hover:scale-105 hover:bg-[#f9fafb] active:scale-95"
-            aria-expanded={open}
-          >
-            <span aria-hidden className="text-[0.8rem] font-black">@</span>
-            email
-          </button>
-          {googleEnabled && (
-            <a
-              href="/api/auth/google/start"
-              title="sign in with Google"
-              className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#1f2937] ring-1 ring-[#e5e7eb] transition-all duration-300 hover:scale-105 hover:bg-[#f9fafb] active:scale-95"
-            >
-              <span aria-hidden className="text-[0.8rem] font-black">G</span>
-              google
-            </a>
-          )}
-
-          {open && (
-            <div className="nr-glass-deep absolute bottom-[calc(100%+8px)] right-0 z-50 w-64 rounded-2xl p-4 text-[#10161d]">
-              <p className="text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
-                email sign-in
-              </p>
-              <p className="mt-1 text-[0.62rem] font-semibold leading-snug text-[#10161d]/55">
-                account exists — you&apos;re in; new email — profile is created.
-                no confirmation letters.
-              </p>
-              <input
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                value={pwEmail}
-                onChange={(e) => setPwEmail(e.target.value)}
-                placeholder="you@mail.com"
-                aria-label="Email"
-                className="mt-2 w-full rounded-xl bg-[#10161d]/10 px-3 py-2 text-[0.68rem] font-semibold text-white ring-1 ring-white/15 outline-none placeholder:text-white/40 focus:ring-2 focus:ring-[#a8cfea]"
-              />
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={pwPassword}
-                onChange={(e) => setPwPassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void submitPassword();
-                }}
-                placeholder="password (8+)"
-                aria-label="Password"
-                className="mt-1.5 w-full rounded-xl bg-[#10161d]/10 px-3 py-2 text-[0.68rem] font-semibold text-white ring-1 ring-white/15 outline-none placeholder:text-white/40 focus:ring-2 focus:ring-[#a8cfea]"
-              />
-              <button
-                onClick={() => void submitPassword()}
-                disabled={pwState === "busy" || !pwEmail.trim() || pwPassword.length < 8}
-                className="mt-2 w-full rounded-xl bg-[#6d4fc2] px-3 py-2 text-[0.68rem] font-extrabold text-white transition-colors hover:bg-[#5d3fb0] disabled:opacity-50"
-              >
-                {pwState === "busy" ? "…" : "enter / create"}
-              </button>
-              {pwMsg && (
-                <p className="mt-1.5 text-[0.62rem] font-bold leading-snug text-[#c2410c]">
-                  {pwMsg}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+        /* ----- гость: на закрытом запуске все страницы за гейтом —
+           ведём на отдельный экран входа (промокод / пароль / google).
+           Сюда попадаем только при прямом заходе из кэша или сбое
+           middleware — форма живёт на /auth (v9). ----- */
+        <a
+          href="/auth"
+          title="sign in — closed launch"
+          className="inline-flex items-center gap-1.5 rounded-full bg-[#6d4fc2] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-white transition-all duration-300 hover:scale-105 hover:bg-[#5d3fb0] active:scale-95"
+        >
+          <span aria-hidden className="text-[0.8rem] font-black">@</span>
+          enter
+        </a>
       )}
     </div>
   );
