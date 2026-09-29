@@ -23,6 +23,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 import { q, one, close } from "./lib/supadb.mjs";
 
@@ -63,23 +64,30 @@ function truthOf(code) {
 }
 
 
-/* ---------- cookie-jar fetch ---------- */
+/* ---------- cookie-jar fetch (v10: полный jar — регистрация даёт nr_uid+nr_auth) ---------- */
 function makeClient(name) {
-  let cookie = "";
-  return async function api(method, url, body) {
+  const cookies = new Map();
+  const api = async function (method, url, body) {
+    const cookieHeader = [...cookies.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
     const res = await fetch(`${BASE}${url}`, {
       method,
       headers: {
         ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(cookie ? { cookie } : {}),
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
         "user-agent": `bet-selftest/1.0 (${name})`,
+        "x-forwarded-for": "203.0.113.31",
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    const setCookie = res.headers.get("set-cookie");
-    if (setCookie) {
-      const m = /nr_bet=([^;]+)/.exec(setCookie);
-      if (m) cookie = `nr_bet=${m[1]}`;
+    for (const c of res.headers.getSetCookie?.() || []) {
+      const pair = c.split(";")[0] || "";
+      const eq = pair.indexOf("=");
+      if (eq > 0) {
+        const k = pair.slice(0, eq).trim();
+        const v = pair.slice(eq + 1).trim();
+        if (v === "") cookies.delete(k);
+        else cookies.set(k, v);
+      }
     }
     let json = null;
     try {
@@ -87,6 +95,33 @@ function makeClient(name) {
     } catch {}
     return { status: res.status, json };
   };
+  api.cookies = cookies;
+  return api;
+}
+
+/* v10: ставит только авторизованный — регистрируем игрока с сеяным кодом */
+const BET_ABC = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+function freshCode() {
+  const ts = Date.now().toString(36).toUpperCase().replace(/[01OLI]/g, "X");
+  const rand = Math.random().toString(36).toUpperCase().replace(/[01OLI]/g, "X");
+  const body = ((ts + rand + "XXXXXXXXXXXX").replace(/[^2-9A-HJKMNP-Z]/g, "X")).slice(0, 12);
+  return "NR" + body;
+}
+const betAccounts = [];
+async function registerBettor(api, tag) {
+  const code = freshCode();
+  await q(
+    'INSERT INTO "PromoCode" (id, code, batch) VALUES (gen_random_uuid(), $1, \'selftest\') ON CONFLICT (code) DO NOTHING',
+    [code]
+  );
+  const email = `v10-bet-${tag}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@test.dev`;
+  const res = await api("POST", "/api/auth/password", { email, password: "selftest-pass-1", promo: code });
+  if (res.status !== 200 || res.json?.status !== "registered") {
+    console.warn(`[register ${tag}] FAILED:`, res.status, JSON.stringify(res.json));
+  }
+  const accId = res.json?.account?.accountId;
+  if (accId) betAccounts.push(accId);
+  return res;
 }
 
 /* ---------- тест ---------- */
@@ -98,7 +133,16 @@ async function run() {
   const truth = truthOf(code);
   ok("csv truth известен тесту", truth === "real" || truth === "synth", `truth=${truth}`);
 
+  /* v10: гость не ставит — 401 до регистрации */
+  const Anon = makeClient("anon");
+  const rAnon = await Anon("GET", `/api/round?clip=${code}`);
+  if (rAnon.json?.round?.id) {
+    const anonBet = await Anon("POST", "/api/bet", { round_id: rAnon.json.round.id, side: "real", amount_cents: 100, mode: "balance" });
+    ok("гость → 401 auth_required", anonBet.status === 401 && anonBet.json?.error === "auth_required", `${anonBet.status} ${anonBet.json?.error || ""}`);
+  }
+
   const A = makeClient("bettor-A");
+  const regA = await registerBettor(A, "A");
   const r1 = await A("GET", `/api/round?clip=${code}`);
   ok("round открыт лениво", r1.status === 200 && r1.json.round?.id, `id=${r1.json.round?.id?.slice(0, 8)}`);
   const round = r1.json.round;
@@ -110,7 +154,7 @@ async function run() {
   ok("truth не утекает в ответе", !leak.includes(`"resolvedAs"`), "нет resolvedAs у открытого раунда");
   ok("myBet пуст до ставки", round.myBet === null);
 
-  /* === 3. ставки и пулы === */
+  /* === 3. ставки и пулы (v10: ставщики зарегистрированы — баланс есть) === */
   const b1 = await A("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 100, mode: "balance" });
   ok("ставка A: $1 REAL принята", b1.status === 200 && b1.json.bet_id, `status=${b1.json.status}`);
   ok("пул REAL вырос до 100", b1.json.round?.poolRealCents === 100, `poolReal=${b1.json.round?.poolRealCents}`);
@@ -122,6 +166,7 @@ async function run() {
 
   /* === 5. лимиты === */
   const B = makeClient("bettor-B");
+  await registerBettor(B, "B");
   const badLow = await B("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 50, mode: "balance" });
   ok("ниже min → 400", badLow.status === 400 && badLow.json.error === "bad_amount");
   const badHigh = await B("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 900, mode: "balance" });
@@ -144,8 +189,9 @@ async function run() {
   created.bets.push(b2.json.bet_id);
 
   const C = makeClient("bettor-C");
+  await registerBettor(C, "C");
   const b3 = await C("POST", "/api/bet", { round_id: round.id, side: "synth", amount_cents: 300, mode: "balance" });
-  ok("ставка C: $3 SYNTH (welcome-баланс)", b3.status === 200, `poolSynth=${b3.json.round?.poolSynthCents}`);
+  ok("ставка C: $3 SYNTH (welcome-баланс)", b3.status === 200, `status=${b3.status} err=${b3.json?.error} poolSynth=${b3.json?.round?.poolSynthCents}`);
   created.bets.push(b3.json.bet_id);
 
   ok("банк = 700 монет", b3.json.round?.poolTotalCents === 700, `total=${b3.json.round?.poolTotalCents}`);
@@ -244,6 +290,17 @@ async function cleanup() {
   await del("Bet", "roundId", created.rounds);
   await del("Round", "id", created.rounds);
   await q('DELETE FROM "TrackEvent" WHERE "clipCode" = $1', ["71vsIPUu"]);
+  /* v10: регистрационные следы ставщиков (EmailAuth до Account — FK) */
+  for (const id of betAccounts.filter(Boolean)) {
+    await q('DELETE FROM "LedgerTxn" WHERE "accountId" = $1', [id]);
+    await q('DELETE FROM "EmailAuth" WHERE "accountId" = $1', [id]);
+    await q('DELETE FROM "WaitlistEntry" WHERE "convertedAccountId" = $1', [id]);
+    await q('DELETE FROM "Account" WHERE id = $1', [id]);
+  }
+  await q('DELETE FROM "PromoCode" WHERE batch = \'selftest\'', []);
+  await q('DELETE FROM "PromoAttempt" WHERE "ipHash" = $1', [
+    createHash("sha256").update("203.0.113.31|" + ADMIN_SECRET_ENV).digest("hex").slice(0, 32),
+  ]);
   await close();
   console.log(`\n[cleanup] тестовые данные вычищены (rounds=${created.rounds.length})`);
 }

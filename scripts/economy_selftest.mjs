@@ -123,6 +123,35 @@ function makeClient(name, uaSuffix = "") {
   };
 }
 
+/* ---------- v10: регистрация вместо мгновенного гостя ---------- */
+/* код правильной геометрии: NR + 12 символов алфавита 31 (без 0/O/1/I/L) */
+function freshCode() {
+  const ABC = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+  const ts = Date.now().toString(36).toUpperCase().replace(/[01OLI]/g, "X");
+  const rand = Math.random().toString(36).toUpperCase().replace(/[01OLI]/g, "X");
+  let body = ((ts + rand + "XXXXXXXXXXXX").replace(/[^2-9A-HJKMNP-Z]/g, "X")).slice(0, 12);
+  return "NR" + body;
+}
+
+/** регистрирует игрока с сеяным промокодом (v10: гостям аккаунтов нет) */
+async function registerClient(api, tag) {
+  const code = freshCode();
+  await q(
+    'INSERT INTO "PromoCode" (id, code, batch) VALUES (gen_random_uuid(), $1, \'selftest\') ON CONFLICT (code) DO NOTHING',
+    [code]
+  );
+  const email = `v10-${tag}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@test.dev`;
+  const res = await api("POST", "/api/auth/password", {
+    email,
+    password: "selftest-pass-1",
+    promo: code,
+  });
+  if (res.status !== 200 || res.json?.status !== "registered") {
+    console.warn(`[register ${tag}] FAILED:`, res.status, JSON.stringify(res.json));
+  }
+  return { email, code, res };
+}
+
 /* ---------- mock-2328 launcher ---------- */
 async function ensureMock() {
   try {
@@ -166,20 +195,28 @@ async function webhook2328(payload, key) {
 
 /* ---------- тест ---------- */
 async function run() {
-  console.log(`\n[economy-selftest] ${BASE} — внутренняя экономика (v6)\n`);
+  console.log(`\n[economy-selftest] ${BASE} — внутренняя экономика (v10: ставки/награды за auth)\n`);
 
-  /* === A. мгновенный аккаунт === */
+  /* === A. v10: аккаунт только через регистрацию (гостя больше нет) === */
   const U = makeClient("player");
-  const me1 = await U("GET", "/api/me");
-  const accId = me1.json.account?.accountId;
-  ok("аккаунт создан мгновенно", me1.status === 200 && Boolean(accId), accId?.slice(0, 8));
+  const regU = await registerClient(U, "player");
+  const accId = regU.res.json.account?.accountId;
   ok(
-    "welcome-бонус начислен",
-    me1.json.account?.balanceCents === 300,
-    `balance=${me1.json.account?.balanceCents}`
+    "аккаунт создан регистрацией (гость без аккаунта)",
+    regU.res.status === 200 && regU.res.json.status === "registered" && Boolean(accId),
+    accId?.slice(0, 8)
+  );
+  ok(
+    "welcome-бонус начислен (300)",
+    regU.res.json.account?.balanceCents === 300,
+    `balance=${regU.res.json.account?.balanceCents}`
   );
   const me2 = await U("GET", "/api/me");
-  ok("повторный GET идемпотентен", me2.json.account?.balanceCents === 300, `balance=${me2.json.account?.balanceCents}`);
+  ok(
+    "повторный GET /api/me идемпотентен + authed:true",
+    me2.json.authed === true && me2.json.account?.balanceCents === 300,
+    `authed=${me2.json.authed} balance=${me2.json.account?.balanceCents}`
+  );
   cleanup.accounts.push(accId);
 
   const balOf = async () => {
@@ -200,17 +237,20 @@ async function run() {
   ok("повтор цели → duplicate (дедуп дня)", c4.json.credited === false && c4.json.reason === "duplicate", c4.json.reason);
 
   const Bot = makeClient("bot");
+  const regBot = await registerClient(Bot, "bot");
+  cleanup.accounts.push(regBot.res.json.account?.accountId);
   const cb = await Bot("POST", "/api/reward/click", { target: "featured:econ-bot" });
   ok("бот-UA → отклонён", cb.json.credited === false && cb.json.reason === "bot", cb.json.reason);
 
   /* === C. NR PASS === */
   const W = makeClient("wallet-user");
-  const meW = await W("GET", "/api/me");
-  cleanup.accounts.push(meW.json.account?.accountId);
+  const regW = await registerClient(W, "wallet");
+  const wAccId = regW.res.json.account?.accountId;
+  cleanup.accounts.push(wAccId);
   /* v7.1: PASS выдаёт google/magic-вход; здесь эмулируем уже-вошедшего
      пользователя прямым SQL (роут /api/me/link-wallet удалён вместе
      с крипто-подключением) */
-  await q('UPDATE "Account" SET "passTier" = 1 WHERE id = $1', [meW.json.account?.accountId]);
+  await q('UPDATE "Account" SET "passTier" = 1 WHERE id = $1', [wAccId]);
   const d1 = await W("POST", "/api/me/daily");
   ok("daily-бонус PASS → credited", d1.json.credited === true && d1.json.streakDays === 1, `+${d1.json.amountCents}`);
   const d2 = await W("POST", "/api/me/daily");
@@ -344,7 +384,8 @@ async function run() {
 
   /* ставка сверх баланса: новичок с пустым балансом (welcome=300 → ставим 500) */
   const Poor = makeClient("poor");
-  await Poor("GET", "/api/me");
+  const regPoor = await registerClient(Poor, "poor");
+  cleanup.accounts.push(regPoor.res.json.account?.accountId);
   const poorRound = await Poor("GET", `/api/round?clip=${CLIP}`);
   /* раунд уже занят ставкой игрока с того же IP-fingerprint → поднимем свой */
   const poorRound2 = await Poor("GET", `/api/round?clip=puhGJNmX`);
@@ -363,9 +404,9 @@ async function run() {
      (every=3 клипа, +10 монет, капс 100/день). Идём до F — пока
      идёт ожидание closesAt, ничего не мешаем. */
   const Wc = makeClient("watch-user");
-  const wMe = await Wc("GET", "/api/me");
-  cleanup.accounts.push(wMe.json.account?.accountId);
-  const wBal0 = wMe.json.account?.balanceCents ?? 0;
+  const regWc = await registerClient(Wc, "watch");
+  const wBal0 = regWc.res.json.account?.balanceCents ?? 0;
+  cleanup.accounts.push(regWc.res.json.account?.accountId);
   const w1 = await Wc("POST", "/api/reward/watch", { clipCode: CLIP });
   ok("watch: 1-й клип → отметка без монет", w1.status === 200 && w1.json.ok === true && w1.json.credited === false, `watched=${w1.json.watchedToday}`);
   const w2 = await Wc("POST", "/api/reward/watch", { clipCode: CLIP });
@@ -524,6 +565,9 @@ async function cleanupDb() {
       for (const id of ids) {
         await q('DELETE FROM "LedgerTxn" WHERE "accountId" = $1', [id]);
         await q('DELETE FROM "DepositOrder" WHERE "accountId" = $1', [id]);
+        /* v10: аккаунты регистрационные — EmailAuth уходит ДО Account (FK) */
+        await q('DELETE FROM "EmailAuth" WHERE "accountId" = $1', [id]);
+        await q('DELETE FROM "WaitlistEntry" WHERE "convertedAccountId" = $1', [id]);
         await q('DELETE FROM "Account" WHERE id = $1', [id]);
       }
     }
@@ -544,10 +588,13 @@ async function cleanupDb() {
     for (const code of cleanup.refProfiles) {
       await q('DELETE FROM "ReferralProfile" WHERE code = $1', [code]);
     }
-    await q("DELETE FROM \"TrackEvent\" WHERE name IN ('welcome_granted','daily_claimed','pass_granted','reward_click','utm_reward','bet_placed','bet_won','bet_lost','ref_converted','topup_open','predict_modal_open','watch_reward','guess_reward','video_reward','password_signin','password_signup')");
+    await q("DELETE FROM \"TrackEvent\" WHERE name IN ('welcome_granted','daily_claimed','pass_granted','reward_click','utm_reward','bet_placed','bet_won','bet_lost','ref_converted','topup_open','predict_modal_open','watch_reward','guess_reward','video_reward','password_signin','password_signup','waitlist_signup','promo_redeemed')");
   } catch (e) {
     console.warn("[cleanup] skip:", e instanceof Error ? e.message : e);
   } finally {
+    try {
+      await q('DELETE FROM "PromoCode" WHERE batch = \'selftest\'', []);
+    } catch {}
     await close();
   }
 }

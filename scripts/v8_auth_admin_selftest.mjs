@@ -162,31 +162,36 @@ async function run() {
   const email2 = `pw-fresh-${stamp}@test.dev`;
 
   const Guest = makeClient("pw-guest");
+  /* v10: гость БЕЗ аккаунта — /api/me пуст, cookie не выдаётся */
   const gMe = await Guest("GET", "/api/me");
-  const guestId = gMe.json.account?.accountId;
-  const guestBal = gMe.json.account?.balanceCents ?? 0;
-  cleanup.accounts.push(guestId);
+  ok(
+    "v10: гость без аккаунта (authed:false, account:null)",
+    gMe.status === 200 && gMe.json.authed === false && gMe.json.account === null && !Guest.cookies.get("nr_uid"),
+    JSON.stringify(gMe.json)
+  );
 
   const reg = await Guest("POST", "/api/auth/password", {
     email: email1,
     password: "supersecret1",
     promo: SELFTEST_PROMOS[0],
   });
+  const regId = reg.json?.account?.accountId;
+  cleanup.accounts.push(regId);
   ok(
-    "регистрация гостя с промо → ok, isNew, linked, registered",
-    reg.status === 200 && reg.json.ok === true && reg.json.isNew === true && reg.json.linked === true && reg.json.status === "registered",
-    reg.json.error || `linked=${reg.json.linked}`
+    "регистрация с промо → ok, isNew, registered",
+    reg.status === 200 && reg.json.ok === true && reg.json.isNew === true && reg.json.status === "registered",
+    reg.json.error || regId?.slice(0, 8)
   );
   ok(
-    "email привязан к тому же аккаунту (баланс сохранён)",
-    reg.json.account?.accountId === guestId && reg.json.account?.balanceCents === guestBal,
-    `${guestBal} → ${reg.json.account?.balanceCents}`
+    "v10: гость не линкуется (аккаунтов у гостей нет) + welcome",
+    reg.json.linked === false && Boolean(regId) && (reg.json.account?.balanceCents ?? 0) >= 300,
+    `linked=${reg.json.linked} bal=${reg.json.account?.balanceCents}`
   );
   const regPromoRow = await one(
     'SELECT "usedBy" FROM "PromoCode" WHERE code = $1',
     [SELFTEST_PROMOS[0]]
   );
-  ok("промокод погашен этим аккаунтом (usedBy)", regPromoRow?.usedBy === guestId);
+  ok("промокод погашен этим аккаунтом (usedBy)", regPromoRow?.usedBy === regId);
 
   const Login = makeClient("pw-login");
   const login = await Login("POST", "/api/auth/password", {
@@ -195,13 +200,13 @@ async function run() {
   });
   ok(
     "вход тем же email+пароль → тот же accountId",
-    login.status === 200 && login.json.isNew === false && login.json.account?.accountId === guestId,
+    login.status === 200 && login.json.isNew === false && login.json.account?.accountId === regId,
     login.json.error || login.json.account?.accountId?.slice(0, 8)
   );
   const loginMe = await Login("GET", "/api/me");
   ok(
-    "сессия жива: /api/me отдаёт email",
-    loginMe.json.account?.email === email1 && loginMe.json.account?.isPass === true,
+    "сессия жива: /api/me отдаёт email (authed:true)",
+    loginMe.json.authed === true && loginMe.json.account?.email === email1 && loginMe.json.account?.isPass === true,
     loginMe.json.account?.email
   );
 
@@ -267,19 +272,26 @@ async function run() {
     'SELECT "accountId" FROM "EmailAuth" WHERE email = $1',
     [email1]
   );
-  ok("EmailAuth-строка в Supabase (хеш, не пароль)", emailAuthRow?.accountId === guestId);
+  ok("EmailAuth-строка в Supabase (хеш, не пароль)", emailAuthRow?.accountId === regId);
   const hashRow = await one(
     'SELECT "passwordHash" FROM "EmailAuth" WHERE email = $1',
     [email1]
   );
   ok("в БД scrypt-хеш, исходного пароля нет", String(hashRow?.passwordHash || "").startsWith("scrypt$") && !String(hashRow?.passwordHash || "").includes("supersecret1"));
 
-  /* === B. награда за добавление видео в ленту (куратор) === */
+  /* === B. награда за добавление видео в ленту (куратор, v10: с регистрацией) === */
   const csvBackup = fs.readFileSync(CSV_PATH, "utf-8");
   const Curator = makeClient("curator");
+  const regC = await Curator("POST", "/api/auth/password", {
+    email: `pw-curator-${stamp}@test.dev`,
+    password: "curator-pass-1",
+    promo: SELFTEST_PROMOS[2],
+  });
+  cleanup.accounts.push(regC.json?.account?.accountId);
   const cMe = await Curator("GET", "/api/me");
   cleanup.accounts.push(cMe.json.account?.accountId);
   const curBal0 = cMe.json.account?.balanceCents ?? 0;
+  ok("куратор зарегистрирован (v10: сессия обязательна)", regC.status === 200 && regC.json.status === "registered" && Boolean(cMe.json.account?.accountId), cMe.json.account?.accountId?.slice(0, 8));
 
   const noSess = await Curator("POST", "/api/admin/events", {
     title: `v8 selftest event ${stamp}`,
@@ -332,7 +344,7 @@ async function run() {
     `SELECT
        (SELECT COUNT(*)::int FROM "DepositOrder" WHERE "accountId" = ANY($1)) AS dep,
        (SELECT COUNT(*)::int FROM "BoostOrder" WHERE "buyerHash" = ANY($1)) AS boost`,
-    [[guestId, freshId, cMe.json.account?.accountId].filter(Boolean)]
+    [[regId, freshId, cMe.json.account?.accountId].filter(Boolean)]
   );
   ok("регулярные действия инвойсов не создают", (invRows?.dep ?? 1) === 0 && (invRows?.boost ?? 1) === 0, `dep=${invRows?.dep} boost=${invRows?.boost}`);
 
@@ -363,6 +375,9 @@ async function cleanupDb() {
     for (const id of cleanup.accounts.filter(Boolean)) {
       await q('DELETE FROM "LedgerTxn" WHERE "accountId" = $1', [id]);
       await q('DELETE FROM "DepositOrder" WHERE "accountId" = $1', [id]);
+      /* v10: EmailAuth уходит ДО Account (FK) */
+      await q('DELETE FROM "EmailAuth" WHERE "accountId" = $1', [id]);
+      await q('DELETE FROM "WaitlistEntry" WHERE "convertedAccountId" = $1', [id]);
       await q('DELETE FROM "Account" WHERE id = $1', [id]);
     }
     for (const email of cleanup.waitlistEmails) {

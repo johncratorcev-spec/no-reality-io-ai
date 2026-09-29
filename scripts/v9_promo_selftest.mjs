@@ -135,39 +135,51 @@ async function seedPromos() {
 }
 
 async function run() {
-  console.log(`\n[v9-selftest] ${BASE} — закрытый запуск: гейт / лист ожидания / промо / анти-брутфорс\n`);
+  console.log(`\n[v9-selftest] ${BASE} — v10: открытый сайт / лист ожидания / промо / анти-брутфорс\n`);
   await seedPromos();
   const stamp = Date.now();
 
-  /* === A. middleware-гейт === */
-  console.log("\n[A] middleware-гейт");
+  /* === A. v10: ОТКРЫТЫЙ САЙТ — страницы для гостей, беттинг за auth === */
+  console.log("\n[A] v10 открытый сайт (гейт снят, беттинг за auth)");
   const Anon = makeClient("anon");
 
   const home = await Anon("GET", "/");
-  ok(
-    "1. GET / без сессии → редирект на /auth?next=/",
-    home.status === 307 && (home.location || "").startsWith("/auth") && (home.location || "").includes("next=%2F"),
-    `${home.status} → ${home.location}`
-  );
+  ok("1. GET / без сессии → 200 (сайт открыт)", home.status === 200, `status=${home.status}`);
   const bet = await Anon("GET", "/bet");
-  ok("2. GET /bet без сессии → /auth", bet.status === 307 && (bet.location || "").includes("/auth"), bet.location || "");
+  ok("2. GET /bet без сессии → 200 (смотреть можно)", bet.status === 200, `status=${bet.status}`);
   const feed = await Anon("GET", "/feed");
-  ok("3. GET /feed без сессии → /auth", feed.status === 307 && (feed.location || "").includes("/auth"), feed.location || "");
+  ok("3. GET /feed без сессии → 200 (лента открыта)", feed.status === 200, `status=${feed.status}`);
 
   const authPage = await Anon("GET", "/auth");
   ok(
-    "4. GET /auth → 200 (экран входа отдаётся)",
-    authPage.status === 200 && (authPage.html.includes("closed launch") || authPage.html.includes("loading") || authPage.html.includes("no-reality")),
+    "4. GET /auth → 200 (премиум-экран входа)",
+    authPage.status === 200 && (authPage.html.includes("the eye") || authPage.html.includes("loading") || authPage.html.includes("no-reality")),
     `status=${authPage.status} len=${authPage.html.length}`
   );
 
-  const Member = makeClient("member");
-  Member.cookies.set("nr_auth", "1");
-  const memberHome = await Member("GET", "/");
-  ok("5. GET / с nr_auth=1 → 200 (гейт открыт)", memberHome.status === 200, `status=${memberHome.status}`);
-
   const apiMe = await Anon("GET", "/api/me");
-  ok("6. /api/me без сессии → 200 (API не за гейтом)", apiMe.status === 200 && apiMe.json?.account, apiMe.json?.error || "");
+  ok(
+    "5. /api/me гостя → authed:false, account:null, БЕЗ новых cookie",
+    apiMe.status === 200 && apiMe.json?.authed === false && apiMe.json?.account === null && !apiMe.cookies.get("nr_uid"),
+    JSON.stringify(apiMe.json?.error || apiMe.json)
+  );
+
+  /* раунд открывается гостю (публичные данные), ставка — нет */
+  const gRound = await Anon("GET", "/api/round?clip=71vsIPUu");
+  ok("6. GET /api/round гостем → 200 (публичные пулы)", gRound.status === 200 && Boolean(gRound.json?.round?.id), gRound.json?.error || "");
+  if (gRound.json?.round?.id) {
+    const gBet = await Anon("POST", "/api/bet", { round_id: gRound.json.round.id, side: "real", amount_cents: 100, mode: "balance" });
+    ok("7. POST /api/bet гостем → 401 auth_required", gBet.status === 401 && gBet.json?.error === "auth_required", `${gBet.status} ${gBet.json?.error || ""}`);
+    const gWatch = await Anon("POST", "/api/reward/watch", { clipCode: "71vsIPUu" });
+    ok("8. POST /api/reward/watch гостем → 401 (награды за auth)", gWatch.status === 401, `${gWatch.status}`);
+  }
+
+  /* легаси nr_auth="1" без подписи больше не член — усиление v10 */
+  const Legacy = makeClient("legacy");
+  Legacy.cookies.set("nr_auth", "1");
+  Legacy.cookies.set("nr_uid", "00000000-0000-4000-8000-000000000000");
+  const legacyMe = await Legacy("GET", "/api/me");
+  ok("9. легаси nr_auth=1 (без подписи) → authed:false", legacyMe.json?.authed === false, JSON.stringify(legacyMe.json?.authed));
 
   /* === B. лист ожидания (свежий клиент: без гостевой сессии из /api/me) === */
   console.log("\n[B] лист ожидания");
@@ -214,14 +226,14 @@ async function run() {
   });
   const regId = reg.json?.account?.accountId;
   ok(
-    "13. валидный код (в любом регистре/с дефисами) → registered + cookies",
-    reg.status === 200 && reg.json?.status === "registered" && reg.json?.isNew === true && /^[0-9a-f-]{36}$/.test(regId || "") && reg.cookies.get("nr_auth") === "1",
+    "13. валидный код (в любом регистре/с дефисами) → registered + подписанные cookies",
+    reg.status === 200 && reg.json?.status === "registered" && reg.json?.isNew === true && /^[0-9a-f-]{36}$/.test(regId || "") && String(reg.cookies.get("nr_auth") || "").startsWith("v1."),
     reg.json?.error || regId?.slice(0, 8)
   );
   cleanupAccounts.push(regId);
 
   const me = await Anon("GET", "/api/me");
-  ok("14. /api/me → email + NR PASS", me.json?.account?.email === emailP && me.json?.account?.isPass === true, me.json?.account?.email || "");
+  ok("14. /api/me → authed:true + email + NR PASS", me.json?.authed === true && me.json?.account?.email === emailP && me.json?.account?.isPass === true, me.json?.account?.email || "");
 
   const promoRow = await one('SELECT "usedBy" FROM "PromoCode" WHERE code = $1', [SEED[0]]);
   const bal = await one('SELECT "balanceCents" FROM "Account" WHERE id = $1', [regId]);

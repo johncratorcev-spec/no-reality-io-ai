@@ -20,33 +20,17 @@ import {
 } from "@/lib/promo";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
+import { setSessionCookies } from "@/lib/auth/session";
 import { trackEvent } from "@/lib/bet/events";
 
 export const dynamic = "force-dynamic";
-
-const YEAR = 60 * 60 * 24 * 365;
 
 function sessionCookies(
   res: NextResponse,
   accountId: string
 ): NextResponse {
-  res.cookies.set("nr_uid", accountId, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: YEAR,
-    path: "/",
-  });
-  /* v9: маркер «полноправного члена» для middleware-гейта (гость его
-     не имеет → неавторизованных перекидывает на /auth) */
-  res.cookies.set("nr_auth", "1", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: YEAR,
-    path: "/",
-  });
-  return res;
+  /* v10: nr_uid + ПОДПИСАННЫЙ nr_auth (HMAC-привязка к uid) */
+  return setSessionCookies(res, accountId);
 }
 
 /**

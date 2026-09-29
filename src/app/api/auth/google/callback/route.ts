@@ -8,6 +8,7 @@ import {
   stateMatches,
 } from "@/lib/auth/google";
 import { PROMO_PENDING_COOKIE } from "@/lib/auth/promoPending";
+import { setSessionCookies } from "@/lib/auth/session";
 import {
   ipHashOf,
   normalizePromoCode,
@@ -98,21 +99,8 @@ export async function GET(req: NextRequest) {
 
     const next = sanitizeNext(req.nextUrl.searchParams.get("next"));
     const res = NextResponse.redirect(`${origin}${next}`, 303);
-    res.cookies.set("nr_uid", outcome.accountId, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: YEAR,
-      path: "/",
-    });
-    /* v9: маркер «полноправного члена» для middleware-гейта */
-    res.cookies.set("nr_auth", "1", {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: YEAR,
-      path: "/",
-    });
+    /* v10: nr_uid + ПОДПИСАННЫЙ nr_auth (HMAC-привязка к uid) */
+    setSessionCookies(res, outcome.accountId);
     res.cookies.set(GOOGLE_STATE_COOKIE, "", { httpOnly: true, maxAge: 0, path: "/" });
     res.cookies.set(PROMO_PENDING_COOKIE, "", { httpOnly: true, maxAge: 0, path: "/" });
     return res;

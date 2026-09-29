@@ -4,12 +4,11 @@ import {
   ECON,
   applyLedger,
   ensureAccount,
-  readAccount,
-  accountResponse,
   accountView,
 } from "@/lib/account";
 import { rateLimit } from "@/lib/rateLimit";
 import { trackEvent } from "@/lib/bet/events";
+import { authedAccountId } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -53,9 +52,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "bad_clip" }, { status: 400 });
   }
 
-  const account = readAccount(req);
+  /* v10: награды — только с сессией. Гость смотрит ленту без аккаунта:
+     никаких ensureAccount-гостей на каждый клип (анти-инфляция) */
+  const accountId = authedAccountId(req);
+  if (!accountId) {
+    return NextResponse.json({ error: "auth_required" }, { status: 401 });
+  }
+
   try {
-    const me = await ensureAccount(account.id);
+    const me = await ensureAccount(accountId);
     const day = utcDayKey();
     const stampKey = `watch:${me.id}:${day}:${clipCode}`;
 
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
       })
       .catch(() => null);
     if (!stamped) {
-      return accountResponse(account, { ok: true, credited: false, already: true });
+      return NextResponse.json({ ok: true, credited: false, already: true });
     }
 
     const watchedToday = await db.ledgerTxn.count({
@@ -105,7 +110,7 @@ export async function POST(req: NextRequest) {
     }
 
     const fresh = await ensureAccount(me.id);
-    return accountResponse(account, {
+    return NextResponse.json({
       ok: true,
       credited,
       rewardCents,
@@ -114,6 +119,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     console.error("[reward/watch] failed:", e instanceof Error ? e.message : e);
-    return accountResponse(account, { error: "reward_failed" }, 500);
+    return NextResponse.json({ error: "reward_failed" }, { status: 500 });
   }
 }

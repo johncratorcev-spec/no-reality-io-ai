@@ -162,6 +162,16 @@ const en = {
     earnWatch: "+{N} for every {every} clips watched · daily",
     earnGuess: "+{N} for every correct prediction",
     earnVideo: "+{N} for adding a video to the feed",
+    /* v10: auth-гейт для гостей + инфографика шансов */
+    gateTitle: "want skin in the game?",
+    gateSub: "you're watching live — sign in to place your prediction on this seam.",
+    gateCoins: "300 welcome coins — bet instantly, no deposits needed",
+    gateDaily: "PASS daily bonus + rewards for watching and correct calls",
+    gatePass: "leaderboard, streaks and cash-out of winnings",
+    gateCta: "sign in — 15 seconds",
+    gateNote: "no promo code? you'll join the waiting list — the site stays open",
+    guestCta: "sign in to bet · 300 welcome coins",
+    pays: "pays",
   },
 };
 
@@ -308,6 +318,16 @@ const ru: Dict = {
     earnWatch: "+{N} за каждые {every} просмотренных клипа · ежедневно",
     earnGuess: "+{N} за каждое верное предсказание",
     earnVideo: "+{N} за добавление видео в ленту",
+    /* v10: auth-гейт для гостей + инфографика шансов */
+    gateTitle: "хочешь поставить на шов?",
+    gateSub: "ты смотришь трансляцию — войди, чтобы сделать предикшен.",
+    gateCoins: "300 приветственных монет — ставь сразу, без депозитов",
+    gateDaily: "daily-бонус PASS + награды за просмотр и верные коллы",
+    gatePass: "лидерборд, серии и кэшаут выигрышей",
+    gateCta: "войти — 15 секунд",
+    gateNote: "нет промокода? попадёшь в лист ожидания — сайт останется открыт",
+    guestCta: "войти, чтобы ставить · 300 монет в подарок",
+    pays: "платит",
   },
 };
 

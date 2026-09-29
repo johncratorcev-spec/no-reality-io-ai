@@ -232,7 +232,7 @@ async function run() {
 
   const openRedir = makeClient("open-redirect");
   const r11 = await googleFlow(openRedir, { email: "redir@test.local", verified: true, next: "//evil.com", promo: SEED[0] });
-  ok("11. открытый редирект санитизирован → /bet (регистрация с промо)", (r11.cb.location || "").endsWith("/bet") && !(r11.cb.location || "").includes("evil.com") && r11.cb.cookies.get("nr_auth") === "1", r11.cb.location || "");
+  ok("11. открытый редирект санитизирован → /bet (регистрация с промо)", (r11.cb.location || "").endsWith("/bet") && !(r11.cb.location || "").includes("evil.com") && r11.cb.cookies.get("nr_auth")?.startsWith("v1.") || "", r11.cb.location || "");
   cleanupEmails.add("redir@test.local");
   cleanupAccounts.push(r11.cb.cookies.get("nr_uid"));
 
@@ -242,7 +242,7 @@ async function run() {
   const email1 = "g-signup-1@test.local";
   const r12 = await googleFlow(user, { email: email1, verified: true, promo: SEED[3] });
   const uid1 = r12.cb.cookies.get("nr_uid");
-  ok("12. регистрация с промо → 303 + nr_uid + nr_auth", r12.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uid1 || "") && r12.cb.cookies.get("nr_auth") === "1", `uid=${(uid1 || "").slice(0, 8)}… loc=${r12.cb.location}`);
+  ok("12. регистрация с промо → 303 + nr_uid + nr_auth", r12.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uid1 || "") && r12.cb.cookies.get("nr_auth")?.startsWith("v1.") || "", `uid=${(uid1 || "").slice(0, 8)}… loc=${r12.cb.location}`);
   cleanupEmails.add(email1);
   cleanupAccounts.push(uid1);
 
@@ -316,7 +316,7 @@ async function run() {
   const uidGate = r20.cb.cookies.get("nr_uid");
   ok(
     "20. тот же email + промо → registered + nr_auth",
-    r20.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uidGate || "") && r20.cb.cookies.get("nr_auth") === "1" && (r20.cb.location || "").endsWith("/bet"),
+    r20.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uidGate || "") && r20.cb.cookies.get("nr_auth")?.startsWith("v1.") || "" && (r20.cb.location || "").endsWith("/bet"),
     r20.cb.location || ""
   );
   cleanupAccounts.push(uidGate);

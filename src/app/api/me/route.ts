@@ -1,32 +1,42 @@
-import { NextRequest } from "next/server";
-import {
-  accountResponse,
-  ensureAccount,
-  accountView,
-  readAccount,
-} from "@/lib/account";
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { ensureAccount, accountView } from "@/lib/account";
+import { authedAccountId } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/me — мгновенный аккаунт с нулевым порогом входа.
+ * GET /api/me — v10: ОТКРЫТЫЙ САЙТ, БЕТТИНГ ЗА АВТОРИЗАЦИЕЙ.
  *
- * Cookie nr_uid ставится прямо этим ответом (если аккаунта ещё нет —
- * создаётся лениво вместе с welcome-бонусом). Ни email, ни кошелёк, ни
- * формы: регистрация случается сама на первом действии.
- *
- * Ответ: { account: { accountId, balanceCents, passTier, isPass, wallet,
- * streakDays, dailyAvailable } }
+ * { authed: true,  account: AccountView } — валидная подписанная сессия
+ *   (nr_uid + nr_auth-HMAC). Аккаунт лениво додаётся, если вдруг отсутствует.
+ * { authed: false, account: null }        — гость: НИКАКИХ аккаунтов и cookie
+ *   не создаётся (раньше каждый визит плодил гостя с welcome-бонусом —
+ *   при открытых страницах это раздувало БД и экономику).
+ * { authed: false, account: AccountView } — легаси-гость (аккаунт до-v10
+ *   существует, подписи нет): баланс виден, но ставки/награды закрыты —
+ *   регистрация с промо подхватит этот nr_uid и сохранит баланс.
  */
 export async function GET(req: NextRequest) {
-  const account = readAccount(req);
+  const uid = req.cookies.get("nr_uid")?.value;
+  if (!uid || !/^[0-9a-f-]{36}$/i.test(uid)) {
+    return NextResponse.json({ authed: false, account: null });
+  }
   try {
-    const fresh = await ensureAccount(account.id);
-    return accountResponse(account, {
-      account: accountView(fresh),
-    });
+    const existing = await db.account.findUnique({ where: { id: uid } });
+    if (!existing) {
+      return NextResponse.json({ authed: false, account: null });
+    }
+    if (!authedAccountId(req)) {
+      return NextResponse.json({ authed: false, account: accountView(existing) });
+    }
+    const fresh = await ensureAccount(uid);
+    return NextResponse.json({ authed: true, account: accountView(fresh) });
   } catch (e) {
     console.error("[me] failed:", e instanceof Error ? e.message : e);
-    return accountResponse(account, { error: "account_failed" }, 500);
+    return NextResponse.json(
+      { authed: false, account: null, error: "account_failed" },
+      { status: 500 }
+    );
   }
 }

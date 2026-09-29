@@ -6,15 +6,14 @@ import {
   roundView,
 } from "@/lib/bet/core";
 import { readBettor } from "@/lib/bet/identity";
-import { normalizeRefCode } from "@/lib/referral";
+import { normalizeRefCode, deriveRefCode } from "@/lib/referral";
 import { visitorHashOf } from "@/lib/utm";
 import { rateLimit } from "@/lib/rateLimit";
 import {
-  readAccount,
   ensureAccount,
   accountView,
-  type AccountRef,
 } from "@/lib/account";
+import { authedAccountId } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +61,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "bad round id" }, { status: 400 });
   }
 
+  /* v10: БЕТТИНГ ТОЛЬКО С АВТОРИЗАЦИЕЙ — гость (или подделка cookie без
+     подписи) получает 401 ДО любых обращений к аккаунтам/пулам */
+  const authAccountId = authedAccountId(req);
+  if (!authAccountId) {
+    return NextResponse.json(
+      { error: "auth_required", message: "sign in to place a prediction" },
+      { status: 401 }
+    );
+  }
+
   const bettor = readBettor(req);
   const fingerprint = visitorHashOf(ip, ua);
-  const refCode = normalizeRefCode(body.ref);
+  /* v10 усиление: саморефка закрыта — свой пригласительный код
+     (derives от uid) не даёт доли рейка с собственных ставок */
+  const rawRef = normalizeRefCode(body.ref);
+  const refCode =
+    rawRef && rawRef === deriveRefCode(`uid:${authAccountId.toLowerCase()}`)
+      ? null
+      : rawRef;
   /* v5: легаси-куки кошелька (если остались от старой сессии) — сразу пишем
      в ставку (Best Eyes Leaderboard + кэшаут). v7.1: крипто-подключение
      удалено, новые кошелёчные сессии не появляются. */
@@ -81,7 +96,8 @@ export async function POST(req: NextRequest) {
 
   /* ---- v6: баланс-режим (основной путь предикшен-воронки) ---- */
   if (body.mode === "balance") {
-    const account: AccountRef = readAccount(req);
+    /* v10: аккаунт уже привязан подписанной сессией — create-on-the-fly нет */
+    const account = { id: authAccountId, isNew: false } as const;
     try {
       const acc = await ensureAccount(account.id);
       if (!acc) {

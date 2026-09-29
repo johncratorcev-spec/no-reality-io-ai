@@ -276,17 +276,28 @@ export default function WalletButton() {
           )}
         </>
       ) : (
-        /* ----- гость: на закрытом запуске все страницы за гейтом —
-           ведём на отдельный экран входа (промокод / пароль / google).
-           Сюда попадаем только при прямом заходе из кэша или сбое
-           middleware — форма живёт на /auth (v9). ----- */
+        /* ----- гость: v10 — сайт открыт, беттинг за авторизацией.
+           Кнопка ведёт на премиум-экран входа с next=текущая страница. ----- */
         <a
-          href="/auth"
-          title="sign in — closed launch"
-          className="inline-flex items-center gap-1.5 rounded-full bg-[#6d4fc2] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-white transition-all duration-300 hover:scale-105 hover:bg-[#5d3fb0] active:scale-95"
+          href={`/auth?next=${encodeURIComponent(
+            typeof window !== "undefined" && window.location.pathname
+              ? `${window.location.pathname}${window.location.search}`
+              : "/bet"
+          )}`}
+          title="sign in to bet"
+          className="group relative inline-flex items-center gap-1.5 overflow-hidden rounded-full px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-white transition-all duration-300 hover:scale-105 active:scale-95"
+          style={{
+            background: "linear-gradient(120deg, #6d4fc2 0%, #8b5fd6 50%, #6d4fc2 100%)",
+            backgroundSize: "200% 100%",
+            boxShadow: "0 0 18px rgba(109,79,194,0.35)",
+          }}
         >
-          <span aria-hidden className="text-[0.8rem] font-black">@</span>
-          enter
+          <span
+            aria-hidden
+            className="nr-auth-shimmer absolute inset-0"
+          />
+          <span aria-hidden className="relative text-[0.8rem] font-black">@</span>
+          <span className="relative">enter</span>
         </a>
       )}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Coins, Gift, Share2 } from "lucide-react";
+import { Coins, Gift, Lock, Share2 } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
 import { fmtBalance } from "@/lib/econ";
 import { withRef } from "@/lib/shareRef";
@@ -9,6 +9,7 @@ import { track } from "@/lib/bet/trackClient";
 import { useAccount, type AccountView } from "@/hooks/use-account";
 import type { RoundView } from "@/lib/bet/roundView";
 import PredictModal from "./PredictModal";
+import AuthGateOverlay from "./AuthGateOverlay";
 import { useLang } from "@/lib/i18n";
 import ShareSeam from "./ShareSeam";
 
@@ -71,7 +72,7 @@ function crashFrame(clip: string, kind: "nb-crush" | "nb-glitch") {
 
 export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPanelProps) {
   const { t } = useLang();
-  const { account, refresh: refreshAccount, setAccount, claimDaily } = useAccount();
+  const { account, authed, refresh: refreshAccount, setAccount, claimDaily } = useAccount();
 
   const [round, setRound] = useState<RoundView | null>(null);
   const [phase, setPhase] = useState<"idle" | "pending">("idle");
@@ -91,6 +92,9 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
   const [showTear, setShowTear] = useState(false);
   const [resultPop, setResultPop] = useState(0);
   const [shared, setShared] = useState(false);
+  /* v10: auth-гейт для гостей + спарклайн банка для инфографики */
+  const [authGate, setAuthGate] = useState<Side | null>(null);
+  const [spark, setSpark] = useState<number[]>([]);
 
   const skewRef = useRef(0);
   const settledRef = useRef(false);
@@ -109,6 +113,8 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     setChosenSide(null);
     setPayUrl(null);
     setPhase("idle");
+    setSpark([]);
+    setAuthGate(null);
     let alive = true;
 
     (async () => {
@@ -126,6 +132,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
           skewRef.current = Date.now() - new Date(d.round.serverNow).getTime();
           setRound(d.round);
           setBankKey((k) => k + 1);
+          setSpark([d.round.poolTotalCents]);
           if (d.round.myBet && d.round.status === "open") setPhase("pending");
           if (d.round.status === "resolved") settledRef.current = true;
         } else {
@@ -204,7 +211,10 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
             if (!stopped && d.round) {
               const prevTotal = round.poolTotalCents;
               setRound(d.round);
-              if (d.round.poolTotalCents !== prevTotal) setBankKey((k) => k + 1);
+              if (d.round.poolTotalCents !== prevTotal) {
+                setBankKey((k) => k + 1);
+                setSpark((s) => [...s.slice(-47), d.round!.poolTotalCents]);
+              }
               if (d.round.status === "resolved" && !settledRef.current) {
                 settledRef.current = true;
                 onSettled(d.round);
@@ -239,6 +249,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
       if (d.round) {
         setRound(d.round);
         setBankKey((k) => k + 1);
+        setSpark((s) => [...s.slice(-47), d.round!.poolTotalCents]);
       }
       if (d.account) setAccount(d.account);
       lastModeRef.current = "balance";
@@ -258,15 +269,20 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     [setAccount]
   );
 
-  /** тап REAL/SYNTH: открываем модалку предикта (воронка v6) */
+  /** тап REAL/SYNTH: v10 — гость получает премиум auth-гейт, игрок — модалку */
   const pickSide = (side: Side) => {
     if (!round) return;
     setError("");
     setChosenSide(side);
-    setModalOpen(true);
-    track("funnel_side_pick", clipCode, { side });
     if (side === "real") setFlashLime((f) => f + 1);
     else setFlashBlood((f) => f + 1);
+    if (!authed) {
+      setAuthGate(side);
+      track("funnel_auth_gate", clipCode, { side });
+      return;
+    }
+    setModalOpen(true);
+    track("funnel_side_pick", clipCode, { side });
   };
 
   const closeModal = useCallback(() => {
@@ -280,6 +296,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     setModalOpen(false);
     setPayUrl(null);
     setPhase("idle");
+    setSpark([]);
     (async () => {
       try {
         const r = await fetch(`/api/round?clip=${encodeURIComponent(clipRef.current)}`, {
@@ -291,6 +308,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
             skewRef.current = Date.now() - new Date(d.round.serverNow).getTime();
             setRound(d.round);
             setBankKey((k) => k + 1);
+            setSpark([d.round.poolTotalCents]);
           }
         }
       } catch {
@@ -335,6 +353,13 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     round && round.poolTotalCents > 0
       ? Math.round((round.poolRealCents / round.poolTotalCents) * 100)
       : 50;
+  /* v10 инфографика: пари-мьютюэль шансы = банк / пул стороны.
+     Ставка $1 на сторону с ×2.33 вернёт ~$2.33 при её победе (до рейка) */
+  const realOdds =
+    round && round.poolRealCents > 0 ? round.poolTotalCents / round.poolRealCents : null;
+  const synthOdds =
+    round && round.poolSynthCents > 0 ? round.poolTotalCents / round.poolSynthCents : null;
+  const oddsLabel = (o: number | null) => (o ? `×${o >= 10 ? o.toFixed(0) : o.toFixed(2)}` : "—");
 
   const result =
     round && round.status === "resolved"
@@ -515,7 +540,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
         </div>
       )}
 
-      {/* ---------- ПАНЕЛЬ СТАВКИ ---------- */}
+      {/* ---------- ПАНЕЛЬ СТАВКИ (v10: живая инфографика) ---------- */}
       {round && !result && (
         <div
           className={`pointer-events-none absolute bottom-[4.6rem] left-3 right-3 z-30 sm:left-auto sm:max-w-md ${
@@ -568,10 +593,8 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                   >
                     {fmtUsd(round.poolTotalCents)}
                   </span>
-                  <span
-                    className="text-[0.58rem] font-extrabold uppercase tracking-[0.22em]"
-                    style={{ color: "rgba(242,237,228,.45)" }}
-                  >
+                  <span className="flex items-baseline gap-1.5 text-[0.58rem] font-extrabold uppercase tracking-[0.22em]" style={{ color: "rgba(242,237,228,.45)" }}>
+                    {round.status === "open" && <span aria-hidden className="nb-live-dot" />}
                     {round.status === "open" ? t.bet.bankLive : round.status === "locked" ? t.bet.bankFrozen : "resolved"}
                   </span>
                   {streak >= 2 && (
@@ -583,14 +606,68 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                     </span>
                   )}
                 </div>
-                {/* шов банка: кость против крови */}
-                <div className="mt-1.5 flex h-1 w-full overflow-hidden rounded-full">
+                {/* шов банка: кость против крови + проценты сторон */}
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <span
+                    className="w-7 shrink-0 text-right text-[0.56rem] font-black tabular-nums"
+                    style={{ color: "rgba(242,237,228,.8)" }}
+                  >
+                    {realShare}%
+                  </span>
                   <div
-                    className="h-full transition-[width] duration-500"
-                    style={{ width: `${realShare}%`, background: "var(--nb-bone)" }}
-                  />
-                  <div className="h-full flex-1" style={{ background: "var(--nb-blood)" }} />
+                    className="relative h-1.5 flex-1 overflow-hidden rounded-full"
+                    style={{ background: "rgba(255,0,60,.45)" }}
+                    role="img"
+                    aria-label={`real ${realShare}% / synth ${100 - realShare}%`}
+                  >
+                    <div
+                      className="h-full rounded-full transition-[width] duration-500"
+                      style={{
+                        width: `${realShare}%`,
+                        background: "linear-gradient(90deg, var(--nb-bone), rgba(242,237,228,.72))",
+                        boxShadow: "0 0 10px rgba(242,237,228,.35)",
+                      }}
+                    />
+                  </div>
+                  <span
+                    className="w-7 shrink-0 text-[0.56rem] font-black tabular-nums"
+                    style={{ color: "#ff5c7a" }}
+                  >
+                    {100 - realShare}%
+                  </span>
                 </div>
+                {/* спарклайн банка: живой ритм притока (сессия клиента) */}
+                {spark.length >= 2 && round.status === "open" && (() => {
+                  const min = Math.min(...spark);
+                  const max = Math.max(...spark);
+                  const rng = max - min || 1;
+                  const h = 14;
+                  const pts = spark
+                    .map(
+                      (v, i) =>
+                        `${(i / (spark.length - 1)) * 100},${h - 2 - ((v - min) / rng) * (h - 4)}`
+                    )
+                    .join(" ");
+                  return (
+                    <svg
+                      viewBox={`0 0 100 ${h}`}
+                      preserveAspectRatio="none"
+                      aria-hidden
+                      className="mt-1.5 h-3.5 w-full"
+                      style={{ opacity: 0.85 }}
+                    >
+                      <polyline
+                        points={pts}
+                        fill="none"
+                        stroke="rgba(0,240,255,.6)"
+                        strokeWidth="1.5"
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </svg>
+                  );
+                })()}
               </div>
             </div>
 
@@ -601,8 +678,22 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
               </p>
             )}
 
-            {/* ---- v6: строка баланса — аккаунт с нулевым порогом входа ---- */}
-            {phase === "idle" && (
+            {/* ---- v10: строка аккаунта — гость видит приглашение, игрок баланс ---- */}
+            {phase === "idle" && !authed && (
+              <button
+                onClick={() => setAuthGate(chosenSide ?? "real")}
+                className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-[0.72rem] font-black tracking-wide transition-colors"
+                style={{
+                  background: "rgba(242,237,228,.05)",
+                  border: "1px dashed rgba(242,237,228,.28)",
+                  color: "rgba(242,237,228,.85)",
+                }}
+              >
+                <Lock className="h-3 w-3" aria-hidden />
+                {t.bet.guestCta}
+              </button>
+            )}
+            {phase === "idle" && authed && (
               <div className="mt-2.5 flex min-w-0 items-center gap-1.5 overflow-hidden">
                 <span
                   className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.68rem] font-black"
@@ -640,23 +731,35 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
               </div>
             )}
 
-            {/* ---- idle: две крупные кнопки ---- */}
+            {/* ---- idle: две крупные кнопки с живыми пари-мьютюэль шансами ---- */}
             {phase === "idle" && (
               <div className="mt-2.5 grid grid-cols-2 gap-2">
                 <button
                   key={`lime-${flashLime}`}
                   onClick={() => pickSide("real")}
-                  className={`nb-btn nb-btn-real rounded-xl px-3 py-3.5 text-[1rem] font-black tracking-[0.12em] ${
+                  className={`nb-btn nb-btn-real rounded-xl px-3 py-2.5 ${
                     flashLime > 0 ? "nb-pulse-lime" : ""
                   }`}
                 >
-                  REAL
+                  <span className="block text-[1rem] font-black leading-none tracking-[0.12em]">REAL</span>
+                  <span
+                    className="mt-1 block text-[0.56rem] font-extrabold uppercase tracking-[0.1em] tabular-nums"
+                    style={{ color: "rgba(242,237,228,.55)" }}
+                  >
+                    {t.bet.pays} {oddsLabel(realOdds)}
+                  </span>
                 </button>
                 <button
                   onClick={() => pickSide("synth")}
-                  className="nb-btn nb-btn-synth rounded-xl px-3 py-3.5 text-[1rem] font-black tracking-[0.12em]"
+                  className="nb-btn nb-btn-synth rounded-xl px-3 py-2.5"
                 >
-                  SYNTH
+                  <span className="block text-[1rem] font-black leading-none tracking-[0.12em]">SYNTH</span>
+                  <span
+                    className="mt-1 block text-[0.56rem] font-extrabold uppercase tracking-[0.1em] tabular-nums"
+                    style={{ color: "rgba(255,217,226,.6)" }}
+                  >
+                    {t.bet.pays} {oddsLabel(synthOdds)}
+                  </span>
                 </button>
               </div>
             )}
@@ -696,8 +799,8 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
         </div>
       )}
 
-      {/* ---------- v6: predict-модалка — последняя ступень воронки ---------- */}
-      {modalOpen && round && (
+      {/* ---------- v6: predict-модалка — последняя ступень воронки (только authed) ---------- */}
+      {modalOpen && round && authed && (
         <PredictModal
           roundId={round.id}
           clipCode={clipCode}
@@ -706,6 +809,15 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
           onClose={closeModal}
           onPlaced={onPlaced}
           onAccountUpdate={setAccount}
+        />
+      )}
+
+      {/* ---------- v10: премиум auth-гейт для гостей ---------- */}
+      {authGate && round && !result && (
+        <AuthGateOverlay
+          clipCode={clipCode}
+          side={authGate}
+          onClose={() => setAuthGate(null)}
         />
       )}
 

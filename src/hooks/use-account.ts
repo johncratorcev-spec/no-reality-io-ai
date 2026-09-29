@@ -3,16 +3,20 @@
 import { useCallback, useEffect, useState } from "react";
 
 /**
- * use-account (v6): мгновенный аккаунт + внутренний баланс.
- * Первый GET /api/me сам создаёт аккаунт (welcome-бонус) и ставит
- * httpOnly-cookie nr_uid — ноль форм, порог входа = 0.
+ * use-account (v10): аккаунт ТОЛЬКО у авторизованных.
+ *
+ * GET /api/me отвечает { authed, account }:
+ *  - authed=true  → аккаунт с балансом (ставки/награды открыты);
+ *  - authed=false → гость (account=null; легаси-гость видит свой старый
+ *    баланс, но играет только после регистрации).
+ * Никаких auto-create: открытые страницы не плодят ghost-аккаунтов.
  */
 export interface AccountView {
   accountId: string;
   balanceCents: number;
   passTier: number;
   isPass: boolean;
-  /** email google/magic-сессии — null у мгновенного гостя (v7.1) */
+  /** email google/magic/пароль-сессии — null у гостя */
   email?: string | null;
   streakDays: number;
   dailyAvailable: boolean;
@@ -20,19 +24,28 @@ export interface AccountView {
 
 export function useAccount() {
   const [account, setAccount] = useState<AccountView | null>(null);
+  const [authed, setAuthed] = useState(false);
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async (): Promise<AccountView | null> => {
     try {
       const r = await fetch("/api/me", { cache: "no-store" });
-      if (!r.ok) return null;
-      const d = (await r.json()) as { account?: AccountView };
-      if (d.account) {
+      if (!r.ok) {
+        setAuthed(false);
+        setAccount(null);
+        return null;
+      }
+      const d = (await r.json()) as { authed?: boolean; account?: AccountView | null };
+      setAuthed(Boolean(d.authed));
+      if (d.authed && d.account) {
         setAccount(d.account);
         return d.account;
       }
+      setAccount(null);
       return null;
     } catch {
+      setAuthed(false);
+      setAccount(null);
       return null;
     }
   }, []);
@@ -64,5 +77,5 @@ export function useAccount() {
     }
   }, []);
 
-  return { account, ready, refresh, setAccount, claimDaily };
+  return { account, authed, ready, refresh, setAccount, claimDaily };
 }

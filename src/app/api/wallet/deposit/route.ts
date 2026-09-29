@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  accountResponse,
   createDeposit,
   depositStatus,
   ECON,
   ensureAccount,
   accountView,
-  readAccount,
   EconError,
 } from "@/lib/account";
+import { authedAccountId } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -25,26 +24,33 @@ export const dynamic = "force-dynamic";
  *
  * Demo/dev (без 2328-ключей): мгновенное demo-пополнение с дневным капсом —
  * вся воронка тестируется и без прод-ключей.
+ *
+ * v10: инвойсы — только с подписанной сессией: пополнение нужно ради
+ * беттинга, а он за авторизацией; ghost-аккаунты под чужие деньги не
+ * создаются.
  */
 export async function POST(req: NextRequest) {
-  const account = readAccount(req);
+  const accountId = authedAccountId(req);
+  if (!accountId) {
+    return NextResponse.json({ error: "auth_required" }, { status: 401 });
+  }
   let body: Record<string, unknown>;
   try {
     body = (await req.json()) as Record<string, unknown>;
   } catch {
-    return accountResponse(account, { error: "invalid json" }, 400);
+    return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
   const amount = Number(body.amount_cents);
   if (!Number.isInteger(amount)) {
-    return accountResponse(account, { error: "bad_amount" }, 400);
+    return NextResponse.json({ error: "bad_amount" }, { status: 400 });
   }
 
   try {
-    await ensureAccount(account.id);
-    const dep = await createDeposit(account.id, amount);
-    const fresh = await ensureAccount(account.id);
-    return accountResponse(account, {
+    await ensureAccount(accountId);
+    const dep = await createDeposit(accountId, amount);
+    const fresh = await ensureAccount(accountId);
+    return NextResponse.json({
       order_id: dep.orderId,
       pay_url: dep.payUrl,
       mode: dep.mode,
@@ -56,25 +62,28 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     if (e instanceof EconError) {
-      return accountResponse(account, { error: e.code, message: e.message }, e.status);
+      return NextResponse.json({ error: e.code, message: e.message }, { status: e.status });
     }
     console.error("[wallet/deposit] failed:", e instanceof Error ? e.message : e);
-    return accountResponse(account, { error: "deposit_failed" }, 500);
+    return NextResponse.json({ error: "deposit_failed" }, { status: 500 });
   }
 }
 
 export async function GET(req: NextRequest) {
-  const account = readAccount(req);
+  const accountId = authedAccountId(req);
+  if (!accountId) {
+    return NextResponse.json({ error: "auth_required" }, { status: 401 });
+  }
   const orderId = req.nextUrl.searchParams.get("order") || "";
   if (!/^[\w-]{1,64}$/.test(orderId)) {
-    return accountResponse(account, { error: "bad_order" }, 400);
+    return NextResponse.json({ error: "bad_order" }, { status: 400 });
   }
   try {
-    await ensureAccount(account.id);
-    const st = await depositStatus(account.id, orderId);
+    await ensureAccount(accountId);
+    const st = await depositStatus(accountId, orderId);
     return NextResponse.json(st);
   } catch (e) {
     console.error("[wallet/deposit] status failed:", e instanceof Error ? e.message : e);
-    return accountResponse(account, { error: "status_failed" }, 500);
+    return NextResponse.json({ error: "status_failed" }, { status: 500 });
   }
 }
