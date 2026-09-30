@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ExternalLink, Flame, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import { FEATURES } from "@/lib/features";
 
 /* ================================================================
    BoostClient — форма буста на /boost (v5).
@@ -142,6 +143,27 @@ export default function BoostClient() {
           </div>
         ) : (
           <>
+            {!FEATURES.payments ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <p className="text-[0.62rem] font-black uppercase tracking-[0.2em] text-white/45">
+                  no-reality<span style={{ color: "var(--nb-blood)" }}>.</span>
+                </p>
+                <h2 className="text-xl font-extrabold tracking-tight text-white">
+                  платные бусты на паузе
+                </h2>
+                <p className="max-w-md text-[0.82rem] font-semibold leading-relaxed text-white/55">
+                  Season 1 — очковая экономика: EYE не продаются, инвойсы
+                  вернутся после снапшота (дата — на главной).
+                </p>
+                <a
+                  href="/bet"
+                  className="mt-1 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-[0.8rem] font-extrabold text-[#0A0A0F] transition-transform duration-300 hover:scale-[1.04]"
+                >
+                  играть в Season 1 →
+                </a>
+              </div>
+            ) : (
+              <>
             {/* поле: код клипа */}
             <label
               htmlFor="boost-code"
@@ -226,6 +248,8 @@ export default function BoostClient() {
                 <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                 {error}
               </p>
+            )}
+              </>
             )}
           </>
         )}

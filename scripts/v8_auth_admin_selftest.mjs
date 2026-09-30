@@ -16,7 +16,7 @@
  *     8. событие видно в GET /api/admin/events
  *     9. без админ-сессии → 401
  *  C. инвойсы 2328.io ТОЛЬКО на специальных событиях:
- *    10. boost checkout → инвойс bs-* + payUrl мока (спец-размещение)
+ *    10. boost checkout → 403 payments_disabled (v11: платежи заморожены)
  *    11. у аккаунтов после auth/наград/просмотров — 0 инвойсов
  *        (ни DepositOrder, ни BoostOrder)
  *  D. админ-панель в текущем стеке:
@@ -184,7 +184,7 @@ async function run() {
   );
   ok(
     "v10: гость не линкуется (аккаунтов у гостей нет) + welcome",
-    reg.json.linked === false && Boolean(regId) && (reg.json.account?.balanceCents ?? 0) >= 300,
+    reg.json.linked === false && Boolean(regId) && (reg.json.account?.balanceCents ?? 0) >= 100,
     `linked=${reg.json.linked} bal=${reg.json.account?.balanceCents}`
   );
   const regPromoRow = await one(
@@ -246,7 +246,7 @@ async function run() {
   });
   ok(
     "тот же email с промо → registered + welcome",
-    freshPromo.status === 200 && freshPromo.json.status === "registered" && freshPromo.json.isNew === true && (freshPromo.json.account?.balanceCents ?? 0) >= 300,
+    freshPromo.status === 200 && freshPromo.json.status === "registered" && freshPromo.json.isNew === true && (freshPromo.json.account?.balanceCents ?? 0) >= 100,
     `balance=${freshPromo.json.account?.balanceCents}`
   );
   const freshId = freshPromo.json.account?.accountId;
@@ -331,13 +331,11 @@ async function run() {
 
   /* === C. инвойсы 2328.io только на специальных событиях === */
   const boost = await Curator("POST", "/api/boost/checkout", { code: CLIP, days: 1 });
-  const boostOrderId = boost.json.orderId || "";
   ok(
-    "boost checkout → инвойс bs-* + payUrl (спец-размещение)",
-    boost.status === 200 && boostOrderId.startsWith("bs-") && String(boost.json.payUrl || "").includes("/pay/"),
-    boost.json.error || boostOrderId
+    "boost checkout → 403 payments_disabled (v11: платежи заморожены)",
+    boost.status === 403 && boost.json.error === "payments_disabled",
+    boost.json.error || String(boost.status)
   );
-  if (boostOrderId) cleanup.boostOrders.push(boostOrderId);
 
   /* у аккаунтов, прошедших только auth/награды/просмотры — ноль инвойсов */
   const invRows = await one(

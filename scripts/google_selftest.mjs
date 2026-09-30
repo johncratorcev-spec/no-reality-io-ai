@@ -24,12 +24,12 @@
  *  C. вход/регистрация (мок токен-эндпоинта):
  *    12. регистрация новым email → 303 + nr_uid-cookie (uuid)
  *    13. DB: Account(email).passTier = 1
- *    14. DB: LedgerTxn signup_bonus = +300 (регистрационный бонус)
+ *    14. DB: LedgerTxn signup_bonus = +100 (регистрационный бонус, v11)
  *    15. повторный вход тем же email → ТОТ ЖЕ аккаунт (без дубля)
  *    16. DB: аккаунт 1 шт., signup_bonus 1 шт. (идемпотентно)
  *    17. привязка гостя: nr_uid гостя + новый email → email на госте,
  *        баланс гостя сохранён, дубль бонуса не выдан
- *    18. GET /api/me с сессией → баланс ≥ 300 виден
+ *    18. GET /api/me с сессией → баланс ≥ 100 виден
  *  D. анти-брутфорс (последним, съедает rate limit):
  *    19. лавина GET /start → 429
  *
@@ -250,7 +250,7 @@ async function run() {
   ok("13. DB: Account создан, passTier=1 (NR PASS)", d1 && Number(d1.passTier) === 1, d1 ? `id=${d1.id.slice(0, 8)}… tier=${d1.passTier}` : "нет аккаунта");
 
   const bonus1 = await one('SELECT delta, kind FROM "LedgerTxn" WHERE "accountId" = $1 AND kind = \'signup_bonus\'', [uid1]);
-  ok("14. DB: signup_bonus = +300 монет", bonus1 && Number(bonus1.delta) === 300, bonus1 ? `delta=${bonus1.delta}` : "нет начисления");
+  ok("14. DB: signup_bonus = +100 EYE", bonus1 && Number(bonus1.delta) === 100, bonus1 ? `delta=${bonus1.delta}` : "нет начисления");
 
   const user2 = makeClient("login-again");
   const r15 = await googleFlow(user2, { email: email1, verified: true });
@@ -291,7 +291,7 @@ async function run() {
   /* 18. /api/me с сессией после google-регистрации */
   const me = await user("/api/me");
   const meAcc = me.json?.account || me.json;
-  ok("18. /api/me: сессия жива, баланс ≥ 300", meAcc?.accountId === uid1 && Number(meAcc?.balanceCents ?? 0) >= 300, JSON.stringify({ accountId: meAcc?.accountId?.slice(0, 8), balance: meAcc?.balanceCents }));
+  ok("18. /api/me: сессия жива, баланс ≥ 100", meAcc?.accountId === uid1 && Number(meAcc?.balanceCents ?? 0) >= 100, JSON.stringify({ accountId: meAcc?.accountId?.slice(0, 8), balance: meAcc?.balanceCents }));
 
   /* --- C2. v9: google-гейт (закрытый запуск) --- */
   console.log("\n[C2] v9 google-гейт: без промо → лист ожидания");

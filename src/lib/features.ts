@@ -33,6 +33,17 @@ export const FEATURES = {
   magicLink:
     process.env.FEATURE_MAGIC_LINK !== "0" &&
     Boolean(process.env.RESEND_API_KEY),
+
+  /**
+   * v11 — ПЛАТЕЖИ ВЫКЛЮЧЕНЫ ПРИКАЗОМ (заморозка на 7 дней, фокус на BD):
+   * крипто-пополнения (dp-*), платные бусты (bs-*) и кэшаут (bw-*) закрыты
+   * на сервере и спрятаны в UI. Внутри игры — только EYE, «очковая»
+   * экономика без денег. Включение обратно: FEATURE_PAYMENTS=1.
+   */
+  payments: process.env.FEATURE_PAYMENTS === "1",
+
+  /** v11 — Telegram-вход: кнопка видна, когда задан username бота. */
+  telegramLogin: Boolean(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME),
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

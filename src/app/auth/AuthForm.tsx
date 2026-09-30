@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -21,9 +21,26 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 
 type Phase = "form" | "waitlisted";
 
+/* Telegram Login Widget коллит этот глобал с объектом пользователя */
+declare global {
+  interface Window {
+    onTelegramAuth?: (user: Record<string, unknown>) => void;
+  }
+}
+
+/** username бота из env — виджет рендерится только когда он задан */
+const TG_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "";
+
 export default function AuthForm() {
   const params = useSearchParams();
   const next = params.get("next") || "/bet";
+  /* виджет Telegram рисует «Bot domain invalid» на хостах, которых нет
+     в /setdomain бота — на localhost/чужих превью-доменах слот прячем */
+  const [tgHostOk, setTgHostOk] = useState(false);
+  useEffect(() => {
+    const host = window.location.hostname;
+    setTgHostOk(!/^(localhost|127\.|0\.0\.0\.0)$/.test(host));
+  }, []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +51,10 @@ export default function AuthForm() {
   const [waitReason, setWaitReason] = useState<string>("");
   const [msg, setMsg] = useState("");
   const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [tgReady, setTgReady] = useState(false);
+  const tgBox = useRef<HTMLDivElement | null>(null);
+  const nextRef = useRef(next);
+  nextRef.current = next;
 
   /* статус Google (кнопка только с настроенными ключами) */
   useEffect(() => {
@@ -70,6 +91,56 @@ export default function AuthForm() {
   const go = (path: string) => {
     window.location.href = path;
   };
+
+  /* ---------- Telegram Login Widget (v11 — главный вход кампании) ---------- */
+  useEffect(() => {
+    if (!TG_BOT) return;
+    window.onTelegramAuth = (user: Record<string, unknown>) => {
+      setMsg("");
+      setBusy(true);
+      void (async () => {
+        try {
+          const r = await fetch("/api/auth/telegram", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(user),
+          });
+          const d = (await r.json()) as { ok?: boolean; error?: string };
+          if (r.ok && d.ok) {
+            go(nextRef.current);
+            return;
+          }
+          setBusy(false);
+          setMsg(
+            d.error === "too_many_requests"
+              ? "too many attempts — wait a bit"
+              : "telegram sign-in failed — try again"
+          );
+        } catch {
+          setBusy(false);
+          setMsg("network blinked — try again");
+        }
+      })();
+    };
+    /* виджет — это их script с data-атрибутами; вставляем в контейнер */
+    const box = tgBox.current;
+    if (!box || box.childElementCount > 0) return;
+    const s = document.createElement("script");
+    s.src = "https://telegram.org/js/telegram-widget.js?22";
+    s.async = true;
+    s.setAttribute("data-telegram-login", TG_BOT);
+    s.setAttribute("data-size", "large");
+    s.setAttribute("data-radius", "14");
+    s.setAttribute("data-onauth", "onTelegramAuth(user)");
+    s.setAttribute("data-request-access", "write");
+    s.onload = () => setTgReady(true);
+    box.appendChild(s);
+    /* если скрипт заблокирован (нет связи с telegram.org) — покажем подсказку */
+    const t = setTimeout(() => {
+      if (tgBox.current && tgBox.current.childElementCount <= 1) setTgReady(false);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   const submit = async () => {
     if (busy || !email.trim() || password.length < 8) return;
@@ -213,10 +284,40 @@ export default function AuthForm() {
           className="nr-au-up mt-2.5 text-[0.8rem] font-semibold leading-relaxed text-white/55"
           style={{ animationDelay: "160ms" }}
         >
-          watching is free — betting needs an account. account exists
-          {" — "}you&apos;re in. new email — enter your promo code, no code
-          means the waiting list. no confirmation letters, ever.
+          watching is free — betting needs an account. sign in with telegram
+          and get <span className="text-[#a8cfea]">100 EYE</span> to call your
+          first verdict. no confirmation letters, ever.
         </p>
+
+        {/* ---------- v11: Telegram — главный вход (первым) ---------- */}
+        {TG_BOT && tgHostOk && (
+          <div className="nr-au-up mt-5" style={{ animationDelay: "200ms" }}>
+            <div
+              ref={tgBox}
+              className="flex min-h-[48px] items-center justify-center"
+              aria-label="Telegram sign-in button"
+            />
+            {!tgReady && (
+              <p className="mt-1 text-center text-[0.62rem] font-semibold text-white/30">
+                loading the telegram button…
+              </p>
+            )}
+          </div>
+        )}
+        {TG_BOT && tgHostOk && (
+          <div
+            className="nr-au-up mt-4 flex items-center gap-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-white/30"
+            style={{ animationDelay: "230ms" }}
+          >
+            <span className="h-px flex-1 bg-white/10" />or by email<span className="h-px flex-1 bg-white/10" />
+          </div>
+        )}
+        {TG_BOT && !tgHostOk && (
+          <p className="nr-au-up mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-center text-[0.66rem] font-bold text-white/45" style={{ animationDelay: "200ms" }}>
+            telegram sign-in works on no-reality.fun —
+            <br />here use email or google.
+          </p>
+        )}
 
         <div className="nr-au-up mt-5" style={{ animationDelay: "220ms" }}>
           <label className="sr-only" htmlFor="nr-au-email">Email</label>
@@ -319,9 +420,9 @@ export default function AuthForm() {
           className="nr-au-up mt-3 text-[0.62rem] font-semibold leading-relaxed text-white/25"
           style={{ animationDelay: "570ms" }}
         >
-          by entering you agree to the terms — virtual coins only, no money
-          inside the game; paid boosts and deposits run through separate
-          crypto invoices.
+          by entering you agree to the terms — EYE points only, no money
+          inside the game; points are earned by watching, calling it right
+          and adding clips. not for sale during season 1.
         </p>
       </div>
     </div>

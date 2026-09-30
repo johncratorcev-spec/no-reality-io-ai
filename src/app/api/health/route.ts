@@ -41,7 +41,7 @@ export async function GET() {
       ts: new Date().toISOString(),
       /* v8: явный отпечаток билда — раньше фолбэк "v6" маскировал
          актуальный деплой (npm_package_version недоступен в рантайме) */
-      version: process.env.APP_VERSION || "v10",
+      version: process.env.APP_VERSION || "v11",
     },
     { headers: { "Cache-Control": "no-store" } }
   );

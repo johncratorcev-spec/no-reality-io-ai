@@ -34,8 +34,8 @@ function num(name: string, def: number, min: number, max: number): number {
 }
 
 export const ECON = {
-  /** welcome-бонус новому аккаунту: 300 виртуальных монет за регистрацию */
-  welcomeBonusCents: Math.round(num("WELCOME_BONUS_CENTS", 300, 0, 100000)),
+  /** welcome-бонус новому аккаунту: +100 EYE за регистрацию (v11 — приказ) */
+  welcomeBonusCents: Math.round(num("WELCOME_BONUS_CENTS", 100, 0, 100000)),
   /** daily-бонус NR PASS за UTC-день */
   dailyBonusCents: Math.round(num("DAILY_BONUS_CENTS", 50, 0, 100000)),
   /** награда за целевой клик (спецблоки/фичеред) */
@@ -261,6 +261,8 @@ export interface AccountView {
   isPass: boolean;
   /** v7.1: email google/magic-сессии — null у мгновенного гостя */
   email: string | null;
+  /** v11: имя Telegram-аккаунта (displayName/@username) — для чипа в шапке */
+  name: string | null;
   streakDays: number;
   dailyAvailable: boolean;
 }
@@ -270,6 +272,8 @@ export function accountView(a: {
   balanceCents: number;
   passTier: number;
   email?: string | null;
+  displayName?: string | null;
+  tgUsername?: string | null;
   streakDays: number;
   lastDailyAt: Date | null;
 }): AccountView {
@@ -279,6 +283,7 @@ export function accountView(a: {
     passTier: a.passTier,
     isPass: a.passTier > 0,
     email: a.email ?? null,
+    name: a.displayName || (a.tgUsername ? `@${a.tgUsername}` : null),
     streakDays: a.streakDays,
     dailyAvailable: a.passTier > 0 && !sameUtcDay(a.lastDailyAt, new Date()),
   };

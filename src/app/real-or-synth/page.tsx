@@ -16,7 +16,7 @@ import { SITE } from "@/lib/site";
 export const metadata: Metadata = {
   title: "REAL or SYNTH — the AI content prediction game",
   description:
-    "How no reality. works: two feeds — an endless stream of curated AI video, and blind raffles where you call REAL or SYNTH, stake $1–5 and split the pari-mutuel bank in under a minute. Plus a 20% referral rake share.",
+    "How no reality. works: two feeds — an endless stream of curated AI video, and blind raffles where you call REAL or SYNTH, stake 10–50 EYE and split the pari-mutuel bank in under a minute. Plus a 20% referral rake share.",
   alternates: {
     canonical: "/real-or-synth",
     languages: {
@@ -133,7 +133,7 @@ export default function RealOrSynthPage() {
             video — pure watching. The second is the court: every clip is either filmed
             by a camera or dreamed by a model, and you call it{" "}
             <b className="text-white">REAL</b> or <b className="text-[#FF003C]">SYNTH</b>,
-            staking $1–5 on your eye. The pari-mutuel bank resolves in under a minute
+            staking 10–50 EYE on your eye. The pari-mutuel bank resolves in under a minute
             and pays the winning side.
           </p>
         </Reveal>
@@ -172,7 +172,7 @@ export default function RealOrSynthPage() {
             <ol className="mt-5 space-y-4">
               {[
                 ["watch", "Scroll the feed — an endless stream of machine dreams and real footage, one clip at a time. No account, no paywall."],
-                ["call", "Switch to the raffles: the clip loses its title and author. REAL or SYNTH — pick the side you trust and stake $1–5. The round locks after a short window; no takebacks, no peeking."],
+                ["call", "Switch to the raffles: the clip loses its title and author. REAL or SYNTH — pick the side you trust and stake 10–50 EYE. The round locks after a short window; no takebacks, no peeking."],
                 ["resolve", "The curator’s verdict settles the round. Winners split the pool pari-mutuel; the platform keeps a 10% rake; referrers keep 20% of it."],
               ].map(([t, d], i) => (
                 <li key={t} className="nrld-panel flex gap-4 rounded-3xl p-5">

@@ -183,6 +183,12 @@ model Account {
   id           String    @id // uuid из cookie nr_uid
   wallet       String?   @unique // 0x… / base58, lowercase — привязка кошелька
   email        String?   @unique // magic-link email (опционально)
+  // v11 — Telegram-вход (единственный вход кампании Season 1):
+  // telegramId уникален → один аккаунт на человека, дубли в снапшоте
+  // исключены конструкцией. tgUsername/displayName — для UI-чипа и CSV.
+  telegramId   String?   @unique // числовой user id Telegram (строкой)
+  tgUsername   String? // @username без собаки
+  displayName  String? // first_name [+ last_name] из Telegram
   passTier     Int       @default(0) // 0 = guest, 1 = NR PASS
   balanceCents Int       @default(0) // кэш баланса; истина — LedgerTxn
   lastDailyAt  DateTime? // последний daily-бонус (UTC-день)
@@ -368,6 +374,28 @@ model WaitlistEntry {
   convertedAccountId String?
 
   @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────
+// v11 — Season 1: 7-дневный игровой цикл со снапшотом для BD.
+// Одна активная строка (code="s1"). Снапшот — 12:00 UTC дня endsAt
+// (GET /api/admin/snapshot): CSV userId,telegramId,eye,score,bets,correct,weight.
+// Формула веса (зафиксирована на сезон, менять нельзя):
+//   weight = eye * min(1, valid_bets / 10)
+// В срез попадают аккаунты с ≥ 5 валидными (settled) ставками сезона;
+// аккаунты «только welcome, 0 ставок» отсеваются автоматически.
+// После среза сезон архивируется (status=archived), Season 2 — новые очки.
+model Season {
+  id        String   @id @default(uuid())
+  code      String   @unique // "s1"
+  name      String   @default("Season 1")
+  startsAt  DateTime // 00:00 UTC дня старта (всё, что поставлено сегодня — в срезе)
+  endsAt    DateTime // 12:00 UTC дня снапшота (T+7)
+  status    String   @default("active") // active | archived
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }
 
 // Журнал попыток подбора (БД, а не память: у Vercel много изолят-процессов,

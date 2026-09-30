@@ -14,6 +14,7 @@ import {
   fmtCoins,
 } from "@/lib/econ";
 import { track } from "@/lib/bet/trackClient";
+import { FEATURES } from "@/lib/features";
 import type { RoundView } from "@/lib/bet/roundView";
 import type { AccountView } from "@/hooks/use-account";
 import { useLang } from "@/lib/i18n";
@@ -385,8 +386,23 @@ export default function PredictModal({
           </div>
         )}
 
+        {/* ---- topup: платежи выключены приказом — показываем, как заработать EYE ---- */}
+        {mode === "topup" && !FEATURES.payments && (
+          <div
+            className="mt-4 rounded-2xl px-3.5 py-3"
+            style={{ border: "1px dashed rgba(200,255,0,.3)", background: "rgba(200,255,0,.05)" }}
+          >
+            <p className="text-[0.74rem] font-black" style={{ color: "var(--nb-poison)" }}>
+              {t.bet.earnTitle}
+            </p>
+            <p className="mt-1.5 text-[0.7rem] font-semibold leading-relaxed" style={{ color: "rgba(242,237,228,.6)" }}>
+              {t.bet.earnBody}
+            </p>
+          </div>
+        )}
+
         {/* ---- topup: пресеты пополнения с мультипликатором + статус ---- */}
-        {mode === "topup" && (
+        {mode === "topup" && FEATURES.payments && (
           <div className="mt-4">
             {!deposit && (
               <>

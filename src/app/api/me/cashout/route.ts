@@ -9,6 +9,7 @@ import {
 } from "@/lib/bet/cashout";
 import { is2328PayoutConfigured } from "@/lib/2328/payout";
 import { is2328WebhookConfigured } from "@/lib/2328/webhook";
+import { FEATURES } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,13 @@ export const dynamic = "force-dynamic";
  * Гость без истории → 404 no_ledger.
  */
 export async function POST(req: NextRequest) {
+  /* v11 — кэшаут выключен приказом: merkle claim — ПОСЛЕ снапшота Season 1 */
+  if (!FEATURES.payments) {
+    return NextResponse.json(
+      { error: "cashout_disabled", message: "cashout is paused until the Season 1 snapshot" },
+      { status: 403 }
+    );
+  }
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
   const rl = rateLimit(`cashout:${ip}`, 4, 60_000);
   if (!rl.ok) {

@@ -207,14 +207,14 @@ async function run() {
     accId?.slice(0, 8)
   );
   ok(
-    "welcome-бонус начислен (300)",
-    regU.res.json.account?.balanceCents === 300,
+    "welcome-бонус начислен (100 EYE)",
+    regU.res.json.account?.balanceCents === 100,
     `balance=${regU.res.json.account?.balanceCents}`
   );
   const me2 = await U("GET", "/api/me");
   ok(
     "повторный GET /api/me идемпотентен + authed:true",
-    me2.json.authed === true && me2.json.account?.balanceCents === 300,
+    me2.json.authed === true && me2.json.account?.balanceCents === 100,
     `authed=${me2.json.authed} balance=${me2.json.account?.balanceCents}`
   );
   cleanup.accounts.push(accId);
@@ -229,10 +229,12 @@ async function run() {
   ok("клик по цели → credited", c1.json.credited === true && c1.json.reward_cents === 5, `+${c1.json.reward_cents}`);
   const c2 = await U("POST", "/api/reward/click", { target: "featured:econ-b" });
   ok("второй клик сразу → too_fast", c2.json.credited === false && c2.json.reason === "too_fast", c2.json.reason);
-  await new Promise((r) => setTimeout(r, 2200));
+  /* v11: velocity-окно 15с (CLICK_MIN_INTERVAL_MS) больше латентности
+     Supabase-запроса (~6с) — иначе too_fast недостижим физически */
+  await new Promise((r) => setTimeout(r, 16500));
   const c3 = await U("POST", "/api/reward/click", { target: "featured:econ-b" });
   ok("после паузы → credited", c3.json.credited === true, `+${c3.json.reward_cents}`);
-  await new Promise((r) => setTimeout(r, 2200));
+  await new Promise((r) => setTimeout(r, 16500));
   const c4 = await U("POST", "/api/reward/click", { target: "featured:econ-a" });
   ok("повтор цели → duplicate (дедуп дня)", c4.json.credited === false && c4.json.reason === "duplicate", c4.json.reason);
 
@@ -256,82 +258,49 @@ async function run() {
   const d2 = await W("POST", "/api/me/daily");
   ok("повторный daily в тот же день → no-op", d2.json.credited === false, `streak=${d2.json.streakDays}`);
 
-  /* === D. крипто-пополнение: webhook = источник истины === */
+  /* === D. v11: ПЛАТЕЖИ ВЫКЛЮЧЕНЫ ПРИКАЗОМ (заморозка 7 дней).
+     Инвойсы dp-* не создаются (403); подпись webhook'а 2328 всё равно
+     проверяем — эндпоинт жив и должен оставаться защищённым (сид прямой
+     вставкой в БД, как это делал бы легаси-инвойс). === */
   const balBefore = await balOf();
-  let dep = await U("POST", "/api/wallet/deposit", { amount_cents: 500 });
-  if (!String(dep.json.pay_url || "").includes("/pay/")) {
-    /* cold-start retry: первый запрос после рестарта сервера может прийти
-       до полной готовности мока/клиента — повторяем один раз */
-    await new Promise((r) => setTimeout(r, 1500));
-    dep = await U("POST", "/api/wallet/deposit", { amount_cents: 500 });
-  }
-  ok("инвойс создан (crypto)", dep.status === 200 && dep.json.mode === "crypto" && String(dep.json.pay_url || "").includes("/pay/"), dep.json.error || dep.json.order_id);
-  const depUuid = String(dep.json.pay_url || "").split("/pay/")[1] || "";
-  const depRow = await one(
-    'SELECT id, "orderId", status, "amountCents", "accountId" FROM "DepositOrder" WHERE "paymentId" = $1',
-    [depUuid]
-  );
-  ok("DepositOrder pending, dp-*", depRow?.status === "pending" && String(depRow?.orderId || "").startsWith("dp-"), depRow?.orderId);
-  cleanup.deposits.push(depRow?.id);
-  cleanup.accounts.push(depRow?.accountId);
+  const depOff = await U("POST", "/api/wallet/deposit", { amount_cents: 500 });
+  ok("deposit → 403 payments_disabled", depOff.status === 403 && depOff.json.error === "payments_disabled", depOff.json.error || String(depOff.status));
+  ok("после отказа баланс не тронут", (await balOf()) === balBefore, `${balBefore}`);
+  const boostOff = await U("POST", "/api/boost/checkout", { code: CLIP, days: 1 });
+  ok("boost checkout → 403 payments_disabled", boostOff.status === 403 && boostOff.json.error === "payments_disabled", String(boostOff.status));
 
+  /* сидим оплаченный заказ напрямую и проверяем подпись webhook'а */
+  const seedOrderId = `dp-selftest-${Date.now()}`;
+  const seedUuid = crypto.randomUUID();
+  await q(
+    `INSERT INTO "DepositOrder" (id, "accountId", "orderId", "paymentId", "amountCents", status, mode, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, 500, 'pending', 'crypto', now(), now())`,
+    [crypto.randomUUID(), accId, seedOrderId, seedUuid]
+  );
   const badDep = await webhook2328(
-    { uuid: depUuid, order_id: depRow.orderId, payment_status: "paid", txid: "mock-tx-d1", amount: "5.00", currency: "USDT" },
+    { uuid: seedUuid, order_id: seedOrderId, payment_status: "paid", txid: "mock-tx-d1", amount: "5.00", currency: "USDT" },
     "wrong-key-XXXX"
   );
   ok("депозит webhook битая подпись → 401", badDep === 401);
-  const balAfterBad = await balOf();
-  ok("после 401 баланс не тронут", balAfterBad === balBefore, `${balAfterBad} === ${balBefore}`);
+  ok("после 401 баланс не тронут", (await balOf()) === balBefore, `${balBefore}`);
 
   const goodDep = await webhook2328(
-    { uuid: depUuid, order_id: depRow.orderId, payment_status: "paid", txid: "mock-tx-d1", amount: "5.00", currency: "USDT" },
+    { uuid: seedUuid, order_id: seedOrderId, payment_status: "paid", txid: "mock-tx-d1", amount: "5.00", currency: "USDT" },
     PAYMENT_KEY
   );
-  ok("депозит webhook принят", goodDep === 200);
-  const balAfterPaid = await balOf();
-  ok("баланс пополнен (+$5)", balAfterPaid === balBefore + 500, `${balBefore} → ${balAfterPaid}`);
-  const depPaid = await one('SELECT status FROM "DepositOrder" WHERE id = $1', [depRow.id]);
-  ok("DepositOrder paid", depPaid?.status === "paid");
-
+  ok("депозит webhook валидной подписью принят", goodDep === 200);
+  ok("баланс пополнен по webhook (+500)", (await balOf()) === balBefore + 500, `${balBefore} → ${await balOf()}`);
   const dupDep = await webhook2328(
-    { uuid: depUuid, order_id: depRow.orderId, payment_status: "paid", txid: "mock-tx-d1", amount: "5.00", currency: "USDT" },
+    { uuid: seedUuid, order_id: seedOrderId, payment_status: "paid", txid: "mock-tx-d1", amount: "5.00", currency: "USDT" },
     PAYMENT_KEY
   );
-  ok("повторный webhook → 200", dupDep === 200);
+  ok("повторный webhook → 200 без задвоения", dupDep === 200);
   const ledgerDep = await one(
     'SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE "refKey" = $1 AND kind = \'deposit\'',
-    [`deposit:${depUuid}`]
+    [`deposit:${seedUuid}`]
   );
   ok("двойного зачисления нет (refKey unique)", (ledgerDep?.n ?? 0) === 1, `rows=${ledgerDep?.n}`);
-
-  /* --- v7: бонус-мультипликатор пакета (1000 → +10%) --- */
-  const balBeforeBig = await balOf();
-  const depBig = await U("POST", "/api/wallet/deposit", { amount_cents: 1000 });
-  ok(
-    "пакет 1000: инвойс с бонусом",
-    depBig.status === 200 && depBig.json.bonus_cents === 100 && depBig.json.bonus_pct === 10,
-    `bonus=${depBig.json.bonus_cents}/${depBig.json.bonus_pct}% ${depBig.json.error || ""}`
-  );
-  const bigUuid = String(depBig.json.pay_url || "").split("/pay/")[1] || "";
-  const bigRow = await one(
-    'SELECT id, "orderId", "bonusCents" FROM "DepositOrder" WHERE "paymentId" = $1',
-    [bigUuid]
-  );
-  ok("DepositOrder.bonusCents = 100", bigRow?.bonusCents === 100, `row=${bigRow?.bonusCents}`);
-  cleanup.deposits.push(bigRow?.id);
-  cleanup.accounts.push(bigRow?.accountId);
-  const goodBig = await webhook2328(
-    { uuid: bigUuid, order_id: bigRow.orderId, payment_status: "paid", txid: "mock-tx-big", amount: "10.00", currency: "USDT" },
-    PAYMENT_KEY
-  );
-  ok("бонус-пакет webhook принят", goodBig === 200);
-  const balAfterBig = await balOf();
-  ok("баланс +1100 (1000 + бонус 10%)", balAfterBig === balBeforeBig + 1100, `${balBeforeBig} → ${balAfterBig}`);
-  const bonusTxn = await one(
-    'SELECT COUNT(*)::int AS n FROM "LedgerTxn" WHERE "refKey" = $1 AND kind = \'deposit_bonus\'',
-    [`deposit_bonus:${bigUuid}`]
-  );
-  ok("ledger deposit_bonus записан", (bonusTxn?.n ?? 0) === 1, `rows=${bonusTxn?.n}`);
+  await q(`DELETE FROM "DepositOrder" WHERE "orderId" = $1`, [seedOrderId]);
 
   /* === E. ставка с баланса === */
   const roundOpen = await U("GET", `/api/round?clip=${CLIP}`);
@@ -343,13 +312,13 @@ async function run() {
   const betLegacy = await U("POST", "/api/bet", {
     round_id: round.id,
     side: "real",
-    amount_cents: 100,
+    amount_cents: 10,
   });
   ok("ставка без mode → bet_mode_disabled (400)", betLegacy.status === 400 && betLegacy.json.error === "bet_mode_disabled", betLegacy.json.error);
   const betCrypto = await U("POST", "/api/bet", {
     round_id: round.id,
     side: "real",
-    amount_cents: 100,
+    amount_cents: 10,
     mode: "crypto",
   });
   ok("mode=crypto → bet_mode_disabled (400)", betCrypto.status === 400 && betCrypto.json.error === "bet_mode_disabled", betCrypto.json.error);
@@ -358,18 +327,18 @@ async function run() {
   const bet1 = await U("POST", "/api/bet", {
     round_id: round.id,
     side: "real",
-    amount_cents: 100,
+    amount_cents: 10,
     mode: "balance",
   });
   ok("balance-ставка активна", bet1.status === 200 && bet1.json.status === "active" && bet1.json.mode === "balance", bet1.json.error || bet1.json.bet_id?.slice(0, 8));
-  ok("баланс списан", bet1.json.balance_cents === balBeforeBet - 100, `${balBeforeBet} → ${bet1.json.balance_cents}`);
-  ok("пул вырос", bet1.json.round?.poolTotalCents === 100, `pool=${bet1.json.round?.poolTotalCents}`);
+  ok("баланс списан", bet1.json.balance_cents === balBeforeBet - 10, `${balBeforeBet} → ${bet1.json.balance_cents}`);
+  ok("пул вырос", bet1.json.round?.poolTotalCents === 10, `pool=${bet1.json.round?.poolTotalCents}`);
   cleanup.bets.push(bet1.json.bet_id);
 
   const betDup = await U("POST", "/api/bet", {
     round_id: round.id,
     side: "synth",
-    amount_cents: 100,
+    amount_cents: 10,
     mode: "balance",
   });
   ok("повторная ставка на раунд → already_bet", betDup.status === 409 && betDup.json.error === "already_bet");
@@ -382,10 +351,21 @@ async function run() {
   });
   ok("сверх лимита → bad_amount", betTooBig.status === 400 && betTooBig.json.error === "bad_amount");
 
-  /* ставка сверх баланса: новичок с пустым балансом (welcome=300 → ставим 500) */
+  /* ставка сверх баланса: дренируем баланс SQL'ом до 5 EYE (v11: welcome 100,
+     максимум ставки 50 — новичок всегда может оплатить; 402 достигается
+     только после проигрышей) */
   const Poor = makeClient("poor");
   const regPoor = await registerClient(Poor, "poor");
-  cleanup.accounts.push(regPoor.res.json.account?.accountId);
+  const poorAccId = regPoor.res.json.account?.accountId;
+  cleanup.accounts.push(poorAccId);
+  /* дренируем ЧЕРЕЗ ЖУРНАЛ (raw UPDATE сломал бы инвариант Σdelta == баланс):
+     welcome 100 → 5, разница −95 списанием bet_stake с selftest-refKey */
+  await q(
+    `INSERT INTO "LedgerTxn" (id, "accountId", delta, kind, "refKey", meta, "createdAt")
+     VALUES ($1, $2, -95, 'bet_stake', $3, '{}', now())`,
+    [crypto.randomUUID(), poorAccId, `selftest:drain:${poorAccId}`]
+  );
+  await q('UPDATE "Account" SET "balanceCents" = 5 WHERE id = $1', [poorAccId]);
   const poorRound = await Poor("GET", `/api/round?clip=${CLIP}`);
   /* раунд уже занят ставкой игрока с того же IP-fingerprint → поднимем свой */
   const poorRound2 = await Poor("GET", `/api/round?clip=puhGJNmX`);
@@ -394,7 +374,7 @@ async function run() {
   const poorBet = await Poor("POST", "/api/bet", {
     round_id: targetRound.id,
     side: "synth",
-    amount_cents: 500,
+    amount_cents: 10,
     mode: "balance",
   });
   ok("сверх баланса → insufficient_balance (402)", poorBet.status === 402 && poorBet.json.error === "insufficient_balance", poorBet.json.error);

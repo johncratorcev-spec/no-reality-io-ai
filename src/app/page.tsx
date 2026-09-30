@@ -1,17 +1,14 @@
 import type { Metadata } from "next";
-import Landing from "@/components/landing/Landing";
+import SeasonLanding from "@/components/landing/SeasonLanding";
 import { HUB_FAQ } from "@/lib/hubFaq";
 import { SITE, SOCIALS } from "@/lib/site";
 
 /**
- * Главная = кровавый карнавал-лендинг (v4, статика — идеальна для SEO/GEO).
- * Две ленты сайта: /feed — бесконечные ИИ-видео, /bet — рафлы
- * «угадай, ИИ или нет». Deep-link'и — /v/[code].
- *
- * JSON-LD: WebSite + Organization + FAQPage (EN) — Google Rich Results
- * и генеративные движки (AI Overviews, Perplexity, ChatGPT search)
- * вытаскивают факты проекта из структурированных данных.
+ * Главная = лендинг кампании Season 1 (v11 — приказ: 8 строк + Call it +
+ * «Season 1 live», не манифест). Серверный компонент: дата среза из БД.
+ * force-dynamic: тело читает Season из БД — пререндер при build не нужен.
  */
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -91,7 +88,7 @@ const jsonLd = {
       url: SITE.url,
       slogan: SITE.tagline,
       description:
-        "no reality. runs two feeds: an endless stream of curated AI video, and blind raffles where every clip is either REAL footage or a machine dream — call it, stake $1–5, win the pool.",
+        "no reality. runs one game this week: watch a clip, call REAL or SYNTH, stake 10–50 EYE — winners split the pari-mutuel bank. Telegram sign-in, 100 EYE welcome, Season 1 snapshot in 7 days.",
       sameAs: SOCIALS.map((s) => s.url),
     },
     {
@@ -113,7 +110,7 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <Landing />
+      <SeasonLanding />
     </>
   );
 }

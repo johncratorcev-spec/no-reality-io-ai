@@ -6,13 +6,13 @@ import { SITE } from "@/lib/site";
 export const dynamic = "force-dynamic";
 
 /* РАФЛЫ (v4): вторая лента сайта. Слепой суд — метаданных нет,
-   смотри кадр и ставь на REAL или SYNTH ($1–5), банк pari-mutuel
+   смотри кадр и ставь на REAL или SYNTH (10–50 EYE), банк pari-mutuel
    закрывается меньше чем за минуту. Чистое угадывание. */
 
 export const metadata: Metadata = {
   title: "the raffles — call it: AI or not?",
   description:
-    "Blind raffles on synthetic cinema: no titles, no authors — just the footage. Call REAL or SYNTH, stake $1–5 into the pari-mutuel bank and split the pool when the curator’s verdict lands in under a minute.",
+    "Blind raffles on synthetic cinema: no titles, no authors — just the footage. Call REAL or SYNTH, stake 10–50 EYE into the pari-mutuel bank and split the pool when the curator’s verdict lands in under a minute.",
   alternates: {
     canonical: "/bet",
     languages: { en: "/bet", ru: "/bet?lang=ru", "x-default": "/bet" },
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "the raffles — REAL or SYNTH?",
     description:
-      "No hints. Pure eye. Call REAL or SYNTH, stake $1–5, split the bank. The verdict drops in under a minute.",
+      "No hints. Pure eye. Call REAL or SYNTH, stake 10–50 EYE, split the bank. The verdict drops in under a minute.",
     url: "/bet",
     type: "website",
     images: ["/images/og-vhs.png"],
@@ -39,7 +39,7 @@ export default async function BetPage() {
     name: "the raffles — no reality.",
     url: `${SITE.url}/bet`,
     description:
-      "Blind prediction raffles on AI-generated and real video clips: call REAL or SYNTH, stake $1–5, winners split the pari-mutuel pool.",
+      "Blind prediction raffles on AI-generated and real video clips: call REAL or SYNTH, stake 10–50 EYE, winners split the pari-mutuel pool.",
     inLanguage: ["en", "ru"],
     mainEntity: {
       "@type": "ItemList",

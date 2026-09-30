@@ -8,6 +8,7 @@ import {
   EconError,
 } from "@/lib/account";
 import { authedAccountId } from "@/lib/auth/session";
+import { FEATURES } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,13 @@ export const dynamic = "force-dynamic";
  * создаются.
  */
 export async function POST(req: NextRequest) {
+  /* v11 — платежи выключены приказом (заморозка 7 дней): EYE не продаются */
+  if (!FEATURES.payments) {
+    return NextResponse.json(
+      { error: "payments_disabled", message: "EYE points are not for sale during Season 1" },
+      { status: 403 }
+    );
+  }
   const accountId = authedAccountId(req);
   if (!accountId) {
     return NextResponse.json({ error: "auth_required" }, { status: 401 });

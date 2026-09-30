@@ -33,7 +33,7 @@ export async function generateMetadata({
     title: `REAL or SYNTH? — ${post.author || "video"}`.slice(0, 120),
     description: t
       ? `${t.slice(0, 110)} — real or synth? call it and win the pool.`
-      : "real or synth? call it — $1–5, the bank resolves in under a minute.",
+      : "real or synth? call it — 10–50 EYE, the bank resolves in under a minute.",
     alternates: { canonical: `/v/${post.utmCode}` },
     openGraph: {
       title: `REAL or SYNTH? — ${post.author || "video"} on no reality.`,

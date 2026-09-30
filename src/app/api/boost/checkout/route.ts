@@ -14,6 +14,7 @@ import {
   boostPricePerDayUsdt,
   normalizeBoostDays,
 } from "@/lib/boost-order";
+import { FEATURES } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,13 @@ export const dynamic = "force-dynamic";
  *   чип FEATURED на карточку.
  */
 export async function POST(req: NextRequest) {
+  /* v11 — платежи выключены приказом (заморозка 7 дней): платные бусты закрыты */
+  if (!FEATURES.payments) {
+    return NextResponse.json(
+      { error: "payments_disabled", message: "paid boosts are paused during Season 1" },
+      { status: 403 }
+    );
+  }
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const rl = rateLimit(`boost:${ip}`, 6, 60_000);

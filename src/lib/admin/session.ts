@@ -85,12 +85,14 @@ export function hasAdminSession(req: NextRequest): boolean {
   return legacyKeyMatches(req.nextUrl.searchParams.get("key"));
 }
 
-/** Кука сессии: SameSite=None + Secure — работает в white-label iframe. */
+/** Кука сессии: в проде SameSite=None + Secure (white-label iframe);
+ *  в dev None без Secure отбрасывается браузером на http → Lax. */
 export function adminCookieOptions(maxAge: number) {
+  const secure = process.env.NODE_ENV === "production";
   return {
     httpOnly: true,
-    sameSite: "none" as const,
-    secure: process.env.NODE_ENV === "production",
+    sameSite: secure ? ("none" as const) : ("lax" as const),
+    secure,
     maxAge,
     path: "/",
   };

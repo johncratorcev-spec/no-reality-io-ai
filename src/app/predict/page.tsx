@@ -167,7 +167,7 @@ export default function PredictPage() {
                   />
                 ))}
               </svg>
-              <span className="nr-prd-frost-label">frozen · $1 to call it</span>
+              <span className="nr-prd-frost-label">frozen · 10 EYE to call it</span>
             </div>
             {/* фаза 3: кварцы */}
             <div className="nr-prd-crystals" aria-hidden>

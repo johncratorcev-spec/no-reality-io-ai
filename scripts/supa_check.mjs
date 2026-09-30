@@ -31,6 +31,7 @@ const EXPECTED_TABLES = [
   "MagicLogin", "MagicUser", "EmailAuth",
   "Round", "Bet", "TrackEvent", "BoostOrder",
   "PromoCode", "WaitlistEntry", "PromoAttempt",
+  "Season",
 ];
 
 const EXPECTED_UNIQUE = [
@@ -42,6 +43,8 @@ const EXPECTED_UNIQUE = [
   { table: "Account", column: "email", why: "email уникален на аккаунте" },
   { table: "PromoCode", column: "code", why: "код одноразовый и уникальный (v9)" },
   { table: "WaitlistEntry", column: "email", why: "анти-спам листа ожидания: одна запись на email (v9)" },
+  { table: "Account", column: "telegramId", why: "один аккаунт на telegram-личность — дубли исключены конструкцией (v11)" },
+  { table: "Season", column: "code", why: "одна строка на сезон, гонка ensureActiveSeason гасится unique (v11)" },
 ];
 
 async function run() {

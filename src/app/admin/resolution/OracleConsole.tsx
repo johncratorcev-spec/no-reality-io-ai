@@ -531,10 +531,10 @@ export default function OracleConsole({ posts }: { posts: PostStatic[] }) {
                 </p>
                 <div className="nr-oracle-stats">
                   <span>
-                    REAL <b>${(r.poolRealCents / 100).toFixed(2)}</b>
+                    REAL <b>{r.poolRealCents} EYE</b>
                   </span>
                   <span>
-                    SYNTH <b>${(r.poolSynthCents / 100).toFixed(2)}</b>
+                    SYNTH <b>{r.poolSynthCents} EYE</b>
                   </span>
                   <span>
                     POSITIONS <b>{r.bets}</b>

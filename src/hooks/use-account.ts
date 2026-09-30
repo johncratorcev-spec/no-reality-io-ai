@@ -18,6 +18,8 @@ export interface AccountView {
   isPass: boolean;
   /** email google/magic/пароль-сессии — null у гостя */
   email?: string | null;
+  /** v11: имя Telegram-аккаунта (displayName/@username) */
+  name?: string | null;
   streakDays: number;
   dailyAvailable: boolean;
 }

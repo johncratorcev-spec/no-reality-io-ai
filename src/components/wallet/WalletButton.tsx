@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Send } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import {
   hydrateFavorites,
@@ -32,6 +33,13 @@ interface ProfileData {
   badges: string[];
 }
 
+interface SeasonData {
+  name: string;
+  daysLeft: number;
+  snapshotLabel: string;
+  snapshotDate: string;
+}
+
 export default function WalletButton() {
   const { account, ready, refresh } = useAccount();
   const favs = useFavoritesStore();
@@ -41,6 +49,7 @@ export default function WalletButton() {
      /auth (там свой статус-фетч); здесь остаётся только аккаунт-чип */
   /* task 44: бонусы/бейджи профиля + доступность Magic Link */
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [season, setSeason] = useState<SeasonData | null>(null);
   const [magicEnabled, setMagicEnabled] = useState(false);
   const [magicEmail, setMagicEmail] = useState("");
   const [magicState, setMagicState] = useState<"idle" | "sending" | "sent">("idle");
@@ -69,6 +78,15 @@ export default function WalletButton() {
         }
       } catch {
         /* без профиля просто без бонусной строки */
+      }
+      try {
+        const r = await fetch("/api/season", { cache: "no-store" });
+        if (r.ok) {
+          const d = (await r.json()) as { season?: SeasonData };
+          if (d.season) setSeason(d.season);
+        }
+      } catch {
+        /* сезон — не критично */
       }
       try {
         const r = await fetch("/api/auth/magic/status", { cache: "no-store" });
@@ -133,30 +151,47 @@ export default function WalletButton() {
   }
 
   const email = account?.email ?? null;
+  const name = account?.name ?? null;
+  /* чип: email (google/пароль) или Telegram-имя; гость — кнопка входа */
+  const chipLabel = email ? emailShort(email) : name ? (name.length > 14 ? `${name.slice(0, 13)}…` : name) : null;
 
   return (
     <div className="relative">
-      {email ? (
-        /* ----- google/magic-сессия: чип + дропдаун аккаунта ----- */
+      {chipLabel ? (
+        /* ----- сессия (google/email/telegram): чип + дропдаун аккаунта ----- */
         <>
           <button
             onClick={() => setOpen((v) => !v)}
             className="inline-flex items-center gap-1.5 rounded-full bg-[#f3f0ff] px-3 py-1.5 text-[0.66rem] font-extrabold tracking-tight text-[#6d4fc2] transition-all duration-300 hover:scale-105 hover:bg-[#eae4ff] active:scale-95"
             aria-expanded={open}
-            title={`account — ${email}`}
+            title={`account — ${email || name}`}
           >
-            <span aria-hidden className="text-[0.8rem] font-black">G</span>
-            {emailShort(email)}
+            {email ? (
+              <span aria-hidden className="text-[0.8rem] font-black">G</span>
+            ) : (
+              <Send aria-hidden className="h-3 w-3 text-[#229ED9]" />
+            )}
+            {chipLabel}
           </button>
 
           {open && (
             <div className="nr-glass-deep absolute bottom-[calc(100%+8px)] right-0 z-50 w-64 rounded-2xl p-4 text-[#10161d]">
               <p className="text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
-                google account
+                account
               </p>
               <p className="mt-1.5 break-all font-mono text-[0.66rem] leading-relaxed text-[#10161d]/70">
-                {email}
+                {email || name}
               </p>
+
+              {/* ---------- v11: серая строка сезона (приказ — профиль) ---------- */}
+              {season && (
+                <p className="mt-3 text-[0.62rem] font-semibold leading-snug text-[#10161d]/45">
+                  {season.name} · snapshot in{" "}
+                  {season.daysLeft > 0 ? `${season.daysLeft} day${season.daysLeft === 1 ? "" : "s"}` : "today"}
+                  {" · "}
+                  {season.snapshotLabel}
+                </p>
+              )}
 
               {/* ---------- бонусы и бейджи (task 44 §6) ---------- */}
               {profile && (profile.bonusCredits > 0 || profile.badges.length > 0) && (

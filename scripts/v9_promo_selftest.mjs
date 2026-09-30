@@ -22,7 +22,7 @@
  * C. Промо-регистрация:
  *   13. валидный код → registered + cookies nr_uid+nr_auth
  *   14. /api/me с сессией → email + NR PASS
- *   15. DB: PromoCode.usedBy = accountId, баланс ≥ 300 (welcome)
+ *   15. DB: PromoCode.usedBy = accountId, баланс ≥ 100 (welcome, v11)
  *   16. тот же код другим email → waitlisted promo_used (одноразовость)
  *   17. email из листа ожидания + свой код → registered,
  *       WaitlistEntry.convertedAccountId заполнен
@@ -168,7 +168,7 @@ async function run() {
   const gRound = await Anon("GET", "/api/round?clip=71vsIPUu");
   ok("6. GET /api/round гостем → 200 (публичные пулы)", gRound.status === 200 && Boolean(gRound.json?.round?.id), gRound.json?.error || "");
   if (gRound.json?.round?.id) {
-    const gBet = await Anon("POST", "/api/bet", { round_id: gRound.json.round.id, side: "real", amount_cents: 100, mode: "balance" });
+    const gBet = await Anon("POST", "/api/bet", { round_id: gRound.json.round.id, side: "real", amount_cents: 10, mode: "balance" });
     ok("7. POST /api/bet гостем → 401 auth_required", gBet.status === 401 && gBet.json?.error === "auth_required", `${gBet.status} ${gBet.json?.error || ""}`);
     const gWatch = await Anon("POST", "/api/reward/watch", { clipCode: "71vsIPUu" });
     ok("8. POST /api/reward/watch гостем → 401 (награды за auth)", gWatch.status === 401, `${gWatch.status}`);
@@ -237,7 +237,7 @@ async function run() {
 
   const promoRow = await one('SELECT "usedBy" FROM "PromoCode" WHERE code = $1', [SEED[0]]);
   const bal = await one('SELECT "balanceCents" FROM "Account" WHERE id = $1', [regId]);
-  ok("15. DB: код погашен этим аккаунтом, баланс ≥ 300", promoRow?.usedBy === regId && Number(bal?.balanceCents ?? 0) >= 300, `bal=${bal?.balanceCents}`);
+  ok("15. DB: код погашен этим аккаунтом, баланс ≥ 100", promoRow?.usedBy === regId && Number(bal?.balanceCents ?? 0) >= 100, `bal=${bal?.balanceCents}`);
 
   const emailP2 = `v9-reuse-${stamp}@test.dev`;
   cleanupWaitlist.add(emailP2);

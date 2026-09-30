@@ -11,18 +11,34 @@ export const dynamic = "force-dynamic";
 
 /* ================================================================
    GET /api/admin/stats?key=<ADMIN_SECRET> — статистика посещений
-   и событий из БД (SQLite/Prisma).
+   и событий из БД (Supabase/Prisma).
 
-   Отдаёт:
-   - pageviews: всего / за 24ч / за 7 дней, уникальные посетители,
-     топ путей и по дням (PageVisit — пишет /api/track);
-   - clicks: уникальные переходы по UTM-редиректам (Click) + топ кодов;
-   - rating: сумма score (PostStats);
-   - referrals: профили кошельков + события (checkout/paid) + начисления;
-   - economy: аккаунты, внутренний баланс, крипто-пополнения (v6).
+   v11 — УЗКОЕ МЕСТО УСТРАНЕНО: раньше здесь были findMany() без
+   лимита (PageVisit/Click/ReferralEvent/DepositOrder/UtmClick) —
+   с ростом трафика панель протаскивала всю таблицу через пулер
+   (connection_limit=1) и падала в 503 по таймауту пула. Теперь всё
+   считается SQL-агрегатами (count/groupBy/sum), наружу — только
+   итоги; форма ответа не изменилась.
 
-   Без ключа — 401; если БД недоступна — 503 (serverless-холодный старт).
+   Отдаёт: pageviews (total/24h/7d/unique/topPaths/14 дней), clicks,
+   rating, referrals, economy (аккаунты/баланс/пополнения),
+   favorites, utm, cryo. Без ключа — 401; БД недоступна — 503.
    ================================================================ */
+
+interface DayRow {
+  day: string;
+  views: number;
+  visitors: number;
+}
+interface CountRow {
+  k: string;
+  c: number;
+}
+interface TwoColRow {
+  a: string;
+  b: string;
+  c: number;
+}
 
 function dayKey(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -49,165 +65,117 @@ export async function GET(req: NextRequest) {
   try {
     const now = Date.now();
     const dayMs = 86_400_000;
+    const since24 = new Date(now - dayMs);
+    const since7d = new Date(now - 7 * dayMs);
+    const since14d = new Date(now - 14 * dayMs);
 
-    const [visits, clicks, stats, profiles, events, accounts, ledgerSum, deposits, favAgg, favTotal, utmClicks, markets, betsTotal] =
+    /* --- pageviews: всё считаем в SQL (узкое место v11 устранено) --- */
+    const [pvTotal, pv24, pv7d, uniqVisitors, topPathsRows, dayRows] =
       await Promise.all([
-        db.pageVisit.findMany({ orderBy: { createdAt: "asc" } }),
-        db.click.findMany({ orderBy: { createdAt: "asc" } }),
-        db.postStats.findMany({ orderBy: { score: "desc" } }),
-        db.referralProfile.findMany({ orderBy: { createdAt: "asc" } }),
-        db.referralEvent.findMany({ orderBy: { createdAt: "asc" } }),
-        db.account.findMany({ orderBy: { createdAt: "asc" } }),
-        db.ledgerTxn.aggregate({ _sum: { delta: true } }),
-        db.depositOrder.findMany({ orderBy: { createdAt: "asc" } }),
-        // task 44: счётчики избранного (агрегат-таблица)
-        db.favoriteStats.findMany({ orderBy: { count: "desc" } }),
-        db.favorite.count(),
-        // task 44: персональные UTM-переходы
-        db.utmClick.findMany({
-          select: { targetType: true, targetId: true, visitorHash: true },
-        }),
-        // task 44: сводка cryo-рынков
-        db.cryoMarket.findMany({
-          include: { _count: { select: { bets: true } } },
-        }),
-        db.cryoBet.count(),
+        db.pageVisit.count(),
+        db.pageVisit.count({ where: { createdAt: { gte: since24 } } }),
+        db.pageVisit.count({ where: { createdAt: { gte: since7d } } }),
+        db.$queryRaw<{ c: bigint }[]>`SELECT COUNT(DISTINCT "visitorHash")::bigint AS c FROM "PageVisit"`,
+        db.pageVisit.groupBy({ by: ["path"], _count: { _all: true }, orderBy: { _count: { path: "desc" } }, take: 10 }),
+        db.$queryRaw<DayRow[]>`SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day, COUNT(*)::int AS views, COUNT(DISTINCT "visitorHash")::int AS visitors FROM "PageVisit" WHERE "createdAt" >= ${since14d} GROUP BY 1`,
       ]);
 
-    /* --- pageviews: totals / windows / byPath / byDay --- */
-    const pv24 = visits.filter(
-      (v) => now - v.createdAt.getTime() <= dayMs
-    ).length;
-    const pv7d = visits.filter(
-      (v) => now - v.createdAt.getTime() <= 7 * dayMs
-    ).length;
-    const uniqueVisitors = new Set(visits.map((v) => v.visitorHash)).size;
-
-    const byPath = new Map<string, number>();
-    for (const v of visits) byPath.set(v.path, (byPath.get(v.path) ?? 0) + 1);
-    const topPaths = [...byPath.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([path, count]) => ({ path, count }));
-
-    const byDay = new Map<string, { views: number; visitors: Set<string> }>();
-    for (const v of visits) {
-      const k = dayKey(v.createdAt);
-      const agg = byDay.get(k) ?? { views: 0, visitors: new Set<string>() };
-      agg.views += 1;
-      agg.visitors.add(v.visitorHash);
-      byDay.set(k, agg);
-    }
+    const dayMap = new Map(dayRows.map((r) => [r.day, r]));
     const last14: { day: string; views: number; visitors: number }[] = [];
     for (let i = 13; i >= 0; i--) {
       const k = dayKey(new Date(now - i * dayMs));
-      const agg = byDay.get(k);
-      last14.push({
-        day: k,
-        views: agg?.views ?? 0,
-        visitors: agg?.visitors.size ?? 0,
-      });
+      const agg = dayMap.get(k);
+      last14.push({ day: k, views: Number(agg?.views ?? 0), visitors: Number(agg?.visitors ?? 0) });
     }
 
     /* --- clicks: уникальные переходы по UTM --- */
-    const byCode = new Map<string, number>();
-    for (const c of clicks) byCode.set(c.utmCode, (byCode.get(c.utmCode) ?? 0) + 1);
-    const topCodes = [...byCode.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([utmCode, count]) => ({ utmCode, count }));
+    const [clicksTotal, topCodesRows, ratingAgg] = await Promise.all([
+      db.click.count(),
+      db.click.groupBy({ by: ["utmCode"], _count: { _all: true }, orderBy: { _count: { utmCode: "desc" } }, take: 10 }),
+      db.postStats.aggregate({ _sum: { score: true }, _count: { _all: true } }),
+    ]);
 
     /* --- referrals --- */
-    const evByKind = new Map<string, number>();
-    for (const e of events) evByKind.set(e.kind, (evByKind.get(e.kind) ?? 0) + 1);
-    const payoutUsdt = events
-      .filter((e) => e.kind === "paid")
-      .reduce((s, e) => s + Number(e.payoutUsdt ?? 0), 0);
+    const [profilesCount, evKindRows, payoutSumRows] = await Promise.all([
+      db.referralProfile.count(),
+      db.$queryRaw<CountRow[]>`SELECT kind AS k, COUNT(*)::int AS c FROM "ReferralEvent" GROUP BY kind`,
+      /* payoutUsdt — decimal-строка: Prisma _sum по String не умеет, суммируем в SQL */
+      db.$queryRaw<{ s: number }[]>`SELECT COALESCE(SUM("payoutUsdt"::numeric), 0)::float8 AS s FROM "ReferralEvent" WHERE kind = 'paid'`,
+    ]);
 
     /* --- economy (v6) --- */
-    const passUsers = accounts.filter((a) => a.passTier > 0).length;
-    const depositsByStatus = new Map<string, number>();
-    let depositsPaidCents = 0;
-    for (const d of deposits) {
-      depositsByStatus.set(d.status, (depositsByStatus.get(d.status) ?? 0) + 1);
-      if (d.status === "paid") depositsPaidCents += d.amountCents;
-    }
+    const [accountsTotal, passUsers, depositsStatusRows, depositsPaidAgg, ledgerSum] =
+      await Promise.all([
+        db.account.count(),
+        db.account.count({ where: { passTier: { gt: 0 } } }),
+        db.$queryRaw<CountRow[]>`SELECT status AS k, COUNT(*)::int AS c FROM "DepositOrder" GROUP BY status`,
+        db.depositOrder.aggregate({ _sum: { amountCents: true }, where: { status: "paid" } }),
+        db.ledgerTxn.aggregate({ _sum: { delta: true } }),
+      ]);
 
-    /* --- task 44: избранное (агрегат + точный total) --- */
-    const topFavorites = favAgg
-      .filter((f) => f.count > 0)
-      .slice(0, 5)
-      .map((f) => ({ postCode: f.postCode, count: f.count }));
+    /* --- favorites / utm / cryo --- */
+    const [favTotal, favAgg] = await Promise.all([
+      db.favorite.count(),
+      db.favoriteStats.findMany({ where: { count: { gt: 0 } }, orderBy: { count: "desc" }, take: 5 }),
+    ]);
 
-    /* --- task 44: персональные UTM-переходы --- */
-    const utmVisitors = new Set<string>();
-    const utmByType = new Map<string, number>();
-    for (const u of utmClicks) {
-      utmVisitors.add(u.visitorHash);
-      utmByType.set(u.targetType, (utmByType.get(u.targetType) ?? 0) + 1);
-    }
-    const utmTopTargets = new Map<string, number>();
-    for (const u of utmClicks) {
-      const key = `${u.targetType}:${u.targetId || "-"}`;
-      utmTopTargets.set(key, (utmTopTargets.get(key) ?? 0) + 1);
-    }
+    const [utmTotal, utmUniq, utmTypeRows, utmTargetRows] = await Promise.all([
+      db.utmClick.count(),
+      db.$queryRaw<{ c: bigint }[]>`SELECT COUNT(DISTINCT "visitorHash")::bigint AS c FROM "UtmClick"`,
+      db.$queryRaw<CountRow[]>`SELECT "targetType" AS k, COUNT(*)::int AS c FROM "UtmClick" GROUP BY "targetType"`,
+      db.$queryRaw<TwoColRow[]>`SELECT "targetType" AS a, "targetId" AS b, COUNT(*)::int AS c FROM "UtmClick" GROUP BY 1, 2 ORDER BY c DESC LIMIT 5`,
+    ]);
 
-    /* --- task 44: сводка cryo-рынков --- */
-    const cryoByStatus = new Map<string, number>();
-    for (const m of markets) {
-      cryoByStatus.set(m.status, (cryoByStatus.get(m.status) ?? 0) + 1);
-    }
+    const markets = await db.cryoMarket.groupBy({ by: ["status"], _count: { _all: true } });
+    const betsTotal = await db.cryoBet.count();
 
     return NextResponse.json({
       ok: true,
       generatedAt: new Date().toISOString(),
       pageviews: {
-        total: visits.length,
+        total: pvTotal,
         last24h: pv24,
         last7d: pv7d,
-        uniqueVisitors,
-        topPaths,
+        uniqueVisitors: Number(uniqVisitors[0]?.c ?? 0),
+        topPaths: topPathsRows.map((r) => ({ path: r.path, count: r._count._all })),
         last14Days: last14,
       },
       clicks: {
-        totalUnique: clicks.length,
-        topCodes,
-        ratingScoreSum: stats.reduce((s, r) => s + r.score, 0),
-        ratedCodes: stats.length,
+        totalUnique: clicksTotal,
+        topCodes: topCodesRows.map((r) => ({ utmCode: r.utmCode, count: r._count._all })),
+        ratingScoreSum: ratingAgg._sum.score ?? 0,
+        ratedCodes: ratingAgg._count._all,
       },
       referrals: {
-        profiles: profiles.length,
-        eventsTotal: events.length,
-        eventsByKind: Object.fromEntries(evByKind),
-        accruedPayoutUsdt: payoutUsdt.toFixed(2),
+        profiles: profilesCount,
+        eventsTotal: evKindRows.reduce((s, r) => s + Number(r.c), 0),
+        eventsByKind: Object.fromEntries(evKindRows.map((r) => [r.k, Number(r.c)])),
+        accruedPayoutUsdt: Number(payoutSumRows[0]?.s ?? 0).toFixed(2),
       },
       economy: {
-        accounts: accounts.length,
+        accounts: accountsTotal,
         passUsers,
         balanceCents: ledgerSum._sum.delta ?? 0,
         deposits: {
-          total: deposits.length,
-          byStatus: Object.fromEntries(depositsByStatus),
-          paidCents: depositsPaidCents,
+          total: depositsStatusRows.reduce((s, r) => s + Number(r.c), 0),
+          byStatus: Object.fromEntries(depositsStatusRows.map((r) => [r.k, Number(r.c)])),
+          paidCents: depositsPaidAgg._sum.amountCents ?? 0,
         },
       },
       favorites: {
         total: favTotal,
-        postsWithFavorites: favAgg.filter((f) => f.count > 0).length,
-        topPosts: topFavorites,
+        postsWithFavorites: favAgg.length,
+        topPosts: favAgg.map((f) => ({ postCode: f.postCode, count: f.count })),
       },
       utm: {
-        total: utmClicks.length,
-        uniqueVisitors: utmVisitors.size,
-        byType: Object.fromEntries(utmByType),
-        topTargets: [...utmTopTargets.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([target, count]) => ({ target, count })),
+        total: utmTotal,
+        uniqueVisitors: Number(utmUniq[0]?.c ?? 0),
+        byType: Object.fromEntries(utmTypeRows.map((r) => [r.k, Number(r.c)])),
+        topTargets: utmTargetRows.map((r) => ({ target: `${r.a}:${r.b || "-"}`, count: Number(r.c) })),
       },
       cryo: {
-        markets: markets.length,
-        byStatus: Object.fromEntries(cryoByStatus),
+        markets: markets.reduce((s, m) => s + m._count._all, 0),
+        byStatus: Object.fromEntries(markets.map((m) => [m.status, m._count._all])),
         betsTotal,
       },
     });

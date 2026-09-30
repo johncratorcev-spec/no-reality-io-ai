@@ -19,8 +19,8 @@ export const DEPOSIT_BONUS_PCTS = [0, 10, 25] as const;
 /** daily-бонус NR PASS (зеркало ECON.dailyBonusCents) */
 export const DAILY_BONUS_CENTS = 50;
 
-/** welcome-бонус нового аккаунта: 300 виртуальных монет за регистрацию */
-export const WELCOME_BONUS_CENTS = 300;
+/** welcome-бонус нового аккаунта: +100 EYE за регистрацию (v11 — приказ) */
+export const WELCOME_BONUS_CENTS = 100;
 
 /** награда за просмотр ленты: +N монет за каждые EVERY уникальных клипов в сутки */
 export const WATCH_REWARD_CENTS = 10;

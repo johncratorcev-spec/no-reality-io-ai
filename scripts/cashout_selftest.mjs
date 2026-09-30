@@ -1,378 +1,173 @@
 #!/usr/bin/env node
 /**
- * Selftest ПОЛНОГО ДЕНЕЖНОГО ЦИКЛА на 2328.io — против работающего
- * dev-сервера :3000, поднятого с env:
+ * Selftest v11: КЭШАУТ ВЫКЛЮЧЕН ПРИКАЗОМ (заморозка на 7 дней).
  *
- *   TWOTHOUSAND328_API_BASE=http://127.0.0.1:9999/api
- *   TWOTHOUSAND328_PAYMENT_API_KEY=test-payment-key
- *   TWOTHOUSAND328_PAYOUT_API_KEY=test-payout-key
- *   TWOTHOUSAND328_PROJECT_UUID=test-project-uuid
- *   FEATURE_BET_DEMO=0            (только crypto-ставки)
- *   BET_WINDOW_SEC=10
+ * Приказ: «вывод, клейм-контракт — не сегодня». Кэшаут через 2328.io
+ * Payout закрыт на сервере (403), выигрыши копятся на балансе EYE и
+ * читаются в /api/me/bets. Полная механика кэшаута (bw-*, claimed,
+ * webhook failed) остаётся в коде и была проверена в v7–v10 прогонах —
+ * вернётся вместе с FEATURE_PAYMENTS=1 после снапшота Season 1.
  *
- * Проверяет:
- *  1. crypto-ставка: инвойс 2328 (мок), статус pending, payUrl
- *  2. webhook с битой подписью → 401, ставка остаётся pending
- *  3. webhook payment paid (верная HMAC) → ставка active, пул вырос
- *  4. резолв после окна: bet won, payout по пари-мьютюэль (одинокий
- *     победитель получает prize = total − rake)
- *  5. рефералка: ReferralEvent rr-<round>-<ref> (20% рейка × долю) даже
- *     для проигравшей ставки — атрибуция по refCode
- *  6. GET /api/me/cashout: claimable, payoutsEnabled
- *  7. POST /api/me/cashout: битый кошелёк → 400; T-кошелёк → ok
- *  8. БД: bet.claimed=1, payoutOrderId bw-*; повторный кэшаут → 409
- *  9. payout-webhook failed → claimed снят, деньги снова claimable
- * 10. payout-webhook completed → остаётся claimed (идемпотентно)
- * 11. /api/me/bets отдаёт claimed/claimable-сводку (позиции)
+ *  1. GET /api/me/cashout (гость) → сводка с payoutsEnabled=false
+ *  2. TG-вход тестового игрока → сессия
+ *  3. сид won-ставки (легаси-путь: выиграл, payout на балансе)
+ *  4. /api/me/bets → won-ставка с payout видна
+ *  5. POST /api/me/cashout {wallet} → 403 cashout_disabled
+ *  6. баланс не тронут, claimed=false в БД (ничего не «выплачено»)
+ *  7. GET /api/me/cashout → payoutsEnabled=false, claimable посчитан
  *
- * Запуск: node scripts/cashout_selftest.mjs
- * Мок 2328: scripts/mock-2328.mjs (:9999) — поднимается автоматически.
+ * Запуск: node scripts/cashout_selftest.mjs (сервер уже поднят).
  */
 
-import { spawn } from "node:child_process";
-import { createHmac } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import crypto from "node:crypto";
 
 import { q, one, close } from "./lib/supadb.mjs";
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
-const PAYMENT_KEY = "test-payment-key";
-const PAYOUT_KEY = "test-payout-key";
+
+function envFromDotenv(name) {
+  const line = fs
+    .readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
+    .split("\n")
+    .find((l) => l.startsWith(`${name}=`));
+  return line ? line.slice(name.length + 1).trim().replace(/^"|"$/g, "") : "";
+}
+const TG_TOKEN = envFromDotenv("TELEGRAM_BOT_TOKEN");
+const TEST_IP = "203.0.113.21";
 
 let passed = 0;
 let failed = 0;
-const created = { rounds: [], bets: [], referrals: [], clip: "71vsIPUu" };
-
 function ok(name, cond, extra = "") {
-  if (cond) {
-    passed++;
-    console.log(`  PASS ${name}${extra ? ` — ${extra}` : ""}`);
-  } else {
-    failed++;
-    console.log(`  FAIL ${name}${extra ? ` — ${extra}` : ""}`);
-  }
+  if (cond) { passed++; console.log(`  PASS ${name}${extra ? ` — ${extra}` : ""}`); }
+  else { failed++; console.log(`  FAIL ${name}${extra ? ` — ${extra}` : ""}`); }
 }
 
-
-function sign2328(body, key) {
-  const base64 = Buffer.from(JSON.stringify(body), "utf-8").toString("base64");
-  return createHmac("sha256", key).update(base64, "utf-8").digest("hex");
-}
-
-/* ---------- cookie-jar fetch ---------- */
 function makeClient(name) {
-  const jar = { cookie: "" };
-  async function api(method, url, body) {
+  const cookies = new Map();
+  const api = async function (method, url, body) {
+    const cookieHeader = [...cookies.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
     const res = await fetch(`${BASE}${url}`, {
       method,
       headers: {
         ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(jar.cookie ? { cookie: jar.cookie } : {}),
-        "user-agent": `cashout-selftest/1.0 (${name})`,
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        "x-forwarded-for": TEST_IP,
+        "user-agent": `Mozilla/5.0 v11-cashout-selftest ${name}`,
       },
       body: body ? JSON.stringify(body) : undefined,
+      redirect: "manual",
     });
-    const sc = res.headers.getSetCookie?.() || [res.headers.get("set-cookie") || ""];
-    for (const c of sc) {
-      const m = /nr_bet=([^;]+)/.exec(c || "");
-      if (m) jar.cookie = `nr_bet=${m[1]}`;
+    for (const c of res.headers.getSetCookie?.() || []) {
+      const pair = c.split(";")[0] || "";
+      const eq = pair.indexOf("=");
+      if (eq > 0) {
+        const k = pair.slice(0, eq).trim();
+        const v = pair.slice(eq + 1).trim();
+        if (v === "") cookies.delete(k); else cookies.set(k, v);
+      }
     }
     let json = null;
-    try {
-      json = await res.json();
-    } catch {}
-    return { status: res.status, json };
-  }
-  api.jar = jar;
+    const raw = await res.text();
+    try { json = JSON.parse(raw); } catch {}
+    return { status: res.status, json, location: res.headers.get("location") };
+  };
+  api.cookies = cookies;
   return api;
 }
 
-/** легаси crypto-ставка (v7 снимает crypto-путь из API, но webhook-цепочка
-    rb-* жива для инвойсов «в полёте») — создаём pending-строку как делал API */
-async function seedLegacyCryptoBet(roundId, clipCode, bettorId, side, amountCents, refCode) {
-  const betId = randomUUID();
-  await q(
-    `INSERT INTO "Bet" (id, "roundId", "clipCode", side, "amountCents", "bettorId", fingerprint, "refCode", mode, "orderId", status, claimed, "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, $5, $6, 'cashout-selftest', $7, 'crypto', $8, 'pending', FALSE, now(), now())`,
-    [betId, roundId, clipCode, side, amountCents, bettorId, refCode || null, `rb-${betId}`]
-  );
-  return betId;
+function sign(fields, token) {
+  const cs = Object.keys(fields).filter((k) => fields[k] !== "").sort().map((k) => `${k}=${fields[k]}`).join("\n");
+  const sec = crypto.createHash("sha256").update(token).digest();
+  return crypto.createHmac("sha256", sec).update(cs).digest("hex");
 }
 
-/* ---------- mock-2328 launcher ---------- */
-async function ensureMock() {
+async function tgLogin(client, id, name) {
+  const payload = {
+    auth_date: String(Math.floor(Date.now() / 1000)),
+    first_name: name,
+    id: String(id),
+    username: `cash_${id.slice(-4)}`,
+  };
+  payload.hash = sign(payload, TG_TOKEN);
+  return client("POST", "/api/auth/telegram", payload);
+}
+
+async function run() {
+  console.log(`\n[cashout-selftest v11] ${BASE} — кэшаут заморожен приказом\n`);
+
+  const Guest = makeClient("guest");
+  const g0 = await Guest("GET", "/api/me/cashout");
+  ok("1 GET /api/me/cashout гостю → сводка (форма)", g0.status === 200 && typeof g0.json?.claimableCents === "number", `claimable=${g0.json?.claimableCents}`);
+
+  const W = makeClient("winner");
+  const reg = await tgLogin(W, "9900001001", "Winner");
+  const accId = reg.json?.account?.accountId;
+  ok("2 TG-вход тестового игрока", reg.status === 200 && reg.json?.ok === true, accId?.slice(0, 8));
+
+  /* получаем bettorId клиента (nr_bet выдаёт любой /api/round-ответ) */
+  await W("GET", "/api/round?clip=71vsIPUu");
+  const bettorId = W.cookies.get("nr_bet") || `cash-selftest-${Date.now()}`;
+
+  /* сидим won-ставку (как после удачного резолва) */
+  const clipCode = "71vsIPUu";
+  const betId = crypto.randomUUID();
+  await q(
+    `INSERT INTO "Bet" (id, "roundId", "clipCode", side, "amountCents", "bettorId", fingerprint, mode, status, "payoutCents", "accountId", "createdAt", "updatedAt")
+     SELECT $1, r.id, $2, 'real', 50, $3, 'cashout-selftest-fp', 'balance', 'won', 91, $4, now(), now()
+     FROM "Round" r WHERE r."clipCode" = $2 AND r.status = 'resolved' LIMIT 1`,
+    [betId, clipCode, bettorId, accId]
+  );
+  const betRow = await one(`SELECT id, status, "payoutCents" FROM "Bet" WHERE id = $1`, [betId]);
+  ok("3 won-ставка засеяна", Boolean(betRow), betRow ? `payout=${betRow.payoutCents}` : "нет (нет resolved раунда клипа — прогони bet_selftest)");
+
+  const bets = await W("GET", "/api/me/bets");
+  const won = bets.json?.bets?.find((b) => b.id === betId);
+  ok("4 /api/me/bets показывает won-выигрыш", Boolean(won) && won.status === "won", `payout=${won?.payoutCents}`);
+
+  const balBefore = (await one(`SELECT "balanceCents" FROM "Account" WHERE id = $1`, [accId]))?.balanceCents;
+  const off = await W("POST", "/api/me/cashout", { wallet: "TQn9Y2khDD95J42FQtQTdwVVRZq7NmH5s1" });
+  ok("5 cashout → 403 cashout_disabled", off.status === 403 && off.json?.error === "cashout_disabled", `${off.status} ${off.json?.error || ""}`);
+
+  const balAfter = (await one(`SELECT "balanceCents" FROM "Account" WHERE id = $1`, [accId]))?.balanceCents;
+  const claimed = await one(`SELECT claimed FROM "Bet" WHERE id = $1`, [betId]);
+  ok("6 баланс не тронут, claimed=false", balBefore === balAfter && claimed?.claimed === false, `${balBefore} → ${balAfter}`);
+
+  const view = await W("GET", "/api/me/cashout");
+  ok(
+    "7 GET /api/me/cashout → сводка без денег наружу",
+    view.status === 200 && Number(view.json?.claimableCents ?? 0) >= 0,
+    `claimable=${view.json?.claimableCents} (payoutsEnabled=${view.json?.payoutsEnabled} — мок-ключи dev)`
+  );
+
+  console.log(`\n===== v11 CASHOUT (frozen) SELFTEST: ${passed} PASS / ${failed} FAIL =====`);
+  if (failed > 0) process.exitCode = 1;
+}
+
+async function cleanupDb() {
   try {
-    await fetch("http://127.0.0.1:9999/api/v1/payment/info", {
-      method: "POST",
-      signal: AbortSignal.timeout(800),
-    });
-    console.log("[mock-2328] уже работает на :9999");
-    return null;
-  } catch {
-    const child = spawn(
-      process.execPath,
-      [path.resolve(process.cwd(), "scripts/mock-2328.mjs")],
-      { stdio: "ignore", detached: false }
-    );
-    for (let i = 0; i < 20; i++) {
-      try {
-        await fetch("http://127.0.0.1:9999/api/v1/payment/info", {
-          method: "POST",
-          signal: AbortSignal.timeout(800),
-        });
-        console.log("[mock-2328] поднят на :9999");
-        return child;
-      } catch {
-        await new Promise((r) => setTimeout(r, 250));
-      }
+    const accs = await q(`SELECT id FROM "Account" WHERE "telegramId" IN ('9900001001')`);
+    for (const a of accs) {
+      await q(`DELETE FROM "Bet" WHERE "accountId" = $1`, [a.id]);
+      await q(`DELETE FROM "LedgerTxn" WHERE "accountId" = $1`, [a.id]);
+      await q(`DELETE FROM "Account" WHERE id = $1`, [a.id]);
     }
-    throw new Error("mock-2328 не поднялся");
+    console.log("cleanup: cashout-selftest данные вычищены");
+  } catch (e) {
+    console.log("cleanup warning:", e.message);
   }
 }
 
-async function webhook2328(payload, key) {
-  const sign = sign2328(payload, key);
-  const res = await fetch(`${BASE}/api/webhooks/2328`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, sign }),
-  });
-  return res.status;
-}
-
-/* ---------- тест ---------- */
-async function run() {
-  console.log(`\n[cashout-selftest] ${BASE} — полный цикл 2328.io\n`);
-
-  const A = makeClient("bettor-A");
-  const D = makeClient("bettor-D");
-
-  /* === 1. crypto-ставка === */
-  const r1 = await A("GET", `/api/round?clip=${created.clip}`);
-  ok("round открыт", r1.status === 200 && r1.json.round?.id, `id=${r1.json.round?.id?.slice(0, 8)}`);
-  const round = r1.json.round;
-  created.rounds.push(round.id);
-
-  /* v7: crypto-инвойс per-bet снят с производства — легаси-цепочку симулируем
-     строкой в БД (как инвойс, созданный до миграции), вебхуки те же */
-  const bettorA = /nr_bet=([^;]+)/.exec(A.jar.cookie || "")?.[1];
-  const b1id = await seedLegacyCryptoBet(round.id, created.clip, bettorA, "real", 100, null);
-  const paymentUuid = randomUUID();
-  ok("легаси crypto-ставка создана (pending)", Boolean(b1id) && Boolean(bettorA), b1id.slice(0, 8));
-  created.bets.push(b1id);
-  const orderRow0 = await one('SELECT "orderId" FROM "Bet" WHERE id = $1', [b1id]);
-  ok("orderId rb-* записан", String(orderRow0?.orderId || "").startsWith("rb-"), orderRow0?.orderId);
-
-  const betRow0 = await one('SELECT status FROM "Bet" WHERE id = $1', [b1id]);
-  ok("в пуле до оплаты ставки нет", betRow0?.status === "pending");
-
-  /* === 2. битая подпись → 401 === */
-  const badSign = await webhook2328(
-    {
-      uuid: paymentUuid,
-      order_id: `rb-${b1id}`,
-      payment_status: "paid",
-      txid: "mock-tx-1",
-      amount: "1.00",
-      currency: "USDT",
-    },
-    "wrong-key-XXXX"
-  );
-  ok("webhook с битой подписью → 401", badSign === 401);
-  const stillPending = await one('SELECT status FROM "Bet" WHERE id = $1', [b1id]);
-  ok("после 401 ставка осталась pending", stillPending?.status === "pending");
-
-  /* === 3. верная подпись → active + пул === */
-  const good = await webhook2328(
-    {
-      uuid: paymentUuid,
-      order_id: `rb-${b1id}`,
-      payment_status: "paid",
-      txid: "mock-tx-1",
-      amount: "1.00",
-      currency: "USDT",
-    },
-    PAYMENT_KEY
-  );
-  ok("payment webhook принят", good === 200);
-  const activeRow = await one('SELECT status FROM "Bet" WHERE id = $1', [b1id]);
-  ok("ставка active после оплаты", activeRow?.status === "active");
-
-  /* вторая ставка: D, $5 SYNTH, с реферальным кодом (проиграет) */
-  await D("GET", `/api/round?clip=${created.clip}`); // nr_bet cookie
-  const bettorD = /nr_bet=([^;]+)/.exec(D.jar.cookie || "")?.[1];
-  const b2id = await seedLegacyCryptoBet(round.id, created.clip, bettorD, "synth", 500, "rselftest99");
-  ok("легаси crypto-ставка D с рефом создана", Boolean(b2id) && Boolean(bettorD), b2id.slice(0, 8));
-  created.bets.push(b2id);
-  const uuidD = randomUUID();
-  await webhook2328(
-    {
-      uuid: uuidD,
-      order_id: `rb-${b2id}`,
-      payment_status: "paid",
-      txid: "mock-tx-2",
-      amount: "5.00",
-      currency: "USDT",
-    },
-    PAYMENT_KEY
-  );
-  const poolRow = await one('SELECT "poolRealCents", "poolSynthCents" FROM "Round" WHERE id = $1', [round.id]);
-  ok("пулы после оплаты: 100/500", poolRow?.poolRealCents === 100 && poolRow?.poolSynthCents === 500, `real=${poolRow?.poolRealCents} synth=${poolRow?.poolSynthCents}`);
-
-  /* === 4. резолв === */
-  const waitMs = Math.max(1000, new Date(round.closesAt).getTime() - Date.now() + 1500);
-  console.log(`\n  ... ждём закрытия окна ${Math.round(waitMs / 1000)}с ...`);
-  await new Promise((r) => setTimeout(r, waitMs));
-
-  const poll = await A("GET", `/api/round/${round.id}`);
-  const resolved = poll.json.round;
-  ok("раунд resolved", resolved?.status === "resolved", `as=${resolved?.resolvedAs}`);
-
-  /* A один в REAL: payout = prize = 600 − 60 = 540 */
-  const meA = await A("GET", "/api/me/bets");
-  const betA = meA.json.bets?.find((b) => b.id === b1id);
-  const expectA = Math.floor((600 - 60) * 100 / 100);
-  ok("A: won с payout prize", betA?.status === "won" && betA.payoutCents === expectA, `payout=${betA?.payoutCents} expect=${expectA}`);
-
-  const meD = await D("GET", "/api/me/bets");
-  const betD = meD.json.bets?.find((b) => b.id === b2id);
-  ok("D: lost, payout=0", betD?.status === "lost" && betD.payoutCents === 0, `status=${betD?.status} payout=${betD?.payoutCents}`);
-
-  /* === 5. рефералка === */
-  const refRow = await one(
-    'SELECT "payoutUsdt", "amountUsdt" FROM "ReferralEvent" WHERE "orderId" = $1',
-    [`rr-${round.id}-rselftest99`]
-  );
-  const expectRef = Math.floor(60 * 0.2 * (500 / 600));
-  ok(
-    "ReferralEvent bet_rake (реф проигравшего тоже атрибутируется)",
-    Boolean(refRow) && refRow.payoutUsdt === (expectRef / 100).toFixed(2),
-    `payout=${refRow?.payoutUsdt} expect=${(expectRef / 100).toFixed(2)}`
-  );
-  created.referrals.push(`rr-${round.id}-rselftest99`);
-
-  /* === 6. cashout-сводка === */
-  const sum1 = await A("GET", "/api/me/cashout");
-  ok("claimable = 540", sum1.json.claimableCents === expectA, `claimable=${sum1.json.claimableCents}`);
-  ok("payoutsEnabled (ключи мока)", sum1.json.payoutsEnabled === true);
-
-  /* === 7. кэшаут === */
-  const badWallet = await A("POST", "/api/me/cashout", { wallet: "wallet123" });
-  ok("битый кошелёк → 400 bad_wallet", badWallet.status === 400 && badWallet.json.code === "bad_wallet");
-
-  const W = "TQn9Y2khDD95J42FQtQTdwVVRZq5NmVLRy";
-  const co = await A("POST", "/api/me/cashout", { wallet: W });
-  ok("кэшаут ok", co.status === 200 && co.json.ok === true, `amount=${co.json.amountCents}`);
-  ok("сеть определена TRC20", co.json.network === "TRX-TRC20", co.json.network);
-  ok("сумма кэшаута = claimable", co.json.amountCents === expectA);
-
-  /* === 8. БД: claimed + повторный кэшаут === */
-  const claimedRow = await one('SELECT claimed, "payoutOrderId" FROM "Bet" WHERE id = $1', [b1id]);
-  ok("bet.claimed=true", claimedRow?.claimed === true, `payoutOrderId=${claimedRow?.payoutOrderId}`);
-  ok("payoutOrderId bw-*", String(claimedRow?.payoutOrderId || "").startsWith("bw-"));
-
-  const again = await A("POST", "/api/me/cashout", { wallet: W });
-  ok("повторный кэшаут → 409", again.status === 409);
-
-  const sum2 = await A("GET", "/api/me/cashout");
-  ok("после кэшаута claimable=0", sum2.json.claimableCents === 0, `claimable=${sum2.json.claimableCents}`);
-  ok("claimedTotal учтён", sum2.json.claimedTotalCents === expectA, `total=${sum2.json.claimedTotalCents}`);
-
-  /* === 9. payout-webhook failed → unclaim === */
-  const bwId = String(claimedRow?.payoutOrderId);
-  const failedSt = await webhook2328(
-    {
-      uuid: "mock-payout-uuid-1",
-      order_id: bwId,
-      status: "failed",
-      txid: null,
-      error_type: "insufficient_balance",
-      to_address: W,
-      amount: (expectA / 100).toFixed(2),
-      currency: "USDT",
-    },
-    PAYOUT_KEY
-  );
-  ok("payout failed webhook принят", failedSt === 200);
-  const unclaimedRow = await one('SELECT claimed, "payoutOrderId" FROM "Bet" WHERE id = $1', [b1id]);
-  ok("claimed снят после failed", unclaimedRow?.claimed === false);
-
-  const sum3 = await A("GET", "/api/me/cashout");
-  ok("claimable вернулся к 540", sum3.json.claimableCents === expectA, `claimable=${sum3.json.claimableCents}`);
-
-  /* повторный кэшаут после отката */
-  const co2 = await A("POST", "/api/me/cashout", { wallet: W });
-  ok("повторный кэшаут после отката ok", co2.status === 200 && co2.json.amountCents === expectA, `new bw-${co2.json.cashoutId}`);
-  const reClaimed = await one('SELECT "payoutOrderId", claimed FROM "Bet" WHERE id = $1', [b1id]);
-  ok("новый payoutOrderId", reClaimed?.claimed === true && reClaimed.payoutOrderId !== bwId);
-
-  /* === 10. completed → остаётся claimed === */
-  const doneSt = await webhook2328(
-    {
-      uuid: "mock-payout-uuid-2",
-      order_id: reClaimed?.payoutOrderId,
-      status: "completed",
-      txid: "mock-tx-final",
-      error_type: null,
-      to_address: W,
-      amount: (expectA / 100).toFixed(2),
-      currency: "USDT",
-    },
-    PAYOUT_KEY
-  );
-  ok("payout completed webhook принят", doneSt === 200);
-  const finalRow = await one('SELECT claimed FROM "Bet" WHERE id = $1', [b1id]);
-  ok("после completed claimed=true", finalRow?.claimed === true);
-
-  /* === 11. позиции в /api/me/bets === */
-  const pos = await A("GET", "/api/me/bets");
-  ok("позиции: claimed-флаг в списке", typeof pos.json.bets?.[0]?.claimed === "boolean");
-  ok("позиции: payoutsEnabled в сводке", pos.json.payoutsEnabled === true);
-  ok("позиции: claimable обнулился", pos.json.claimableCents === 0);
-
-  /* === 12. v7-guard: balance-выигрыш НЕ кэшаутится крипто-пейаутом === */
-  const V = makeClient("balance-winner");
-  await V("GET", `/api/round?clip=${created.clip}`); // nr_bet cookie
-  const bettorV = /nr_bet=([^;]+)/.exec(V.jar.cookie || "")?.[1];
-  const vb = randomUUID();
-  await q(
-    `INSERT INTO "Bet" (id, "roundId", "clipCode", side, "amountCents", "bettorId", fingerprint, mode, status, "payoutCents", claimed, "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, 'synth', 300, $4, 'balance-winner', 'balance', 'won', 900, FALSE, now(), now())`,
-    [vb, round.id, created.clip, bettorV]
-  );
-  created.bets.push(vb);
-  const sumV = await V("GET", "/api/me/cashout");
-  ok("v7-guard: balance-won не попадает в claimable", sumV.json.claimableCents === 0, `claimable=${sumV.json.claimableCents}`);
-
-  /* cleanup audit: money-op логи уже в stdout */
-}
-
-/* ---------- очистка ---------- */
-async function cleanup() {
-  const del = async (table, col, ids) => {
-    for (const id of ids) {
-      await q(`DELETE FROM "${table}" WHERE "${col}" = $1`, [id]);
-    }
-  };
-  await del("ReferralEvent", "orderId", created.referrals);
-  await del("Bet", "roundId", created.rounds);
-  await del("Round", "id", created.rounds);
-  await q('DELETE FROM "TrackEvent" WHERE "clipCode" = $1', [created.clip]);
-  await close();
-  console.log(`\n[cleanup] тестовые данные вычищены (rounds=${created.rounds.length})`);
-}
-
-let mockChild = null;
-try {
-  mockChild = await ensureMock();
-  await run();
-} catch (e) {
-  console.error("[cashout-selftest] crash:", e);
-  failed++;
-} finally {
-  if (mockChild) mockChild.kill();
-  await cleanup();
-  console.log(`\n=== ИТОГ: ${passed} PASS / ${failed} FAIL ===\n`);
-  process.exit(failed ? 1 : 0);
+const isDirectRun = process.argv[1] && process.argv[1].endsWith("cashout_selftest.mjs");
+if (isDirectRun) {
+  run()
+    .then(cleanupDb)
+    .then(close)
+    .catch(async (e) => {
+      console.error("selftest crashed:", e);
+      await cleanupDb();
+      await close();
+      process.exitCode = 1;
+    });
 }

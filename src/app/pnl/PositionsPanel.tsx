@@ -141,7 +141,7 @@ export default function PositionsPanel() {
         <p className="nrld-num text-2xl font-extrabold text-white">no positions yet</p>
         <p className="mt-2 text-[0.82rem] font-semibold leading-relaxed text-white/60">
           the ledger is empty. go watch something that shouldn&apos;t exist —
-          and call it. real or synth, $1 is enough.
+          and call it. real or synth, 10 EYE is enough.
         </p>
         <a
           href="/feed"

@@ -133,16 +133,25 @@ async function run() {
   const truth = truthOf(code);
   ok("csv truth известен тесту", truth === "real" || truth === "synth", `truth=${truth}`);
 
-  /* v10: гость не ставит — 401 до регистрации */
+  /* v11: регистрации ЗАРАНЕЕ — окно раунда 60с меньше суммы латентностей
+     последовательных запросов к Supabase (~6с каждый), поэтому ставки
+     идут сразу после открытия, а проверки — параллельным пучком.
+     Аноним-проверка ПОСЛЕ регистраций: иначе её /api/round откроет раунд
+     заранее и окно сгорит впустую. */
+  const A = makeClient("bettor-A");
+  const regA = await registerBettor(A, "A");
+  const B = makeClient("bettor-B");
+  await registerBettor(B, "B");
+  const C = makeClient("bettor-C");
+  await registerBettor(C, "C");
+
   const Anon = makeClient("anon");
   const rAnon = await Anon("GET", `/api/round?clip=${code}`);
   if (rAnon.json?.round?.id) {
-    const anonBet = await Anon("POST", "/api/bet", { round_id: rAnon.json.round.id, side: "real", amount_cents: 100, mode: "balance" });
+    const anonBet = await Anon("POST", "/api/bet", { round_id: rAnon.json.round.id, side: "real", amount_cents: 10, mode: "balance" });
     ok("гость → 401 auth_required", anonBet.status === 401 && anonBet.json?.error === "auth_required", `${anonBet.status} ${anonBet.json?.error || ""}`);
   }
 
-  const A = makeClient("bettor-A");
-  const regA = await registerBettor(A, "A");
   const r1 = await A("GET", `/api/round?clip=${code}`);
   ok("round открыт лениво", r1.status === 200 && r1.json.round?.id, `id=${r1.json.round?.id?.slice(0, 8)}`);
   const round = r1.json.round;
@@ -154,47 +163,32 @@ async function run() {
   ok("truth не утекает в ответе", !leak.includes(`"resolvedAs"`), "нет resolvedAs у открытого раунда");
   ok("myBet пуст до ставки", round.myBet === null);
 
-  /* === 3. ставки и пулы (v10: ставщики зарегистрированы — баланс есть) === */
-  const b1 = await A("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 100, mode: "balance" });
-  ok("ставка A: $1 REAL принята", b1.status === 200 && b1.json.bet_id, `status=${b1.json.status}`);
-  ok("пул REAL вырос до 100", b1.json.round?.poolRealCents === 100, `poolReal=${b1.json.round?.poolRealCents}`);
+  /* === 3. ставки и пулы === */
+  const b1 = await A("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 10, mode: "balance" });
+  ok("ставка A: 10 EYE REAL принята", b1.status === 200 && b1.json.bet_id, `status=${b1.json.status}`);
+  ok("пул REAL вырос до 10", b1.json.round?.poolRealCents === 10, `poolReal=${b1.json.round?.poolRealCents}`);
   created.bets.push(b1.json.bet_id);
 
-  /* === 4. повторная ставка тем же — 409 === */
-  const dup = await A("POST", "/api/bet", { round_id: round.id, side: "synth", amount_cents: 100, mode: "balance" });
+  /* === 4-6 + ставки B/C — один параллельный пучок === */
+  const [dup, badLow, badHigh, badSide, badRound, b2, b3] = await Promise.all([
+    A("POST", "/api/bet", { round_id: round.id, side: "synth", amount_cents: 10, mode: "balance" }),
+    B("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 5, mode: "balance" }),
+    B("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 75, mode: "balance" }),
+    B("POST", "/api/bet", { round_id: round.id, side: "yes", amount_cents: 10, mode: "balance" }),
+    B("POST", "/api/bet", { round_id: "00000000-0000-4000-8000-000000000000", side: "real", amount_cents: 10, mode: "balance" }),
+    B("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 50, ref: "rselftest99", mode: "balance" }),
+    C("POST", "/api/bet", { round_id: round.id, side: "synth", amount_cents: 50, mode: "balance" }),
+  ]);
   ok("дубль ставки отклонён", dup.status === 409 && dup.json.error === "already_bet", `error=${dup.json.error}`);
-
-  /* === 5. лимиты === */
-  const B = makeClient("bettor-B");
-  await registerBettor(B, "B");
-  const badLow = await B("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 50, mode: "balance" });
   ok("ниже min → 400", badLow.status === 400 && badLow.json.error === "bad_amount");
-  const badHigh = await B("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 900, mode: "balance" });
   ok("выше max → 400", badHigh.status === 400 && badHigh.json.error === "bad_amount");
-
-  /* === 6. битая сторона / чужой раунд === */
-  const badSide = await B("POST", "/api/bet", { round_id: round.id, side: "yes", amount_cents: 100, mode: "balance" });
   ok("битая side → 400", badSide.status === 400 && badSide.json.error === "bad_side");
-  const badRound = await B("POST", "/api/bet", {
-    round_id: "00000000-0000-4000-8000-000000000000",
-    side: "real",
-    amount_cents: 100,
-    mode: "balance",
-  });
   ok("чужой round → 404", badRound.status === 404 && badRound.json.error === "round_not_found");
-
-  /* вторая ставка B: $3 REAL; третья C: $5 SYNTH с реферальным кодом */
-  const b2 = await B("POST", "/api/bet", { round_id: round.id, side: "real", amount_cents: 300, ref: "rselftest99", mode: "balance" });
-  ok("ставка B: $3 REAL + ref", b2.status === 200, `poolReal=${b2.json.round?.poolRealCents}`);
+  ok("ставка B: 50 EYE REAL + ref", b2.status === 200, `poolReal=${b2.json.round?.poolRealCents}`);
   created.bets.push(b2.json.bet_id);
-
-  const C = makeClient("bettor-C");
-  await registerBettor(C, "C");
-  const b3 = await C("POST", "/api/bet", { round_id: round.id, side: "synth", amount_cents: 300, mode: "balance" });
-  ok("ставка C: $3 SYNTH (welcome-баланс)", b3.status === 200, `status=${b3.status} err=${b3.json?.error} poolSynth=${b3.json?.round?.poolSynthCents}`);
+  ok("ставка C: 50 EYE SYNTH (welcome-баланс)", b3.status === 200, `status=${b3.status} err=${b3.json?.error} poolSynth=${b3.json?.round?.poolSynthCents}`);
   created.bets.push(b3.json.bet_id);
-
-  ok("банк = 700 монет", b3.json.round?.poolTotalCents === 700, `total=${b3.json.round?.poolTotalCents}`);
+  ok("банк = 110 EYE", b3.json.round?.poolTotalCents === 110, `total=${b3.json.round?.poolTotalCents}`);
 
   /* === 11. клип без truth → not_bettable === */
   const unmarked = makeClient("probe");
@@ -212,16 +206,16 @@ async function run() {
   ok("раунд resolved после окна", resolved?.status === "resolved", `resolvedAs=${resolved?.resolvedAs}`);
   ok("resolvedAs совпал с truth", resolved?.resolvedAs === truth);
 
-  /* === 7. математика пари-мьютюэль (v7: монеты, ставки 100/300/300) ===
-     total=700, rake=floor(700*0.10)=70, prize=630
-     если truth=real: winPool=400 → A(100)=floor(630*100/400)=157, B(300)=472, C=0
-     если truth=synth: winPool=300 → C(300)=630, A=B=0                       */
-  const total = 700;
+  /* === 7. математика пари-мьютюэль (v11: EYE, ставки 10/50/50) ===
+     total=110, rake=floor(110*0.10)=11, prize=99
+     если truth=real: winPool=60 → A(10)=floor(99*10/60)=16, B(50)=82, C=0
+     если truth=synth: winPool=50 → C(50)=99, A=B=0                          */
+  const total = 110;
   const rake = Math.floor(total * 0.1);
   const prize = total - rake;
   let expect;
   if (truth === "real") {
-    expect = { A: Math.floor((prize * 100) / 400), B: Math.floor((prize * 300) / 400), C: 0 };
+    expect = { A: Math.floor((prize * 10) / 60), B: Math.floor((prize * 50) / 60), C: 0 };
   } else {
     expect = { A: 0, B: 0, C: prize };
   }
@@ -239,13 +233,13 @@ async function run() {
   ok("C: статус/выплата по формуле", betC && betC.status === (expect.C > 0 ? "won" : "lost") && betC.payoutCents === expect.C, `payout=${betC?.payoutCents} expect=${expect.C}`);
 
   /* === 8. рефералка: rr-<roundId>-rselftest99 ===
-     refCut = floor(rake * 0.2 * 300/700) = floor(70*0.2*3/7)=6 монет */
+     refCut = floor(rake * 0.2 * 50/110) = floor(11*0.2*0.4545) = 1 монета */
   const refOrderId = `rr-${round.id}-rselftest99`;
   const refRow = await one(
     'SELECT "refCode", kind, "amountUsdt", "payoutUsdt" FROM "ReferralEvent" WHERE "orderId" = $1',
     [refOrderId]
   );
-  const expectRef = Math.floor(rake * 0.2 * (300 / total));
+  const expectRef = Math.floor(rake * 0.2 * (50 / total));
   ok("ReferralEvent bet_rake создан", Boolean(refRow), refRow ? `payout=${refRow.payoutUsdt}` : "нет строки");
   ok(
     "реферер получает 20% рейка × долю",

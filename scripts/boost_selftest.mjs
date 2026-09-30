@@ -1,248 +1,98 @@
 #!/usr/bin/env node
 /**
- * Selftest v6: БУСТ + API предикшен-ленты (продажа промптов удалена из
- * продукта — рыночные проверки переехали в историю, экономика живёт в
- * economy_selftest.mjs) — против работающего dev-сервера :3000 с env:
+ * Selftest v11: ПЛАТНЫЕ БУСТЫ ВЫКЛЮЧЕНЫ ПРИКАЗОМ (заморозка на 7 дней).
  *
- *   TWOTHOUSAND328_API_BASE=http://127.0.0.1:9999/api
- *   TWOTHOUSAND328_PAYMENT_API_KEY=test-payment-key
- *   TWOTHOUSAND328_PAYOUT_API_KEY=test-payout-key
- *   TWOTHOUSAND328_PROJECT_UUID=test-project-uuid
+ * Приказ: «платежи выключить» — инвойсы bs-* не создаются, чекаут
+ * отвечает 403 payments_disabled; статус-поллинг остаётся публичным
+ * (карточки читают свой paidUntil). Ранжирование FEATURED по старым
+ * paidUntil живёт до конца срока — деньги в игру не возвращаются.
  *
- * Проверяет:
- *  B. буст клипа (Boosted / Featured Clip):
- *     1. POST /api/boost/checkout {days:3} → amount 9.00, BoostOrder pending
- *     2. webhook paid → paidUntil ≈ now+3д, paymentId записан
- *     3. GET /api/boost/status → active:true (ранжирование поднимет)
- *     4. повторный webhook paid → идемпотентно 200
- *     5. webhook cancel на свежий pending → failed
- *     6. TrackEvent boost_purchase записан
- *  C. API предикшен-ленты:
- *     7. GET /api/bet/live → betting:number
- *     8. GET /api/bet/hard → codes:array
- *     9. GET /api/bet/leaderboard → rows:array
- *    (v7.1: attach-bets удалён вместе с крипто-подключением)
- *  D. продажа промптов удалена:
- *    10. GET /market → 308 на /bet
- *    11. POST /api/prompts/x/checkout → 404
+ *  1. GET /api/boost/status?code → 200 (публичный, без инвойса)
+ *  2. POST /api/boost/checkout → 403 payments_disabled
+ *  3. BoostOrder в БД не появился (никаких строк от чекаута)
+ *  4. POST без авторизации → тоже 403 (гейт платежей раньше auth)
+ *  5. повторный чекаут → 403 (нет ре-инвойсов и мусора)
  *
- * Запуск: node scripts/boost_selftest.mjs
- * Мок 2328: scripts/mock-2328.mjs (:9999) — поднимается автоматически.
+ * Запуск: node scripts/boost_selftest.mjs (сервер уже поднят).
  */
 
-import { spawn } from "node:child_process";
-import { createHmac } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 
 import { q, one, close } from "./lib/supadb.mjs";
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
-
-const PAYMENT_KEY = "test-payment-key";
-const CLIP = "71vsIPUu";
+const TEST_IP = "203.0.113.22";
 
 let passed = 0;
 let failed = 0;
-const cleanup = { boosts: [], events: [] };
-
 function ok(name, cond, extra = "") {
-  if (cond) {
-    passed++;
-    console.log(`  PASS ${name}${extra ? ` — ${extra}` : ""}`);
-  } else {
-    failed++;
-    console.log(`  FAIL ${name}${extra ? ` — ${extra}` : ""}`);
-  }
+  if (cond) { passed++; console.log(`  PASS ${name}${extra ? ` — ${extra}` : ""}`); }
+  else { failed++; console.log(`  FAIL ${name}${extra ? ` — ${extra}` : ""}`); }
 }
 
-
-function sign2328(body, key) {
-  const base64 = Buffer.from(JSON.stringify(body), "utf-8").toString("base64");
-  return createHmac("sha256", key).update(base64, "utf-8").digest("hex");
-}
-
-/* ---------- cookie-jar fetch ---------- */
 function makeClient(name) {
-  let cookie = "";
-  return async function api(method, url, body) {
+  const cookies = new Map();
+  const api = async function (method, url, body) {
+    const cookieHeader = [...cookies.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
     const res = await fetch(`${BASE}${url}`, {
       method,
       headers: {
         ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(cookie ? { cookie } : {}),
-        "user-agent": `boost-selftest/1.0 (${name})`,
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        "x-forwarded-for": TEST_IP,
+        "user-agent": `Mozilla/5.0 v11-boost-selftest ${name}`,
       },
       body: body ? JSON.stringify(body) : undefined,
       redirect: "manual",
     });
     let json = null;
-    try {
-      json = await res.json();
-    } catch {}
-    return { status: res.status, json, location: res.headers.get("location") };
+    const raw = await res.text();
+    try { json = JSON.parse(raw); } catch {}
+    return { status: res.status, json };
   };
+  api.cookies = cookies;
+  return api;
 }
 
-/* ---------- mock-2328 launcher ---------- */
-async function ensureMock() {
-  try {
-    await fetch("http://127.0.0.1:9999/api/v1/payment/info", {
-      method: "POST",
-      signal: AbortSignal.timeout(800),
-    });
-    console.log("[mock-2328] уже работает на :9999");
-    return null;
-  } catch {
-    const child = spawn(
-      process.execPath,
-      [path.resolve(process.cwd(), "scripts/mock-2328.mjs")],
-      { stdio: "ignore", detached: false }
-    );
-    for (let i = 0; i < 20; i++) {
-      try {
-        await fetch("http://127.0.0.1:9999/api/v1/payment/info", {
-          method: "POST",
-          signal: AbortSignal.timeout(800),
-        });
-        console.log("[mock-2328] поднят на :9999");
-        return child;
-      } catch {
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    }
-    throw new Error("mock-2328 не поднялся");
-  }
-}
-
-async function webhook2328(payload, key) {
-  const sign = sign2328(payload, key);
-  const res = await fetch(`${BASE}/api/webhooks/2328`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, sign }),
-  });
-  return res.status;
-}
-
-/* ---------- тест ---------- */
 async function run() {
-  console.log(`\n[boost-selftest] ${BASE} — буст + API ленты (v6)\n`);
+  console.log(`\n[boost-selftest v11] ${BASE} — бусты заморожены приказом\n`);
 
-  const B = makeClient("booster-v6");
+  const stamp = Date.now();
+  const before = await one(`SELECT COUNT(*)::int AS n FROM "BoostOrder" WHERE "buyerHash" = $1`, [`v11-boost-${stamp}`]);
 
-  /* === B. буст клипа === */
-  const bo = await B("POST", "/api/boost/checkout", { code: CLIP, days: 3 });
-  ok("boost checkout принял", bo.status === 200 && typeof bo.json.payUrl === "string", bo.json.error || bo.json.amountUsdt);
-  ok("буст $9.00 за 3 дня", bo.json.amountUsdt === "9.00", bo.json.amountUsdt);
-  const boostUuid = String(bo.json.payUrl || "").split("/pay/")[1] || "";
-  const boostRow = await one('SELECT id, "orderId", status, days, "amountUsdt" FROM "BoostOrder" WHERE "paymentId" = $1', [boostUuid]);
-  ok("BoostOrder pending в БД", boostRow?.status === "pending" && boostRow?.days === 3, boostRow?.status);
-  ok("orderId bs-*", String(boostRow?.orderId || "").startsWith("bs-"), boostRow?.orderId);
-  cleanup.boosts.push(boostRow?.id);
+  const C = makeClient("curator");
+  const status = await C("GET", "/api/boost/status?code=71vsIPUu");
+  ok("1 status-поллинг публичен", status.status === 200, JSON.stringify(status.json || {}).slice(0, 80));
 
-  const bBad = await webhook2328(
-    { uuid: boostUuid, order_id: boostRow.orderId, payment_status: "paid", txid: "mock-tx-2", amount: "9.00", currency: "USDT" },
-    "wrong-key-XXXX"
+  const off = await C("POST", "/api/boost/checkout", { code: "71vsIPUu", days: 1 });
+  ok("2 чекаут → 403 payments_disabled", off.status === 403 && off.json?.error === "payments_disabled", `${off.status} ${off.json?.error || ""}`);
+
+  const rows = await one(
+    `SELECT COUNT(*)::int AS n FROM "BoostOrder" WHERE "buyerHash" = $1 OR "createdAt" > now() - interval '1 minute' AND "orderId" LIKE 'bs-%'`,
+    [`v11-boost-${stamp}`]
   );
-  ok("boost webhook битая подпись → 401", bBad === 401);
+  ok("3 BoostOrder не создан", (rows?.n ?? 0) === (before?.n ?? 0), `rows=${rows?.n}`);
 
-  const bGood = await webhook2328(
-    { uuid: boostUuid, order_id: boostRow.orderId, payment_status: "paid", txid: "mock-tx-2", amount: "9.00", currency: "USDT" },
-    PAYMENT_KEY
-  );
-  ok("boost payment webhook принят", bGood === 200);
-  const paidBoost = await one('SELECT status, "paidUntil" FROM "BoostOrder" WHERE id = $1', [boostRow.id]);
-  ok("буст paid, paidUntil установлен", paidBoost?.status === "paid" && Boolean(paidBoost?.paidUntil), paidBoost?.paidUntil);
-  const paidUntilMs = paidBoost?.paidUntil ? new Date(paidBoost.paidUntil).getTime() : 0;
-  const expectMs = Date.now() + 3 * 24 * 3600 * 1000;
-  ok("paidUntil ≈ now+3д", Math.abs(paidUntilMs - expectMs) < 60_000, `${Math.round((paidUntilMs - Date.now()) / 3600000)}ч до конца`);
+  const anon = makeClient("anon");
+  const off2 = await anon("POST", "/api/boost/checkout", { code: "71vsIPUu", days: 3 });
+  ok("4 гость тоже получает 403 (гейт раньше auth)", off2.status === 403 && off2.json?.error === "payments_disabled", String(off2.status));
 
-  /* идемпотентность: повторный paid → 200, paidUntil не сдвигается */
-  const dup = await webhook2328(
-    { uuid: boostUuid, order_id: boostRow.orderId, payment_status: "paid", txid: "mock-tx-2", amount: "9.00", currency: "USDT" },
-    PAYMENT_KEY
-  );
-  ok("повторный webhook → 200 (идемпотентно)", dup === 200);
-  const dupBoost = await one('SELECT "paidUntil" FROM "BoostOrder" WHERE id = $1', [boostRow.id]);
-  ok("paidUntil не сдвинулся", String(dupBoost?.paidUntil) === String(paidBoost?.paidUntil));
+  const off3 = await C("POST", "/api/boost/checkout", { code: "71vsIPUu", days: 7 });
+  ok("5 повторный чекаут → 403 без инвойсов", off3.status === 403 && off3.json?.error === "payments_disabled", String(off3.status));
 
-  /* статус-эндпоинт видит активный буст */
-  const bst = await B("GET", `/api/boost/status?code=${CLIP}`);
-  ok("boost/status active:true", bst.json.active === true);
-
-  /* cancel → failed на свежем ордере */
-  const bo2 = await B("POST", "/api/boost/checkout", { code: CLIP, days: 1 });
-  const uuid2 = String(bo2.json.payUrl || "").split("/pay/")[1] || "";
-  const row2 = await one('SELECT id, "orderId" FROM "BoostOrder" WHERE "paymentId" = $1', [uuid2]);
-  cleanup.boosts.push(row2?.id);
-  const cancelled = await webhook2328(
-    { uuid: uuid2, order_id: row2.orderId, payment_status: "cancel", txid: null, amount: "3.00", currency: "USDT" },
-    PAYMENT_KEY
-  );
-  ok("cancel webhook принят", cancelled === 200);
-  const failedRow = await one('SELECT status FROM "BoostOrder" WHERE id = $1', [row2.id]);
-  ok("буст cancel → failed", failedRow?.status === "failed", failedRow?.status);
-
-  const evBoost = await one(
-    "SELECT COUNT(*)::int AS n FROM \"TrackEvent\" WHERE name = 'boost_purchase' AND \"clipCode\" = $1",
-    [CLIP]
-  );
-  ok("TrackEvent boost_purchase", (evBoost?.n ?? 0) >= 1);
-  cleanup.events.push("boost_purchase");
-
-  /* === C. API предикшен-ленты === */
-  const V = makeClient("viewer-v6");
-  const live = await V("GET", "/api/bet/live");
-  ok("bet/live отвечает", live.status === 200 && typeof live.json.betting === "number", `betting=${live.json.betting}`);
-  const hard = await V("GET", "/api/bet/hard");
-  ok("bet/hard отвечает", hard.status === 200 && Array.isArray(hard.json.codes), `codes=${hard.json.codes?.length ?? 0}`);
-  const lb = await V("GET", "/api/bet/leaderboard");
-  ok("bet/leaderboard отвечает", lb.status === 200 && Array.isArray(lb.json.rows), `rows=${lb.json.rows?.length ?? 0}`);
-
-  /* boost checkout на несуществующий клип → 404 */
-  const badClip = await V("POST", "/api/boost/checkout", { code: "zzzzzzzz", days: 1 });
-  ok("boost на неизвестный клип → 404", badClip.status === 404);
-
-  /* === D. продажа промптов удалена (v6) === */
-  const marketRedirect = await fetch(`${BASE}/market`, { redirect: "manual" });
-  ok("/market → 308", marketRedirect.status === 308, marketRedirect.headers.get("location") || "");
-  const promptsGone = await V("POST", "/api/prompts/neon-rain/checkout", {});
-  ok("api/prompts checkout удалён → 404", promptsGone.status === 404);
-  const marketPageGone = await V("GET", "/market/thanks");
-  ok("страница /market/thanks удалена", marketPageGone.status === 308);
-
-  /* ---------- итог ---------- */
-  console.log(`\n[boost-selftest] ${passed} PASS, ${failed} FAIL`);
+  console.log(`\n===== v11 BOOST (frozen) SELFTEST: ${passed} PASS / ${failed} FAIL =====`);
   if (failed > 0) process.exitCode = 1;
 }
 
-/* ---------- cleanup тестовых строк ---------- */
-async function cleanupDb() {
-  try {
-    for (const id of cleanup.boosts) {
-      if (!id) continue;
-      await q('DELETE FROM "BoostOrder" WHERE id = $1', [id]);
-    }
-    if (cleanup.events.length) {
-      await q("DELETE FROM \"TrackEvent\" WHERE name IN ('boost_purchase')");
-    }
-  } catch (e) {
-    console.warn("[cleanup] skip:", e instanceof Error ? e.message : e);
-  } finally {
-    await close();
-  }
-}
-
-const isCleanupOnly = process.argv.includes("--cleanup-only");
-if (isCleanupOnly) {
-  await cleanupDb();
-  console.log("[boost-selftest] cleanup done");
-} else {
-  const mock = await ensureMock();
-  try {
-    await run();
-  } finally {
-    await cleanupDb();
-    if (mock) mock.kill();
-  }
+const isDirectRun = process.argv[1] && process.argv[1].endsWith("boost_selftest.mjs");
+if (isDirectRun) {
+  run()
+    .then(close)
+    .catch(async (e) => {
+      console.error("selftest crashed:", e);
+      await close();
+      process.exitCode = 1;
+    });
 }
