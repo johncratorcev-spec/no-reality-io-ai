@@ -1249,3 +1249,29 @@ Stage Summary:
 - v11 «season-1 loop» готов: Telegram-вход (сервер HMAC + виджет), 100 EYE за аккаунт ровно раз, ставки 10/25/50 в пари-мьютюэль, ручной вердикт куратора, всё через ledger, Season s1 (00:00 UTC сегодня → 12:00 UTC T+7) с CSV-снапшотом для партнёров, платежи/кошелёк/вывод заморожены, лендинг — кампанийный. 259/259 selftests, build OK, E2E пройден.
 - BD-ЧЕКЛИСТ: Telegram-вход — серверно ✓, виджет на iPhone — после деплоя + BotFather /setdomain no-reality.fun; 100 EYE один раз ✓; ставка в ledger ✓; админ REAL/SYNTH — балансы сходятся ✓ (selftest + Oracle Console E2E); 7 клипов в очереди — в CSV 45 клипов с truth ✓; /api/admin/snapshot CSV ✓; дата среза на сайте ✓; кнопки кошелька нет ✓; продаж EYE нет ✓.
 - ДЛЯ ПРОДА (Vercel): 1) env добавить: TELEGRAM_BOT_TOKEN (реальный токен бота), NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=smartluvon_bot; проверить DATABASE_URL (pooler aws-1-eu-west-3 :6543 + pgbouncer=true&connection_limit=5), DIRECT_URL (:5432 pooler session), ADMIN_SECRET, SESSION_SECRET, GOOGLE_CLIENT_ID/SECRET; BET_WINDOW_SEC можно 25 (прод-латентность ниже); НЕ задавать PUBLIC_BASE_URL. 2) BotFather: /setdomain → no-reality.fun (иначе виджет не отрисуется на iPhone). 3) Redeploy main → /api/health {"version":"v11"}. 4) Снапшот 7 октября: GET /api/admin/snapshot?key=<ADMIN_SECRET> после финального резолва раундов.
+
+---
+Task ID: 12 (v12 prod-fix)
+Agent: Super Z (main agent)
+Task: Реальный токен бота (8800232024:AAH8…, бот @noreality_bot), диагностика «на проде после добавления ничего не появилось», полное удаление кодов входа — только регистрация / вход / быстрый вход через Telegram.
+
+Work Log:
+- getMe по реальному токену → ok: бот Noreality, username noreality_bot (id 8800232024). Webhook не задан (чистый бот).
+- ДИАГНОЗ ПРОДА: prod = v11 (health version v11), а v11-AuthForm берёт username из NEXT_PUBLIC_TELEGRAM_BOT_USERNAME (build-time inline) — на Vercel переменной нет → TG_BOT пуст → виджет не рисуется вовсе. Плюс v12-код (авто-резолв username через getMe по токену) лежал НЕЗАПУШЕННЫМ локально (7bb1290, 1513f05) — пользователь физически не мог увидеть кнопку.
+- .env восстановлен после сброса окружения: Supabase pooler aws-1-eu-west-3 (ref arwdhvfffzdljctryjfw найден в git-истории v7-миграции; пароль из переписки), DATABASE_URL :6543 pgbouncer connection_limit=5, DIRECT_URL :5432; ADMIN_SECRET/SESSION_SECRET; TELEGRAM_BOT_TOKEN=реальный; NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=noreality_bot (dev-дубль); CLICK_MIN_INTERVAL_MS=15000 (иначе too_fast недостижим на латентности Supabase ~3-6с); BET_WINDOW_SEC=25; мок-ключи Google. Проверка соединения: PG 17.6, 276 аккаунтов, telegram-linked 0, сезон s1 active 2026-09-30T00:00Z → 2026-10-07T12:00Z.
+- Коды входа: рабочее дерево уже содержало v12-вычищение (v9_promo_selftest удалён, google gated→open signInWithGoogle, password-роут без промо, AuthForm: Telegram + email/пароль + Google, тексты без кодов). grep по src: остатки — только CSS-классы .nr-au-promo и комментарии ipbudget (PromoAttempt как анти-брутфорс журнал). /api/auth/magic и /api/reward — в UI не выставлены.
+- SELFTESTS на живом Supabase: v12_open 11/11 (чек 10 — подпись РЕАЛЬНЫМ токеном → 200; чек 11 — подделка → 401), economy 55/55 (после восстановления CLICK_MIN_INTERVAL_MS), bet 31/31, cashout-frozen 7/7, boost-frozen 5/5, v8_auth_admin 23/23. Исправлен чек №9 v12_open: 429 приходит на 11-ю СУММАРНУЮ попытку (чек №5 уже потратил 1 промах бюджета ipHash), не на 11-ю цикла.
+- tsc 0, eslint 0 (1 старый warning), next build OK (глюк «URL must start with postgresql://» — системный экспорт DATABASE_URL=file: побеждал .env; после экспорта правильного значения build чистый). npm run build регенерировал posts.snapshot.ts (пребилд) — CDN-подписи обновлены.
+- GIT: origin ушёл вперёд на 2 scheduled-коммита «refresh CDN signatures» (825fc1e, eaf38be) — rebase --onto origin/main 1513f05 main, конфликт data/posts.csv решён в пользу удалённого (свежее), мой дублирующий refresh-коммит skip. Итог: main = d6c7e1f (v12-код 4c23698 + фикс selftest d6c7e1f) на базе eaf38be. Пуш eaf38be..d6c7e1f → Vercel автодеплой.
+
+Stage Summary:
+- Токен бота @noreality_bot подтверждён и прописан в .env; v12 (открытые двери, ноль кодов, Telegram-кнопка с серверным авто-резолвом username) запушена в main — деплой чинит первопричину «нет кнопок» (v11 ждал NEXT_PUBLIC_TELEGRAM_BOT_USERNAME, которого на Vercel не было).
+- ДЛЯ ПРОДА осталось от пользователя: 1) на Vercel env задать TELEGRAM_BOT_TOKEN=8800232024:AAH8zEiPewZkIMeApFqQ9dvfGOGPIoEhTwg (Production+Preview) и передеплоить, если ещё не задан; NEXT_PUBLIC_TELEGRAM_BOT_USERNAME больше НЕ обязателен (резолвится сервером из токена); 2) BotFather → /setdomain → no-reality.fun (без этого виджет показывает «Bot domain invalid»); 3) проверка после деплоя: /auth содержит «works on no-reality.fun» (значит токен увиден) и виджет Telegram.
+
+Post-deploy verification (prod):
+- Vercel подхватил d6c7e1f автоматически; /api/health db up, ts свежий.
+- /auth: SSR «works on no-reality.fun» → серверный resolveTelegramBotUsername() УСПЕШЕН на проде → TELEGRAM_BOT_TOKEN на Vercel задан и валиден (шаг с env у пользователя ВЫПОЛНЕН). Промо/вейтлист-упоминаний: 0; email+password форма на месте; копия «100 EYE» на месте.
+- E2E-проба боевого Telegram-входа: подписанный реальным токеном payload → 200 ok, created, +100 EYE; подделанный hash → 401. Пробная учётка (telegramId 900700600) удалена из Supabase — база чистая, telegram-linked аккаунтов 0.
+- oauth.telegram.org-зонд домена «deprecated» (инконклюзивно) — /setdomain проверяется только в BotFather.
+- /api/season: s1 active, snapshot Oct 7 12:00 UTC, daysLeft 6. /bet 200.
+- ОСТАЁТСЯ ОТ ПОЛЬЗОВАТЕЛЯ: BotFather → /setdomain → no-reality.fun — иначе виджет рисуется, но при клике даёт «Bot domain invalid».
