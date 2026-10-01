@@ -238,7 +238,9 @@ async function run() {
   }
   ok(
     "9. 10 промахов → 401, дальше 429 + Retry-After",
-    got429 && got429.at === 11 && Number(got429.retryAfter) > 0,
+    /* чек №5 уже потратил 1 промах этого ipHash → 429 приходит на i=10
+       (11-я суммарная попытка), а не на i=11 */
+    got429 && got429.at === 10 && Number(got429.retryAfter) > 0,
     got429 ? `429 на попытке ${got429.at}, retry-after=${got429.retryAfter}` : "429 не получен"
   );
 
