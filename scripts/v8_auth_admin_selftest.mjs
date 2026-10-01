@@ -173,12 +173,11 @@ async function run() {
   const reg = await Guest("POST", "/api/auth/password", {
     email: email1,
     password: "supersecret1",
-    promo: SELFTEST_PROMOS[0],
   });
   const regId = reg.json?.account?.accountId;
   cleanup.accounts.push(regId);
   ok(
-    "регистрация с промо → ok, isNew, registered",
+    "регистрация открыта (без кодов) → ok, isNew, registered",
     reg.status === 200 && reg.json.ok === true && reg.json.isNew === true && reg.json.status === "registered",
     reg.json.error || regId?.slice(0, 8)
   );
@@ -187,11 +186,6 @@ async function run() {
     reg.json.linked === false && Boolean(regId) && (reg.json.account?.balanceCents ?? 0) >= 100,
     `linked=${reg.json.linked} bal=${reg.json.account?.balanceCents}`
   );
-  const regPromoRow = await one(
-    'SELECT "usedBy" FROM "PromoCode" WHERE code = $1',
-    [SELFTEST_PROMOS[0]]
-  );
-  ok("промокод погашен этим аккаунтом (usedBy)", regPromoRow?.usedBy === regId);
 
   const Login = makeClient("pw-login");
   const login = await Login("POST", "/api/auth/password", {
@@ -218,46 +212,21 @@ async function run() {
   ok("чужой пароль → 401 wrong_password", wrong.status === 401 && wrong.json.error === "wrong_password", wrong.json.error);
 
   const Fresh = makeClient("pw-fresh");
-  /* v9: без промо → лист ожидания (сессия НЕ выдаётся) */
+  /* v12: коды убраны — регистрация открыта сразу */
   const fresh = await Fresh("POST", "/api/auth/password", {
     email: email2,
     password: "another-pass-9",
   });
+  const freshId = fresh.json?.account?.accountId;
   ok(
-    "уникальная почта БЕЗ промо → waitlisted, без сессии",
-    fresh.status === 200 && fresh.json.ok === true && fresh.json.status === "waitlisted" && fresh.json.reason === "no_code" && fresh.json.account === undefined,
-    JSON.stringify(fresh.json.error || fresh.json.reason)
-  );
-  const wlRow = await one(
-    'SELECT "passwordHash", source FROM "WaitlistEntry" WHERE email = $1',
-    [email2]
+    "регистрация без всяких кодов → registered + сессия",
+    fresh.status === 200 && fresh.json.ok === true && fresh.json.status === "registered" && fresh.json.isNew === true && Boolean(freshId),
+    JSON.stringify(fresh.json.error || fresh.json.status)
   );
   ok(
-    "WaitlistEntry создан (source=form, хеш пароля)",
-    String(wlRow?.passwordHash || "").startsWith("scrypt$") && wlRow?.source === "form"
-  );
-  cleanup.waitlistEmails.push(email2);
-
-  /* v9: тот же email + промо → аккаунт (лист ожидания апрувится) */
-  const freshPromo = await Fresh("POST", "/api/auth/password", {
-    email: email2,
-    password: "another-pass-9",
-    promo: SELFTEST_PROMOS[1],
-  });
-  ok(
-    "тот же email с промо → registered + welcome",
-    freshPromo.status === 200 && freshPromo.json.status === "registered" && freshPromo.json.isNew === true && (freshPromo.json.account?.balanceCents ?? 0) >= 100,
-    `balance=${freshPromo.json.account?.balanceCents}`
-  );
-  const freshId = freshPromo.json.account?.accountId;
-  const wlApproved = await one(
-    'SELECT "convertedAccountId" FROM "WaitlistEntry" WHERE email = $1',
-    [email2]
-  );
-  ok(
-    "лист ожидания апрувнут (convertedAccountId)",
-    wlApproved?.convertedAccountId === freshId,
-    freshId?.slice(0, 8)
+    "welcome +100 выдан новой регистрации",
+    (fresh.json.account?.balanceCents ?? 0) >= 100,
+    `balance=${fresh.json.account?.balanceCents}`
   );
   cleanup.accounts.push(freshId);
   cleanup.emailAuths.push(email1, email2);
@@ -285,7 +254,6 @@ async function run() {
   const regC = await Curator("POST", "/api/auth/password", {
     email: `pw-curator-${stamp}@test.dev`,
     password: "curator-pass-1",
-    promo: SELFTEST_PROMOS[2],
   });
   cleanup.accounts.push(regC.json?.account?.accountId);
   const cMe = await Curator("GET", "/api/me");

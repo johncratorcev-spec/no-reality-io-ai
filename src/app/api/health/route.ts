@@ -28,7 +28,7 @@ export async function GET() {
   let authState = "up";
   try {
     await db.emailAuth.findFirst({ select: { accountId: true }, take: 1 });
-    await db.promoCode.findFirst({ select: { id: true }, take: 1 });
+    await db.account.findFirst({ select: { id: true }, take: 1 });
   } catch {
     authState = "down";
   }

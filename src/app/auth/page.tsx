@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import AuthForm from "./AuthForm";
+import { resolveTelegramBotUsername } from "@/lib/auth/telegram";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "enter — no-reality.",
   description:
-    "watch everything free — sign in to predict REAL or SYNTH. promo code members get in instantly, everyone else joins the waiting list.",
+    "watch everything free — sign in with telegram or email and predict REAL or SYNTH. 100 EYE welcome to call your first verdict.",
   robots: { index: false, follow: false },
 };
 
@@ -19,14 +22,17 @@ const TICKER = [
 ] as const;
 
 /**
- * v10 — ПРЕМИУМ-экран входа/регистрации.
+ * v12 — ПРЕМИУМ-экран входа.
  *
  * Сайт ОТКРЫТ: гости смотрят ленту и предикшены без аккаунта, беттинг —
- * за авторизацией. Этот экран — быстрая дверь: пароль/промо (Supabase,
- * без письма-подтверждения) или Google. Сцена: aurora-фон, вращающееся
- * градиентное кольцо карточки, вердикт-тикер, орбы — всё на CSS.
+ * за авторизацией. Секретные коды убраны вовсе: двери — Telegram
+ * (главная), email+пароль и Google. Username бота резолвится на сервере
+ * через getMe по токену из env — виджет рисуется только под живого бота.
+ * Сцена: aurora-фон, вращающееся градиентное кольцо карточки,
+ * вердикт-тикер, орбы — всё на CSS.
  */
-export default function AuthPage() {
+export default async function AuthPage() {
+  const botUsername = await resolveTelegramBotUsername();
   return (
     <main className="nr-au-scene relative flex min-h-screen items-center justify-center overflow-hidden bg-[#08070b] px-4 py-10 text-white">
       {/* ---------- фон: aurora-блобы + conic-свип + зерно ---------- */}
@@ -129,7 +135,7 @@ export default function AuthPage() {
             </div>
           }
         >
-          <AuthForm />
+          <AuthForm botUsername={botUsername} />
         </Suspense>
       </div>
     </main>

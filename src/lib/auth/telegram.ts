@@ -32,8 +32,52 @@ const SIGNED_FIELDS = ["auth_date", "first_name", "id", "last_name", "photo_url"
 /** 24 часа: виджет на iPhone может висеть открытым — окно щедрое, но не вечное. */
 const MAX_AGE_SEC = 86_400;
 
+/**
+ * Токен бота: TELEGRAM_BOT_TOKEN, либо пара TELEGRAM_CLIENT_ID +
+ * TELEGRAM_CLIENT_SECRET, склеенная каноничным форматом Telegram
+ * "<bot_id>:<secret>" (владелец передаёт креды именно как пара).
+ */
 export function telegramBotToken(): string {
-  return process.env.TELEGRAM_BOT_TOKEN || "";
+  const full = process.env.TELEGRAM_BOT_TOKEN?.trim() || "";
+  if (full) return full;
+  const id = process.env.TELEGRAM_CLIENT_ID?.trim() || "";
+  const secret = process.env.TELEGRAM_CLIENT_SECRET?.trim() || "";
+  if (id && secret && /^\d{6,20}$/.test(id)) return `${id}:${secret}`;
+  return "";
+}
+
+/** Username бота из env (перекрывает авто-резолв) — для data-telegram-login. */
+export function telegramBotUsername(): string {
+  return process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME?.trim() || "";
+}
+
+let usernameCache: { value: string; at: number } | null = null;
+
+/**
+ * Авто-резолв username бота через getMe (кэш 10 минут) — чтобы вход
+ * оживал от одного валидного токена в env, без второго имени в конфиге.
+ * "" → токена нет или Telegram его не принимает (виджет не рисуем).
+ */
+export async function resolveTelegramBotUsername(): Promise<string> {
+  const fromEnv = telegramBotUsername();
+  if (fromEnv) return fromEnv;
+  if (usernameCache && Date.now() - usernameCache.at < 600_000) {
+    return usernameCache.value;
+  }
+  const token = telegramBotToken();
+  if (!token) return "";
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${encodeURIComponent(token)}/getMe`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    });
+    const d = (await r.json()) as { ok?: boolean; result?: { username?: string } };
+    const name = d.ok && d.result?.username ? String(d.result.username) : "";
+    usernameCache = { value: name, at: Date.now() };
+    return name;
+  } catch {
+    return usernameCache?.value || "";
+  }
 }
 
 export function verifyTelegramPayload(

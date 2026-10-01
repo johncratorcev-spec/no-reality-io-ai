@@ -40,11 +40,8 @@ export type TrackName =
   | "pass_granted"
   | "google_signin"
   | "google_signup"
-  | "google_waitlist"
   | "password_signin"
   | "password_signup"
-  | "waitlist_signup"
-  | "promo_redeemed"
   | "watch_reward"
   | "guess_reward"
   | "video_reward"
@@ -85,9 +82,6 @@ const NAMES = new Set<string>([
   "pass_granted",
   "password_signin",
   "password_signup",
-  "google_waitlist",
-  "waitlist_signup",
-  "promo_redeemed",
   "watch_reward",
   "guess_reward",
   "video_reward",

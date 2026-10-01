@@ -240,9 +240,9 @@ async function run() {
   console.log("\n[C] регистрация / вход / привязка гостя (гейт промо)");
   const user = makeClient("signup");
   const email1 = "g-signup-1@test.local";
-  const r12 = await googleFlow(user, { email: email1, verified: true, promo: SEED[3] });
+  const r12 = await googleFlow(user, { email: email1, verified: true });
   const uid1 = r12.cb.cookies.get("nr_uid");
-  ok("12. регистрация с промо → 303 + nr_uid + nr_auth", r12.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uid1 || "") && r12.cb.cookies.get("nr_auth")?.startsWith("v1.") || "", `uid=${(uid1 || "").slice(0, 8)}… loc=${r12.cb.location}`);
+  ok("12. открытая регистрация → 303 + nr_uid + nr_auth", r12.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uid1 || "") && r12.cb.cookies.get("nr_auth")?.startsWith("v1.") || "", `uid=${(uid1 || "").slice(0, 8)}… loc=${r12.cb.location}`);
   cleanupEmails.add(email1);
   cleanupAccounts.push(uid1);
 
@@ -277,7 +277,7 @@ async function run() {
   guest.cookies.set("nr_uid", guestId);
   const emailG = "g-guest-link@test.local";
   cleanupEmails.add(emailG);
-  const r17 = await googleFlow(guest, { email: emailG, verified: true, promo: SEED[1] });
+  const r17 = await googleFlow(guest, { email: emailG, verified: true });
   const uidGuest = r17.cb.cookies.get("nr_uid");
   const guestAfter = await one('SELECT id, email, "passTier", "balanceCents" FROM "Account" WHERE id = $1', [guestId]);
   ok(
@@ -293,52 +293,48 @@ async function run() {
   const meAcc = me.json?.account || me.json;
   ok("18. /api/me: сессия жива, баланс ≥ 100", meAcc?.accountId === uid1 && Number(meAcc?.balanceCents ?? 0) >= 100, JSON.stringify({ accountId: meAcc?.accountId?.slice(0, 8), balance: meAcc?.balanceCents }));
 
-  /* --- C2. v9: google-гейт (закрытый запуск) --- */
-  console.log("\n[C2] v9 google-гейт: без промо → лист ожидания");
+  /* --- C2. v12: google-вход ОТКРЫТ (секретные коды убраны) --- */
+  console.log("\n[C2] v12: google-вход без всяких кодов");
 
-  /* 19. новый google-email БЕЗ промо → /auth?waitlisted=1, сессии нет */
+  /* 19. новый google-email → регистрация сразу, 303 на /bet + сессия */
   const gated = makeClient("gated");
-  const emailGate = "g-gated-waitlist@test.local";
+  const emailGate = "g-open-reg@test.local";
   cleanupEmails.add(emailGate);
   const r19 = await googleFlow(gated, { email: emailGate, verified: true });
+  const uidGate = r19.cb.cookies.get("nr_uid");
   ok(
-    "19. новый email без промо → waitlisted на /auth (сессии нет)",
-    r19.cb.status === 303 && (r19.cb.location || "").includes("/auth?waitlisted=1") && (r19.cb.location || "").includes("reason=no_code") && !r19.cb.cookies.get("nr_uid"),
+    "19. новый email без промо → открытая регистрация (303 на /bet + сессия)",
+    r19.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uidGate || "") && r19.cb.cookies.get("nr_auth")?.startsWith("v1.") && (r19.cb.location || "").endsWith("/bet"),
     r19.cb.location || ""
   );
-  const wlG = await one('SELECT source FROM "WaitlistEntry" WHERE email = $1', [emailGate]);
-  ok("19b. DB: WaitlistEntry(source=google)", wlG?.source === "google");
-  cleanupWaitlist.add(emailGate);
+  cleanupAccounts.push(uidGate);
+  const accG = await one('SELECT "passTier" FROM "Account" WHERE id = $1', [uidGate]);
+  ok("19b. DB: Account создан сразу (passTier=1)", accG && Number(accG.passTier) === 1);
 
-  /* 20. повторный google-вход того же waitlisted-email С промо → аккаунт */
+  /* 20. повторный google-вход тем же email → тот же аккаунт */
   const gated2 = makeClient("gated2");
-  const r20 = await googleFlow(gated2, { email: emailGate, verified: true, promo: SEED[2] });
-  const uidGate = r20.cb.cookies.get("nr_uid");
+  const r20 = await googleFlow(gated2, { email: emailGate, verified: true });
   ok(
-    "20. тот же email + промо → registered + nr_auth",
-    r20.cb.status === 303 && /^[0-9a-f-]{36}$/i.test(uidGate || "") && r20.cb.cookies.get("nr_auth")?.startsWith("v1.") || "" && (r20.cb.location || "").endsWith("/bet"),
+    "20. повторный вход → тот же accountId",
+    r20.cb.status === 303 && r20.cb.cookies.get("nr_uid") === uidGate,
     r20.cb.location || ""
   );
-  cleanupAccounts.push(uidGate);
-  const wlG2 = await one('SELECT "convertedAccountId" FROM "WaitlistEntry" WHERE email = $1', [emailGate]);
-  ok("20b. DB: WaitlistEntry апрувнут после регистрации", wlG2?.convertedAccountId === uidGate);
 
-  /* 21. pending-promo cookie: геометрия проверяется на start */
+  /* 21. ?promo= игнорируется: nr_promo_pending больше не существует */
   const pend = makeClient("pending");
   const r21ok = await pend("/api/auth/google/start?promo=NR2345GGGGGGGG");
   ok(
-    "21. start?promo=<валидная геометрия> → nr_promo_pending выставлен",
-    r21ok.status === 303 && pend.cookies.get("nr_promo_pending") === "NR2345GGGGGGGG",
+    "21. start?promo=… → nr_promo_pending НЕ выставляется (коды убраны)",
+    r21ok.status === 303 && !pend.cookies.get("nr_promo_pending"),
     pend.cookies.get("nr_promo_pending") || "нет cookie"
   );
   const pend2 = makeClient("pending2");
   await pend2("/api/auth/google/start?promo=GARBAGE-CODE");
   ok(
-    "22. start?promo=<мусор> → cookie НЕ выставлен (геометрия отсечена)",
+    "22. start?promo=<мусор> → cookie НЕ выставлен",
     !pend2.cookies.get("nr_promo_pending")
   );
 
-  /* --- D. анти-брутфорс (последним) --- */
   console.log("\n[D] анти-брутфорс start");
   const brutes = makeClient("brute");
   let got429 = false;

@@ -26,8 +26,8 @@ export const dynamic = "force-dynamic";
  *     + welcome +100 EYE ровно один раз + NR PASS;
  *   - сессия: nr_uid + nr_auth (HMAC) — та же, что у password/google.
  *
- * Промокод НЕ требуется: Telegram-вход — дверь кампании для BD-трафика
- * (лист ожидания остаётся только у email-регистрации).
+ * Секретные коды убраны вовсе (v12): Telegram-вход — главная дверь
+ * кампании для BD-трафика, email/google — открытые запасные двери.
  */
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";

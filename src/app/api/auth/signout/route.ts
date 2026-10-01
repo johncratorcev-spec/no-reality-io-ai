@@ -19,6 +19,5 @@ export async function POST() {
   /* v9: маркер членства — обязателен к сбросу, иначе middleware
      продолжит пускать на закрытые страницы после «выхода» */
   res.cookies.set("nr_auth", "", clear);
-  res.cookies.set("nr_promo_pending", "", clear);
   return res;
 }

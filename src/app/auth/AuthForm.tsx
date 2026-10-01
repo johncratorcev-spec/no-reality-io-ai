@@ -5,21 +5,20 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 /* ================================================================
-   AuthForm v10 — премиум-форма входа/регистрации.
+   AuthForm v12 — премиум-форма входа. СЕКРЕТНЫЕ КОДЫ УБРАНЫ:
+   ни промо-кодов, ни листа ожидания — сайт открыт.
 
-   Сайт ОТКРЫТ (v10): лента/страницы смотрятся без аккаунта, эта форма —
-   дверь к БЕТТИНГУ. Сценарии сервера /api/auth/password:
-     - email существует → пароль → вход (registered→next);
-     - email новый + промокод → аккаунт (registered);
-     - email новый без промо → waitlisted (лист ожидания).
-   Google-вход: промокод из формы едет в cookie через
-   /api/auth/google/start?promo=… → callback.
+   Двери входа:
+     1. Telegram Login Widget (главная дверь кампании Season 1);
+     2. email + пароль — прямая регистрация (POST /api/auth/password);
+     3. Google (кнопка только с настроенными ключами).
 
+   Telegram: username бота приходит С СЕРВЕРА (getMe по токену из env,
+   авто-резолв) — виджет рисуется только под реально подключённого бота,
+   иначе показываем честную заметку вместо кнопки.
    Все анимации — CSS (nr-au-*): вход-каскад, вращающееся градиентное
    кольцо карточки, свип на кнопке, свечения фокуса.
    ================================================================ */
-
-type Phase = "form" | "waitlisted";
 
 /* Telegram Login Widget коллит этот глобал с объектом пользователя */
 declare global {
@@ -28,33 +27,48 @@ declare global {
   }
 }
 
-/** username бота из env — виджет рендерится только когда он задан */
-const TG_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "";
-
-export default function AuthForm() {
+export default function AuthForm({ botUsername }: { botUsername?: string }) {
   const params = useSearchParams();
   const next = params.get("next") || "/bet";
+
   /* виджет Telegram рисует «Bot domain invalid» на хостах, которых нет
-     в /setdomain бота — на localhost/чужих превью-доменах слот прячем */
+     в /setdomain бота — на localhost/чужих превью-доменах слот прячем.
+     Решение принимаем ПОСЛЕ гидратации (отложенный тик), чтобы SSR и
+     первый клиентский рендер совпадали байт в байт */
   const [tgHostOk, setTgHostOk] = useState(false);
   useEffect(() => {
-    const host = window.location.hostname;
-    setTgHostOk(!/^(localhost|127\.|0\.0\.0\.0)$/.test(host));
+    const t = setTimeout(() => {
+      const host = window.location.hostname;
+      setTgHostOk(!/^(localhost|127\.|0\.0\.0\.0)$/.test(host));
+    }, 0);
+    return () => clearTimeout(t);
   }, []);
+
+  const TG_BOT = (botUsername || "").trim();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [promo, setPromo] = useState("");
-  const [promoOpen, setPromoOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [phase, setPhase] = useState<Phase>("form");
-  const [waitReason, setWaitReason] = useState<string>("");
-  const [msg, setMsg] = useState("");
+  /* ошибка, принесённая с callback'а google (?auth=…) — известна на
+     первом рендере, поэтому считаем её синхронно в инициализаторе */
+  const [msg, setMsg] = useState(() => {
+    const a = params.get("auth") || "";
+    if (!a) return "";
+    return a === "rate_limited"
+      ? "too many attempts — wait a bit"
+      : a === "google_state"
+        ? "session expired — try again"
+        : a === "google_profile"
+          ? "google account must have a verified email"
+          : "google sign-in failed — try again";
+  });
   const [googleEnabled, setGoogleEnabled] = useState(false);
   const [tgReady, setTgReady] = useState(false);
   const tgBox = useRef<HTMLDivElement | null>(null);
   const nextRef = useRef(next);
-  nextRef.current = next;
+  useEffect(() => {
+    nextRef.current = next;
+  }, [next]);
 
   /* статус Google (кнопка только с настроенными ключами) */
   useEffect(() => {
@@ -69,32 +83,15 @@ export default function AuthForm() {
         /* без google */
       }
     })();
-    /* пришёл с callback'а google (?waitlisted=1) или с ошибкой (?auth=…) */
-    if (params.get("waitlisted") === "1") {
-      setPhase("waitlisted");
-      setWaitReason(params.get("reason") || "no_code");
-      setEmail(params.get("email") || "");
-    } else if (params.get("auth")) {
-      const a = params.get("auth") || "";
-      setMsg(
-        a === "rate_limited"
-          ? "too many attempts — wait a bit"
-          : a === "google_state"
-            ? "session expired — try again"
-            : a === "google_profile"
-              ? "google account must have a verified email"
-              : "google sign-in failed — try again"
-      );
-    }
   }, []);
 
   const go = (path: string) => {
     window.location.href = path;
   };
 
-  /* ---------- Telegram Login Widget (v11 — главный вход кампании) ---------- */
+  /* ---------- Telegram Login Widget (главная дверь кампании) ---------- */
   useEffect(() => {
-    if (!TG_BOT) return;
+    if (!TG_BOT || !tgHostOk) return;
     window.onTelegramAuth = (user: Record<string, unknown>) => {
       setMsg("");
       setBusy(true);
@@ -140,7 +137,7 @@ export default function AuthForm() {
       if (tgBox.current && tgBox.current.childElementCount <= 1) setTgReady(false);
     }, 4000);
     return () => clearTimeout(t);
-  }, []);
+  }, [TG_BOT, tgHostOk]);
 
   const submit = async () => {
     if (busy || !email.trim() || password.length < 8) return;
@@ -150,26 +147,15 @@ export default function AuthForm() {
       const r = await fetch("/api/auth/password", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim(),
-          password,
-          promo: promoOpen && promo.trim() ? promo.trim() : undefined,
-        }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
       const d = (await r.json()) as {
         ok?: boolean;
         status?: string;
-        reason?: string;
         error?: string;
       };
       if (r.ok && d.ok && (d.status === "registered" || d.status === "login")) {
         go(next);
-        return;
-      }
-      if (r.ok && d.ok && d.status === "waitlisted") {
-        setWaitReason(d.reason || "no_code");
-        setPhase("waitlisted");
-        setBusy(false);
         return;
       }
       setBusy(false);
@@ -185,82 +171,6 @@ export default function AuthForm() {
       setMsg("network blinked — try again");
     }
   };
-
-  /* ---------- лист ожидания ---------- */
-  if (phase === "waitlisted") {
-    return (
-      <div className="nr-au-ring">
-        <div className="nr-au-card-inner rounded-[29px] p-7">
-          <p
-            className="nr-au-up font-[family-name:var(--font-manrope)] text-lg font-black tracking-tight"
-            style={{ animationDelay: "40ms" }}
-          >
-            no-reality<span className="nr-au-cyan">.</span>
-          </p>
-          <h1
-            className="nr-au-up mt-4 text-2xl font-black leading-tight tracking-tight"
-            style={{ animationDelay: "100ms" }}
-          >
-            you&apos;re on
-            <br />
-            the list
-          </h1>
-          <p
-            className="nr-au-up mt-3 text-[0.8rem] font-semibold leading-relaxed text-white/55"
-            style={{ animationDelay: "160ms" }}
-          >
-            {waitReason === "promo_used"
-              ? "this promo code has already been used — your email is saved on the waiting list."
-              : waitReason === "invalid_code"
-                ? "that code didn't work — your email is saved on the waiting list."
-                : "your email is saved. we open the doors in waves — you'll get your code."}
-          </p>
-          <p
-            className="nr-au-up mt-2 text-[0.8rem] font-semibold leading-relaxed text-white/55"
-            style={{ animationDelay: "220ms" }}
-          >
-            got a code? redeem it right now and skip the line:
-          </p>
-
-          <input
-            value={promo}
-            onChange={(e) => setPromo(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && promo.trim()) void redeemAfterWaitlist();
-            }}
-            placeholder="NR-XXXX-XXXX-XXXX"
-            aria-label="Promo code"
-            autoCapitalize="characters"
-            className="nr-au-input nr-au-up mt-4 font-mono text-sm uppercase tracking-widest placeholder:normal-case placeholder:tracking-normal"
-            style={{ animationDelay: "280ms" }}
-          />
-          {msg && <p className="nr-au-err mt-2 text-[0.72rem] font-bold">{msg}</p>}
-          <button
-            onClick={() => void redeemAfterWaitlist()}
-            disabled={busy || !promo.trim()}
-            className="nr-au-cta nr-au-up mt-3 w-full px-4 py-3 text-sm font-extrabold disabled:opacity-40"
-            style={{ animationDelay: "340ms" }}
-          >
-            <span className="relative z-10 inline-flex items-center gap-2">
-              {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-              {busy ? "…" : "redeem code"}
-            </span>
-          </button>
-          <button
-            onClick={() => {
-              setPhase("form");
-              setMsg("");
-              setPromo("");
-            }}
-            className="nr-au-up mt-3 block w-full text-center text-[0.72rem] font-bold text-white/40 transition-colors hover:text-white/70"
-            style={{ animationDelay: "400ms" }}
-          >
-            back
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   /* ---------- форма ---------- */
   return (
@@ -289,7 +199,7 @@ export default function AuthForm() {
           first verdict. no confirmation letters, ever.
         </p>
 
-        {/* ---------- v11: Telegram — главный вход (первым) ---------- */}
+        {/* ---------- Telegram — главный вход (первым) ---------- */}
         {TG_BOT && tgHostOk && (
           <div className="nr-au-up mt-5" style={{ animationDelay: "200ms" }}>
             <div
@@ -316,6 +226,12 @@ export default function AuthForm() {
           <p className="nr-au-up mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-center text-[0.66rem] font-bold text-white/45" style={{ animationDelay: "200ms" }}>
             telegram sign-in works on no-reality.fun —
             <br />here use email or google.
+          </p>
+        )}
+        {!TG_BOT && (
+          <p className="nr-au-up mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-center text-[0.66rem] font-bold text-white/45" style={{ animationDelay: "200ms" }}>
+            telegram sign-in is being connected —
+            <br />use email below for now.
           </p>
         )}
 
@@ -348,29 +264,6 @@ export default function AuthForm() {
           />
         </div>
 
-        {/* промокод — сворачиваемый, чтобы не путать тех, кто просто входит */}
-        {!promoOpen ? (
-          <button
-            onClick={() => setPromoOpen(true)}
-            className="nr-au-up nr-au-promo mt-3 text-[0.72rem] font-extrabold uppercase tracking-[0.14em] text-[#a8cfea] transition-colors hover:text-white"
-            style={{ animationDelay: "320ms" }}
-          >
-            ◆ i have a promo code
-          </button>
-        ) : (
-          <div className="nr-au-up mt-3" style={{ animationDelay: "60ms" }}>
-            <label className="sr-only" htmlFor="nr-au-promo">Promo code</label>
-            <input
-              id="nr-au-promo"
-              value={promo}
-              onChange={(e) => setPromo(e.target.value)}
-              placeholder="NR-XXXX-XXXX-XXXX"
-              autoCapitalize="characters"
-              className="nr-au-input nr-au-input-promo font-mono text-sm uppercase tracking-widest placeholder:normal-case placeholder:tracking-normal"
-            />
-          </div>
-        )}
-
         {msg && <p className="nr-au-err mt-3 text-[0.72rem] font-bold">{msg}</p>}
 
         <button
@@ -381,7 +274,7 @@ export default function AuthForm() {
         >
           <span className="relative z-10 inline-flex items-center gap-2">
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-            {busy ? "…" : "enter / redeem"}
+            {busy ? "…" : "enter"}
           </span>
         </button>
 
@@ -394,9 +287,7 @@ export default function AuthForm() {
               <span className="h-px flex-1 bg-white/10" />or<span className="h-px flex-1 bg-white/10" />
             </div>
             <a
-              href={`/api/auth/google/start?next=${encodeURIComponent(next)}${
-                promo.trim() ? `&promo=${encodeURIComponent(promo.trim())}` : ""
-              }`}
+              href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}
               className="nr-au-up nr-au-google mt-3 flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-extrabold"
               style={{ animationDelay: "470ms" }}
             >
@@ -406,7 +297,7 @@ export default function AuthForm() {
           </>
         )}
 
-        {/* v10: сайт открыт — гость может вернуться смотреть */}
+        {/* сайт открыт — гость может вернуться смотреть */}
         <a
           href={next && next !== "/auth" ? next : "/"}
           className="nr-au-up mt-5 flex items-center justify-center gap-1.5 text-[0.68rem] font-bold text-white/35 transition-colors hover:text-white/70"
@@ -427,35 +318,4 @@ export default function AuthForm() {
       </div>
     </div>
   );
-
-  /* повторная попытка с экрана листа ожидания: тот же роут, но
-     отправляем сохранённый email/пароль + новый код */
-  async function redeemAfterWaitlist() {
-    if (busy || !promo.trim()) return;
-    if (!email.trim() || password.length < 8) {
-      setPhase("form");
-      return;
-    }
-    setBusy(true);
-    setMsg("");
-    try {
-      const r = await fetch("/api/auth/password", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, promo: promo.trim() }),
-      });
-      const d = (await r.json()) as { ok?: boolean; status?: string; error?: string };
-      if (r.ok && d.ok && (d.status === "registered" || d.status === "login")) {
-        go(next);
-        return;
-      }
-      setBusy(false);
-      if (d.error === "too_many_requests") setMsg("too many attempts — wait a bit");
-      else if (d.error === "wrong_password") setMsg("wrong password for this email");
-      else setMsg("code didn't work — still on the list");
-    } catch {
-      setBusy(false);
-      setMsg("network blinked — try again");
-    }
-  }
 }
