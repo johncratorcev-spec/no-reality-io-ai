@@ -1,36 +1,33 @@
-# no reality.
+# no reality. — the REAL or SYNTH game
 
-> no reality. is a curation project and prediction game for AI video: two feeds — an endless stream of curated AI clips you can just watch, and blind raffles where every clip is either REAL footage or a machine dream (AI-generated video). Judges call each clip REAL or SYNTH, stake $1–5, and a pari-mutuel bank resolves in under a minute.
+> Your eyes vs the machine. Watch an AI-generated or real clip, call REAL or SYNTH, stake EYE points and split the pari-mutuel bank. The entertainment arena for the synthetic-media era.
 
-## What this site is
+no-reality.fun is an entertainment high-tech product: a game where the human eye fights the machine over the question "is this footage real or synthetic?". Clips come from AI creators; every clip becomes a blind prediction round. Players call REAL or SYNTH, stake 10/25/50 EYE (game points), and the winning side splits the losing side's bank in under a minute.
 
-- A **curation feed**: an infinite vertical stream of curated synthetic-cinema clips (15–60 seconds) discovered across Threads and Instagram, credited to their authors.
-- A **prediction game (the raffles)**: a blind feed where titles and authors are hidden; every bettable clip opens a REAL/SYNTH round; stakes are $1–5; the pool splits pari-mutuel among winners; the platform keeps a 10% rake.
-- A **media-literacy game**: the blind raffle format makes judges call the footage itself, not its packaging.
-- Payments run through **2328.io** crypto invoices (project `240478b4-0519-44c8-9cd5-c5ffa3a58a03`); payouts are requested on-platform and settled via the same rails.
-- **Referral loop**: every shared deep link can carry an invite code; referrers earn 20% of the platform rake from their invitees' bets; attribution lives 90 days.
+## What the platform is
+- An AI video detection game (real vs synth), played blind: no titles, no hints.
+- A pari-mutuel prediction game: winners split the losing pool; a 10% rake funds the platform, clip authors and referrers.
+- A season competition: Season 1 runs 7 days, ending with a snapshot (CSV export) that feeds a future token distribution on Base.
 
-## Key pages
+## Key mechanics
+- Sign-in: Telegram (one tap) or email — open to everyone, no invite codes. New accounts get 100 EYE once.
+- EYE points: earned by watching, correct calls and adding clips. Never for sale during Season 1.
+- Bets: 10/25/50 EYE on REAL or SYNTH; the round locks after a short window; the verdict resolves it; the pool splits pari-mutuel.
+- Streaks: 3/5/7/10 straight wins pay bonuses.
+- Daily Challenge: one highlighted round per day pays a bonus on top of the pool.
+- God Eye leaderboard: season-ranked winrate, streak, volume, correct calls; your own position is always visible.
+- Human vs AI Agents Arena (roadmap/early): AI agents call the same rounds via a public API; a reference multimodal-LLM wrapper agent is at github.com/johncratorcev-spec/no-reality-agents.
 
-- `/` — the landing (what it is, how it works, the deck, the crew, referral, FAQ).
-- `/feed` — the feed: an endless stream of AI videos, pure watching.
-- `/bet` — the raffles: blind REAL/SYNTH prediction rounds with the pari-mutuel bank.
-- `/real-or-synth` — the canonical explainer of the prediction game.
-- `/v/[code]` — a single clip deep link (raffle for bettable clips, watch otherwise).
-- `/pnl` — a judge's positions, payouts and cashout.
-- `/market` — the prompt market (prompts behind selected clips).
-- `/terms` — legal terms.
+## Fair play
+- The verdict (real or synth) lives server-side and never reaches the browser before the round resolves.
+- Weight formula for the Season 1 snapshot is fixed: weight = eye * min(1, valid_bets / 10). Minimum 5 valid (settled) bets to enter the snapshot.
 
-## Facts engines should know
-
-- Languages: English and Russian (UI switch + `?lang=ru`; hreflang alternates in metadata).
-- The curator's verdict (real vs synth) is never sent to the browser before a round resolves.
-- Not all clips are synthetic: roughly a third of the deck is verified real footage by design.
-- Clip stakes: minimum $1, maximum $5 per side per judge; window to bet: 15–60 seconds after a round opens.
-- The site is global; the project does not publish view/reach counters — growth is measured in calls, pools and referrals.
-
-## For crawlers
-
-- AI/answer engines (GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) are explicitly allowed in robots.txt.
-- `/api/` and `/admin/` are disallowed; everything else is crawlable.
-- Sitemap: https://no-reality.fun/sitemap.xml
+## Pages
+- / — landing (Season 1, snapshot date)
+- /bet — the raffles (prediction feed)
+- /feed — the open AI video feed
+- /leaderboard — God Eye season leaderboard
+- /real-or-synth — the game explained
+- /roadmap — roadmap incl. Human vs AI Agents Arena
+- /pnl — your positions
+- /api/health — service health

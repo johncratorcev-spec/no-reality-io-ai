@@ -3,11 +3,10 @@
 import { useLang } from "@/lib/i18n";
 
 /**
- * RoadmapClient (v6) — bilingual карта дорожная внутренней экономики.
- *
- * Содержание привязано к инструкции: (4) мотивация вокруг внутреннего
- * баланса и пасс; (5) токен на Base + конвертация внутренней валюты
- * в реальные деньги + начисление за UTM-переходы.
+ * RoadmapClient (v13) — bilingual роадмап кампании Season 1 +
+ * Human vs AI Agents Arena (публичный репозиторий агентов).
+ * Обновлено под актуальную экономику: EYE-очки, Telegram-вход,
+ * снапшот снапшот-клейм на Base, арена агентов.
  */
 
 type Phase = {
@@ -17,94 +16,100 @@ type Phase = {
   accent: "lime" | "bone" | "blood";
 };
 
+const REPO_URL = "https://github.com/johncratorcev-spec/no-reality-agents";
+
 const CONTENT = {
   en: {
     kicker: "roadmap",
-    title: "virtual coins today. real USDC on Base tomorrow.",
-    sub: "Sign in with Google or nothing at all — 300 coins land on your balance the moment you join. Play on virtual coins now; at token generation every coin converts to its USDC equivalent on Base.",
+    title: "your eyes vs the machine — and the machine is learning.",
+    sub: "Season 1 is live: blind REAL or SYNTH calls on AI video, 10–50 EYE stakes, one season snapshot. Here is where the arena goes next.",
     phases: [
       {
         tag: "now · live",
-        title: "300 coins for everyone + instant accounts",
+        title: "Season 1 — the eye decides",
         accent: "lime" as const,
         items: [
-          "sign in with Google — one tap, no forms — or stay guest: an account and 300 virtual coins appear automatically",
-          "all predictions run on virtual coins — zero risk, pure eye vs machine",
-          "earn coins: daily PASS bonus, targeted clicks, unique visitors on your UTM links, Instagram task (@mmayrday)",
-          "NR PASS (free): link a wallet or Google account → daily bonus, streaks, higher earn caps",
-          "coin multiplier packs: top up and get +10–25% bonus coins on bigger packs",
-          "paid boosts stay strictly crypto — real USDT invoices via 2328.io",
+          "sign in with Telegram in one tap — 100 EYE on the house, once. email works too",
+          "blind REAL or SYNTH rounds on live clips: 10 / 25 / 50 EYE into the pari-mutuel bank",
+          "God Eye leaderboard: winrate, streaks, volume — your rank is always visible",
+          "streaks pay: 3 / 5 / 7 / 10 straight wins stack bonuses",
+          "Daily Challenge: one highlighted round a day pays extra on top of the pool",
+          "day 7, 12:00 UTC — season snapshot. rules frozen from day one",
         ],
       },
       {
         tag: "next",
-        title: "seasons, prizes, creators",
+        title: "Human vs AI Agents Arena",
         accent: "bone" as const,
         items: [
-          "Best Eyes leaderboard seasons with prize pools in coins",
-          "Daily Hard Mode tournaments — small entry, big pool",
-          "creator boosts and featured slots paid from balance",
-          "referral payouts switch from manual USDT to instant coin credit",
+          "AI agents play the same rounds as humans: public API, verdicts sealed until resolve",
+          "first agent is live — a thin multimodal LLM wrapper: drop your API key (OpenAI-compatible / Anthropic / Google) and run",
+          "agent leaderboard: accuracy against resolved rounds, humans vs machines on one board",
+          "open competitions and bracket tournaments with prize pools",
+          "run your own agent against live rounds — train it, break it, resubmit",
         ],
       },
       {
         tag: "base",
-        title: "coins become real USDC on Base",
+        title: "EYE become $NR on Base",
         accent: "blood" as const,
         items: [
           "$NR launches on Base (Coinbase L2) — fast, cheap, onchain",
-          "every virtual coin becomes a REAL USDC EQUIVALENT on Base: 1 coin = 1 USDC at token generation — your play becomes withdrawable money",
-          "$NR ↔ USDC: the internal currency converts 1:1 and becomes real money you can hold, move or cash out",
-          "on-chain leaderboard and on-chain UTM rewards for creators",
+          "the season snapshot feeds a merkle claim: your season weight = eye * min(1, valid_bets / 10)",
+          "claim happens AFTER the snapshot — addresses collected from day 5, no pre-sale, no exceptions",
+          "on-chain leaderboard and on-chain creator rewards",
           "contract address will be published here first — beware of fakes",
         ],
       },
     ],
-    note: "dates move; direction doesn't. the coins you earn today are the USDC you withdraw tomorrow.",
+    repoCta: "build your agent →",
+    note: "dates move; direction doesn't. the snapshot is coming — call it while it counts.",
   },
   ru: {
     kicker: "роадмап",
-    title: "сегодня виртуальные монетки. завтра — реальные USDC на Base.",
-    sub: "Вход по Google в один тап — или вообще без входа: 300 виртуальных монет появляются на балансе сразу после регистрации. Играй на виртуальные монеты сейчас — на генерации токена каждая монета конвертируется в свой USDC-эквивалент на Base.",
+    title: "твои глаза против машины — и машина учится.",
+    sub: "Season 1 в проде: слепые коллы РЕАЛ или СИНТИК на AI-видео, ставки 10–50 EYE, один снапшот сезона. Куда арена идёт дальше — здесь.",
     phases: [
       {
         tag: "сейчас · в проде",
-        title: "300 монет каждому + мгновенные аккаунты",
+        title: "Season 1 — решает глаз",
         accent: "lime" as const,
         items: [
-          "вход по Google — один тап, без форм — или гость: аккаунт и 300 виртуальных монет появляются сами",
-          "все предикты — на виртуальные монеты: ноль риска, чистый глаз против машины",
-          "зарабатывай монеты: ежедневный PASS-бонус, целевые клики, уникальные переходы по твоим UTM-ссылкам, задание Instagram (@mmayrday)",
-          "NR PASS (бесплатно): привяжи кошелёк или Google-аккаунт → дневной бонус, стрики, повышенные капсы",
-          "пакеты с мультипликатором: пополняйся и получай +10–25% бонусных монет на больших пакетах",
-          "платные бусты — строго крипта: реальные USDT-инвойсы через 2328.io",
+          "вход через Telegram в один тап — 100 EYE в подарок, один раз. email тоже работает",
+          "слепые раунды РЕАЛ/СИНТИК на живых клипах: 10 / 25 / 50 EYE в пари-мьютюэль банк",
+          "лидерборд «Глаз бога»: винрейт, серии, объём — твоя позиция видна всегда",
+          "серии платят: 3 / 5 / 7 / 10 побед подряд — бонусы растут",
+          "Daily Challenge: один выделенный раунд дня платит сверху банка",
+          "день 7, 12:00 UTC — снапшот сезона. правила заморожены с первого дня",
         ],
       },
       {
         tag: "дальше",
-        title: "сезоны, призы, авторы",
+        title: "Human vs AI Agents Arena",
         accent: "bone" as const,
         items: [
-          "сезоны Best Eyes leaderboard с призовыми пулами в монетах",
-          "турниры Daily Hard Mode — маленький вход, большой банк",
-          "бусты и фичеред-слоты авторов из баланса",
-          "реферальные выплаты переходят с ручного USDT на мгновенное начисление монетами",
+          "ИИ-агенты играют на тех же раундах, что и люди: публичный API, вердикт запечатан до резолва",
+          "первый агент уже в проде — тонкая обёртка над мультимодальной LLM: вставь свой ключ (OpenAI-compatible / Anthropic / Google) и запусти",
+          "лидерборд агентов: точность по резолвнутым раундам, люди против машин на одной доске",
+          "открытые соревнования и турнирные сетки с призовыми пулами",
+          "запусти своего агента на живых раундах — тренируй, ломай, присылай снова",
         ],
       },
       {
         tag: "base",
-        title: "монетки станут реальными USDC на Base",
+        title: "EYE станут $NR на Base",
         accent: "blood" as const,
         items: [
           "$NR выходит на Base (L2 от Coinbase) — быстро, дёшево, ончейн",
-          "каждая виртуальная монетка станет РЕАЛЬНЫМ USDC-ЭКВИВАЛЕНТОМ на Base: 1 монета = 1 USDC на генерации токена — наигранное превращается в выводимые деньги",
-          "$NR ↔ USDC: внутренняя валюта конвертируется 1:1 и становится настоящими деньгами — можно держать, переводить и выводить",
-          "ончейн-лидерборд и ончейн-награды за UTM для авторов",
+          "снапшот сезона кормит merkle claim: твой вес = eye * min(1, valid_bets / 10)",
+          "claim — ТОЛЬКО после снапшота: адреса собираются с дня 5, без пресейла, без исключений",
+          "ончейн-лидерборд и ончейн-награды авторам",
           "адрес контракта опубликуем здесь первым — остерегайтесь подделок",
         ],
       },
     ],
-    note: "даты двигаются — направление нет. монетки, наигранные сегодня, — это USDC, который ты выведешь завтра.",
+    repoCta: "собери своего агента →",
+    note: "даты двигаются — направление нет. снапшот близко — называй, пока это считается.",
   },
 } as const;
 
@@ -180,6 +185,16 @@ export default function RoadmapClient() {
                   </li>
                 ))}
               </ul>
+              {phase.tag.startsWith("next") || phase.tag.startsWith("дальше") ? (
+                <a
+                  href={REPO_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#c8ff00] px-4 py-2 text-[0.7rem] font-black text-[#0a080d] transition-transform hover:scale-[1.03]"
+                >
+                  {t.repoCta}
+                </a>
+              ) : null}
             </article>
           );
         })}

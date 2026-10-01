@@ -3,36 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import WalletButton from "@/components/wallet/WalletButton";
+import { useLang } from "@/lib/i18n";
 
 /* ================================================================
    Меню сайта — стилизованная кнопка-бургер в стекле.
 
-   Два варианта оформления:
-    - light (по умолчанию): светлое перламутровое стекло —
-      для светлых страниц (market, future, collab…);
-    - dark: кровавое ночное стекло — для лендинга.
-   Внутри — все «новые» разделы проекта (prompt market, collab,
-   in future) + feed и сессия MetaMask. Кнопка морфит «бургер → ✕».
-
-   Один компонент используется на всех страницах (feed, market,
-   landing, collab, future), чтобы навигация была везде одинаковой.
+   v13: разделы приходят из i18n (ru/en полностью), живые разделы
+   кампании: лента, рафлы, глаз бога, что это, позиции, роадмап.
+   Кнопка морфит «бургер → ✕».
    ================================================================ */
-
-const ITEMS = [
-  { href: "/feed", icon: "▸", label: "the feed", desc: "endless AI videos — just watch" },
-  { href: "/bet", icon: "◈", label: "the raffles", desc: "call REAL or SYNTH — split the bank" },
-  { href: "/real-or-synth", icon: "✦", label: "what is this", desc: "the game explained" },
-  { href: "/predict", icon: "❄", label: "predictions", desc: "call the ending — any USDC stake" },
-  { href: "/pnl", icon: "◑", label: "my positions", desc: "bets, payouts, cashout" },
-  { href: "/roadmap", icon: "◆", label: "roadmap", desc: "internal balance → $NR token on Base" },
-  { href: "/boost", icon: "⚡", label: "boost a clip", desc: "featured slot in the raffles" },
-  { href: "/future", icon: "✧", label: "in future", desc: "roadmap — ending predictions" },
-] as const;
 
 export default function Menu({ variant = "light" }: { variant?: "light" | "dark" }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const { t } = useLang();
+  const ITEMS = t.menu.items;
   /* v3: весь сайт тёмный (VHS-zine) — тёмный вариант всегда.
      Проп light оставлен для совместимости вызовов. */
   const dark = true;
@@ -92,7 +78,7 @@ export default function Menu({ variant = "light" }: { variant?: "light" | "dark"
             dark ? "text-white/80 group-hover:text-white" : "text-[#10161d]/70 group-hover:text-[#0a0a0a]"
           }`}
         >
-          {open ? "close" : "menu"}
+          {open ? t.menu.close : t.menu.open}
         </span>
       </button>
 
@@ -110,7 +96,7 @@ export default function Menu({ variant = "light" }: { variant?: "light" | "dark"
               dark ? "text-white/40" : "text-[#10161d]/40"
             }`}
           >
-            explore
+            {t.menu.explore}
           </p>
 
           {ITEMS.map((it) => (
@@ -179,7 +165,7 @@ export default function Menu({ variant = "light" }: { variant?: "light" | "dark"
                 dark ? "text-white/40" : "text-[#10161d]/40"
               }`}
             >
-              account
+              {t.menu.account}
             </p>
             <WalletButton />
           </div>

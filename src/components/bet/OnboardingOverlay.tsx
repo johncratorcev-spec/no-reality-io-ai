@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Wallet, Eye, Coins, Timer, X } from "lucide-react";
 import { track } from "@/lib/bet/trackClient";
+import { useLang, type Dict } from "@/lib/i18n";
 
 /**
  * Onboarding предикшен-ленты (v5): короткий overlay при первом заходе
@@ -12,31 +13,18 @@ import { track } from "@/lib/bet/trackClient";
 
 const KEY = "nr-onboarded";
 
-const STEPS = [
-  {
-    icon: Eye,
-    t: "смотри клип",
-    d: "кадр без подписей и лайков — только сам шов между живым и машинным",
-  },
-  {
-    icon: Coins,
-    t: "жми REAL или SYNTH",
-    d: "твой вердикт, сумма 10–50 EYE — ставка падает в общий банк",
-  },
-  {
-    icon: Wallet,
-    t: "войди — дадим монеты",
-    d: "100 EYE за аккаунт, daily-бонус PASS — ставки идут с внутреннего баланса",
-  },
-  {
-    icon: Timer,
-    t: "банк делится за минуту",
-    d: "куратор вскрывает правду — победившая сторона делит весь пул",
-  },
-] as const;
+/* v13: тексты шагов из i18n (были жёстко на RU) */
 
 export default function OnboardingOverlay() {
   const [step, setStep] = useState<number | null>(null);
+  const { t } = useLang();
+
+  const STEPS: { icon: typeof Eye; t: string; d: string }[] = [
+    { icon: Eye, t: t.onb.s1t, d: t.onb.s1d },
+    { icon: Coins, t: t.onb.s2t, d: t.onb.s2d },
+    { icon: Wallet, t: t.onb.s3t, d: t.onb.s3d },
+    { icon: Timer, t: t.onb.s4t, d: t.onb.s4d },
+  ];
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
@@ -97,7 +85,7 @@ export default function OnboardingOverlay() {
             className="text-[0.6rem] font-black uppercase tracking-[0.3em]"
             style={{ color: "rgba(242,237,228,.45)" }}
           >
-            how it works · {step + 1}/{STEPS.length}
+            {t.onb.kicker} · {step + 1}/{STEPS.length}
           </p>
           <button
             onClick={() => close("skip")}
@@ -149,14 +137,14 @@ export default function OnboardingOverlay() {
           className="nb-btn mt-5 w-full rounded-full py-3.5 text-[0.85rem] font-black"
           style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
         >
-          {last ? "начать угадывать" : "дальше"}
+          {last ? t.onb.start : t.onb.next}
         </button>
         <button
           onClick={() => close("skip")}
           className="mt-2 w-full text-[0.68rem] font-bold"
           style={{ color: "rgba(242,237,228,.4)" }}
         >
-          пропустить
+          {t.onb.skip}
         </button>
       </div>
     </div>

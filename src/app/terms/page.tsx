@@ -4,7 +4,7 @@ import LegalShell from "@/components/legal/LegalShell";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "The rules for using no reality.: a curated feed of AI video and REAL or SYNTH prediction raffles played with an internal balance. We distribute — creators own.",
+    "The rules for using no reality.: an AI video arena and REAL or SYNTH prediction rounds played with an internal points balance. We distribute — creators own.",
   alternates: { canonical: "/terms" },
 };
 
@@ -39,7 +39,7 @@ export default function TermsPage() {
           heading: "Internal Balance, Raffles and Payouts",
           body: [
             "Raffles are played with the Platform’s internal balance — a prepaid, non-interest-bearing accounting unit used inside the Platform. Your balance is recorded in a tamper-evident transaction ledger; only balances confirmed by our payment provider’s signed webhook are credited.",
-            "A stake is deducted from your balance the moment it enters the raffle pool and is not refundable while the round is open. When a round resolves, the prize pool is split pari-mutuel among the winning side pro-rata to stakes, minus the rake disclosed in the interface. Raffle outcomes are decided by the curator’s verdict on the underlying footage.",
+            "A stake is deducted from your balance the moment it enters the raffle pool and is not refundable while the round is open. When a round resolves, the prize pool is split pari-mutuel among the winning side pro-rata to stakes, minus the rake disclosed in the interface. Raffle outcomes are decided by the platform verdict on the underlying footage.",
             "Internal balance is not legal tender and currently has no off-platform value. Our roadmap describes a future token on Base with conversion of internal balance — any such conversion, and any withdrawal of real funds, will additionally require identity verification and will only ever be executed to a wallet you control. Balances obtained through abuse, automation or fraud may be voided.",
           ],
         },

@@ -42,7 +42,14 @@ export async function generateMetadata({
         : "real or synth? call it and win the pool.",
       url: `/v/${post.utmCode}`,
       type: "article",
-      images: ["/images/og-vhs.png"],
+      /* v13: динамическая OG-картинка раунда (1200×630) */
+      images: [
+        {
+          url: `/api/og/round/${post.utmCode}`,
+          width: 1200,
+          height: 630,
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",

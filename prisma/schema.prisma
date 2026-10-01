@@ -45,10 +45,47 @@ model PageVisit {
 }
 
 // Аггрегированный счётчик уникальных кликов = рейтинг видео.
+// v13: featuredUntil — флаг «Featured» из BD-панели (поднятие в ленте
+// и бейдж); хранится здесь, а не в CSV, чтобы ставить из админки без
+// коммита в GitHub.
 model PostStats {
-  utmCode   String   @id
-  score     Int      @default(0)
+  utmCode      String    @id
+  score        Int       @default(0)
+  featuredUntil DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+// v13 — Daily Challenge: один выделенный раунд дня с повышенным банком
+// (победителям раунда сверху начисляется бонус — см. ECON.dailyChallengeBonus).
+// day — UTC-дата «YYYY-MM-DD», уникальна → один челлендж на день.
+model DailyChallenge {
+  day      String   @id // YYYY-MM-DD (UTC)
+  clipCode String // utm_code клипа из posts.csv
+  label    String   @default("") // опциональная подпись BD (для UI)
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([clipCode])
+}
+
+// v13 — Human vs AI Agents Arena: предсказания ИИ-агентов по открытым
+// раундам. Агент авторизуется ARENA key (x-agent-key), имя — самообъявленное
+// (агрегация статистики по нему). truth НЕ хранится и не утекает —
+// вердикт виден только после резолва раунда.
+model ArenaPrediction {
+  id        String   @id @default(uuid())
+  roundId   String
+  clipCode  String
+  agentName String // самообъявленное имя агента (санитизировано)
+  call      String // real | synth
+  reasoning String   @default("") // короткое обоснование от LLM
+  correct   Boolean? // заполняется при резолве раунда (best-effort)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([roundId, agentName])
+  @@index([agentName])
+  @@index([clipCode])
 }
 
 // Реферальный профиль: кошелёк MetaMask → его пригласительный код.
@@ -437,6 +474,7 @@ model Round {
   poolRealCents   Int       @default(0) // активные ставки на REAL, центы
   poolSynthCents  Int       @default(0) // активные ставки на SYNTH, центы
   status          String    @default("open") // open | locked | resolved
+  challenge       Boolean   @default(false) // v13: Daily Challenge раунда дня
   resolvedAs      String? // real | synth
   rakeCents       Int? // рейк платформы (RAKE_PCT от общего пула)
   authorShareCents Int? // доля автора клипа (AUTHOR_SHARE_OF_RAKE × рейк)

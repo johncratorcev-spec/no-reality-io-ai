@@ -45,6 +45,8 @@ export type TrackName =
   | "watch_reward"
   | "guess_reward"
   | "video_reward"
+  | "streak_bonus"
+  | "daily_challenge_bonus"
   | "deposit_bonus_paid"
   | "reward_click"
   | "utm_reward"
@@ -85,6 +87,8 @@ const NAMES = new Set<string>([
   "watch_reward",
   "guess_reward",
   "video_reward",
+  "streak_bonus",
+  "daily_challenge_bonus",
   "reward_click",
   "utm_reward",
   "onboarding_done",

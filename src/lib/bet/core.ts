@@ -2,8 +2,10 @@ import { db } from "@/lib/db";
 import { getPostByCode } from "@/lib/csv";
 import { BET, betDemoEnabled } from "./config";
 import { trackEvent } from "./events";
-import { applyLedger, ECON } from "@/lib/account";
+import { applyLedger, ECON, streakBonusFor } from "@/lib/account";
 import { is2328PaymentConfigured, create2328Payment } from "@/lib/2328/payment";
+import { winStreakOf } from "./stats";
+import { ensureActiveSeason } from "@/lib/season";
 
 /**
  * Ядро ставок REAL/SYNTH (ТЗ v2 §4.1–4.3). Пари-мьютюэль:
@@ -67,12 +69,21 @@ export async function ensureOpenRound(clipCode: string) {
   });
   if (live) return live;
 
+  /* v13: Daily Challenge — новый раунд клипа дня рождается с флагом
+     challenge (бейдж в панели + бонус победителям при резолве) */
+  const today = now.toISOString().slice(0, 10);
+  const isDaily = await db.dailyChallenge
+    .findUnique({ where: { day: today }, select: { clipCode: true } })
+    .then((d) => d?.clipCode === clipCode)
+    .catch(() => false);
+
   return db.round.create({
     data: {
       clipCode,
       opensAt: now,
       closesAt: new Date(now.getTime() + BET.windowSec * 1000),
       status: "open",
+      challenge: isDaily,
     },
   });
 }
@@ -95,6 +106,8 @@ export interface RoundView {
   poolRealCents: number;
   poolSynthCents: number;
   poolTotalCents: number;
+  /** v13: Daily Challenge раунда дня — бейдж + бонус победителям */
+  challenge?: boolean;
   myBet: RoundBetView | null;
   /** только после резолва — до этого truth не покидает сервер */
   resolvedAs?: BetSide;
@@ -113,6 +126,7 @@ export function roundView(
     closesAt: Date;
     poolRealCents: number;
     poolSynthCents: number;
+    challenge?: boolean;
     resolvedAs: string | null;
     rakeCents: number | null;
   },
@@ -135,6 +149,7 @@ export function roundView(
     poolRealCents: round.poolRealCents,
     poolSynthCents: round.poolSynthCents,
     poolTotalCents: round.poolRealCents + round.poolSynthCents,
+    challenge: round.challenge ?? false,
     myBet: myBet
       ? {
           side: myBet.side as BetSide,
@@ -614,6 +629,10 @@ export async function resolveRound(
   const prize = total - rake;
   const winPool = truth === "real" ? round.poolRealCents : round.poolSynthCents;
 
+  /* v13: активный сезон один раз на резолв — ключ идемпотентности бонусов серий */
+  const season = await ensureActiveSeason().catch(() => null);
+  const seasonCode = season?.code ?? "s";
+
   let paid = 0;
   const refRake = new Map<string, number>();
   const refCut = new Map<string, number>();
@@ -673,6 +692,60 @@ export async function resolveRound(
           visitorHash: b.fingerprint,
           meta: { betId: b.id, cents: ECON.guessRewardCents },
         });
+      }
+    }
+
+    /* v13: Daily Challenge — победителям выделенного раунда дня бонус
+       СВЕРХ пула (идемпотентно по dcb:<betId>) */
+    if (won && round.challenge && ECON.dailyChallengeBonusCents > 0 && b.accountId) {
+      const dcb = await applyLedger(
+        b.accountId,
+        ECON.dailyChallengeBonusCents,
+        "daily_challenge_bonus",
+        `dcb:${b.id}`,
+        { betId: b.id, roundId: round.id, clip: round.clipCode }
+      );
+      if (dcb) {
+        moneyLog("daily_challenge_bonus", {
+          betId: b.id,
+          accountId: b.accountId,
+          cents: ECON.dailyChallengeBonusCents,
+        });
+        void trackEvent("daily_challenge_bonus", {
+          clipCode: round.clipCode,
+          visitorHash: b.fingerprint,
+          meta: { betId: b.id, cents: ECON.dailyChallengeBonusCents },
+        });
+      }
+    }
+
+    /* v13: вехи серии верных коллов (3/5/7/10) — бонус раз за сезон
+       на веху (refKey streak:<n>:<season>:<acc>). Серия считается
+       ПОСЛЕ записи исхода этой ставки — winStreakOf уже включает её. */
+    if (won && b.accountId) {
+      const streak = await winStreakOf(b.accountId).catch(() => 0);
+      const bonus = streakBonusFor(streak);
+      if (bonus > 0 && season) {
+        const sb = await applyLedger(
+          b.accountId,
+          bonus,
+          "streak_bonus",
+          `streak:${streak}:${seasonCode}:${b.accountId}`,
+          { betId: b.id, roundId: round.id, streak }
+        );
+        if (sb) {
+          moneyLog("streak_bonus", {
+            betId: b.id,
+            accountId: b.accountId,
+            streak,
+            cents: bonus,
+          });
+          void trackEvent("streak_bonus", {
+            clipCode: round.clipCode,
+            visitorHash: b.fingerprint,
+            meta: { betId: b.id, streak, cents: bonus },
+          });
+        }
       }
     }
 

@@ -34,6 +34,12 @@ export const GUESS_REWARD_CENTS = 10;
 /** награда за добавление видео в ленту (куратору панели) */
 export const VIDEO_REWARD_CENTS = 100;
 
+/** v13 — Daily Challenge: бонус победителям выделенного раунда дня (сверху пула) */
+export const DAILY_CHALLENGE_BONUS_CENTS = 25;
+
+/** v13 — бонусы за серию верных коллов (зеркало STREAK_MILESTONES) */
+export const STREAK_BONUS_CENTS: Record<number, number> = { 3: 25, 5: 50, 7: 100, 10: 250 };
+
 /** формат баланса в МОНЕТАХ: 237 → "237", 1250 → "1250" */
 export function fmtCoins(cents: number): string {
   return String(Math.round(cents));

@@ -72,7 +72,29 @@ export const ECON = {
   depositDemoDailyCapCents: Math.round(num("DEPOSIT_DEMO_DAILY_CAP", 1000, 100, 100000)),
   /** минимальный интервал между наградами за клики одного аккаунта, мс */
   clickMinIntervalMs: Math.round(num("CLICK_MIN_INTERVAL_MS", 2000, 0, 60000)),
+  /**
+   * v13 — Daily Challenge: победителям выделенного раунда дня бонус
+   * СВЕРХ пари-мьютюэль выплаты (refKey dcb:<betId>, идемпотентно).
+   */
+  dailyChallengeBonusCents: Math.round(num("DAILY_CHALLENGE_BONUS_CENTS", 25, 0, 10000)),
 } as const;
+
+/**
+ * v13 — бонусы за серию верных коллов (win streak): ровно при достижении
+ * серии 3/5/7/10 начисляется бонус (refKey streak:<n>:<season>:<acc> —
+ * один раз за сезон на каждую веху; ре-достижение после проигрыша
+ * повторно не платит — анти-фарм).
+ */
+export const STREAK_MILESTONES: Record<number, number> = {
+  3: Math.round(num("STREAK_BONUS_3", 25, 0, 100000)),
+  5: Math.round(num("STREAK_BONUS_5", 50, 0, 100000)),
+  7: Math.round(num("STREAK_BONUS_7", 100, 0, 100000)),
+  10: Math.round(num("STREAK_BONUS_10", 250, 0, 1000000)),
+};
+
+export function streakBonusFor(streak: number): number {
+  return STREAK_MILESTONES[streak] ?? 0;
+}
 
 /** "0,10,25" → [0,10,25]; выравнивание по числу пресетов депозитов (3) */
 function parseBonusPcts(raw: string | undefined): number[] {
@@ -95,6 +117,8 @@ export type LedgerKind =
   | "watch_reward" // v8: монеты за каждые N уникальных просмотров
   | "guess_reward" // v8: бонус за верное предсказание (won-ставка)
   | "video_reward" // v8: бонус куратору за добавление видео в ленту
+  | "streak_bonus" // v13: бонус за веху серии верных коллов (3/5/7/10)
+  | "daily_challenge_bonus" // v13: бонус победителям Daily Challenge раунда
   | "bet_stake"
   | "bet_payout"
   | "deposit"

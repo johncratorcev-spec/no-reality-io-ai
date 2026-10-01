@@ -20,7 +20,8 @@ import { NextRequest } from "next/server";
  */
 
 export const ADMIN_COOKIE = "nr_admin";
-export const ADMIN_TTL_SEC = 12 * 60 * 60; // 12 часов
+/** v13: короткая сессия BD-панели (было 12ч) — 2 часа, потом снова код. */
+export const ADMIN_TTL_SEC = 2 * 60 * 60;
 
 const SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_SECRET || "";

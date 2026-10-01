@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "the feed — an endless stream of AI videos",
   description:
-    "An infinite vertical feed of synthetic cinema: machine dreams and terrifyingly real footage from Threads and Instagram, curated by a roost of crows. No account, no paywall — just watch.",
+    "An infinite vertical feed of synthetic cinema: machine dreams and terrifyingly real footage. No account, no paywall — just watch.",
   alternates: {
     canonical: "/feed",
     languages: { en: "/feed", ru: "/feed?lang=ru", "x-default": "/feed" },
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "the feed — watch what shouldn’t exist",
     description:
-      "An endless stream of curated AI video. When you’re ready to test your eye — the raffles are one tap away.",
+      "An endless stream of machine dreams and real footage. When you’re ready to test your eye — the raffles are one tap away.",
     url: "/feed",
     type: "website",
     images: ["/images/og-vhs.png"],
@@ -38,7 +38,7 @@ export default async function FeedPage() {
     name: "the feed — no reality.",
     url: `${SITE.url}/feed`,
     description:
-      "An endless curated stream of AI-generated and real video clips; viewers can switch to the raffle feed to call each clip REAL or SYNTH.",
+      "An endless stream of AI-generated and real video clips; viewers can switch to the raffle feed to call each clip REAL or SYNTH.",
     inLanguage: ["en", "ru"],
     mainEntity: {
       "@type": "ItemList",

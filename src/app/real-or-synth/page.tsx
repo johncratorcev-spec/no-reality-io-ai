@@ -16,7 +16,7 @@ import { SITE } from "@/lib/site";
 export const metadata: Metadata = {
   title: "REAL or SYNTH — the AI content prediction game",
   description:
-    "How no reality. works: two feeds — an endless stream of curated AI video, and blind raffles where you call REAL or SYNTH, stake 10–50 EYE and split the pari-mutuel bank in under a minute. Plus a 20% referral rake share.",
+    "How no reality. works: an AI video arena where every clip is either real footage or a machine dream. Call REAL or SYNTH, stake 10–50 EYE and split the pari-mutuel bank in under a minute. Your eyes vs the machine — plus a 20% referral rake share.",
   alternates: {
     canonical: "/real-or-synth",
     languages: {
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 const GLOSSARY = [
   {
     term: "REAL",
-    en: "Footage captured by a camera that was physically there. Curator-verified before a clip becomes bettable.",
+    en: "Footage captured by a camera that was physically there. Every REAL call is settled server-side after the round closes.",
     ru: "Кадр, снятый камерой, которая физически там была. Проверяется куратором до того, как клип станет ставочным.",
   },
   {
@@ -63,7 +63,7 @@ const GLOSSARY = [
   },
   {
     term: "rake",
-    en: "The platform's 10% cut of the pool. Part of it funds the curator, part flows to referrers who brought the eyes.",
+    en: "The platform's 10% cut of the pool. Part of it funds the arena and clip authors, part flows to referrers who brought the eyes.",
     ru: "10% платформы с пула. Часть идёт куратору, часть — тем, кто привёл глаза по рефссылкам.",
   },
 ];
@@ -129,7 +129,7 @@ export default function RealOrSynthPage() {
             <span className="nrld-blood-text">SYNTH?</span>
           </h1>
           <p className="mt-6 text-lg font-semibold leading-relaxed text-white/75">
-            no reality. runs two feeds. The first is an endless stream of curated AI
+            no reality. runs one arena. The feed is an endless stream of AI
             video — pure watching. The second is the court: every clip is either filmed
             by a camera or dreamed by a model, and you call it{" "}
             <b className="text-white">REAL</b> or <b className="text-[#FF003C]">SYNTH</b>,
@@ -173,7 +173,7 @@ export default function RealOrSynthPage() {
               {[
                 ["watch", "Scroll the feed — an endless stream of machine dreams and real footage, one clip at a time. No account, no paywall."],
                 ["call", "Switch to the raffles: the clip loses its title and author. REAL or SYNTH — pick the side you trust and stake 10–50 EYE. The round locks after a short window; no takebacks, no peeking."],
-                ["resolve", "The curator’s verdict settles the round. Winners split the pool pari-mutuel; the platform keeps a 10% rake; referrers keep 20% of it."],
+                ["resolve", "The verdict settles the round. Winners split the pool pari-mutuel; the platform keeps a 10% rake; referrers keep 20% of it."],
               ].map(([t, d], i) => (
                 <li key={t} className="nrld-panel flex gap-4 rounded-3xl p-5">
                   <span

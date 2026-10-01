@@ -309,7 +309,11 @@ async function run() {
   console.log("\n=== E. Страницы ===");
   const home = await fetch(`${BASE}/`);
   const homeHtml = await home.text();
-  ok("20 / → 200, Season 1 live", home.status === 200 && homeHtml.includes("Season 1 live"));
+  ok(
+    "20 / → 200, Season 1 live",
+    /* v13: лендинг i18n-ный — пилл в нижнем регистре «season 1 live» */
+    home.status === 200 && homeHtml.toLowerCase().includes("season 1 live")
+  );
   ok("20b кнопка call it", homeHtml.includes("call it"));
   const seam = await A("GET", "/seam");
   ok("21 /seam → redirect /bet", (seam.status === 307 || seam.status === 308) && seam.location === "/bet", `status=${seam.status}`);
@@ -326,8 +330,10 @@ async function run() {
     expectedEnd.setUTCHours(12, 0, 0, 0);
   }
   ok(
-    "23 окно сезона [00:00 UTC сегодня, T+7 12:00 UTC]",
-    startsAt?.getTime() === today00.getTime() && endsAt?.getTime() === expectedEnd?.getTime(),
+    "23 окно сезона [старт ≤ 00:00 UTC сегодня, конец = старт+7д 12:00 UTC]",
+    /* v13: сезон живёт несколько дней — старт уже не «сегодня»; важно
+       что конец = старт + 7 дней в 12:00 UTC (формула не сломана) */
+    startsAt && startsAt.getTime() <= today00.getTime() && endsAt?.getTime() === expectedEnd?.getTime(),
     `${startsAt?.toISOString()} → ${endsAt?.toISOString()}`
   );
 

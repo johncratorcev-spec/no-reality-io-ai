@@ -5,6 +5,7 @@ import { Flame, Trophy, Users } from "lucide-react";
 import ClipCard, { type ClipMode } from "./ClipCard";
 import OnboardingOverlay from "@/components/bet/OnboardingOverlay";
 import LeaderboardPanel from "@/components/bet/LeaderboardPanel";
+import { useLang } from "@/lib/i18n";
 import type { ClientRankedPost } from "@/lib/posts";
 import { track } from "@/lib/bet/trackClient";
 
@@ -36,6 +37,7 @@ const MOODS: Array<{ key: MoodFilter; label: string; color: string }> = [
  * Обычная лента (watch) осталась нетронутой.
  */
 export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
+  const { t } = useLang();
   const containerRef = useRef<HTMLDivElement>(null);
   const isBet = mode === "bet";
 
@@ -298,12 +300,14 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
         <div className="flex h-full items-center justify-center px-6">
           <div className="max-w-sm rounded-3xl border border-white/10 bg-[rgba(16,13,22,0.8)] px-8 py-10 text-center backdrop-blur-md">
             <p className="text-lg font-extrabold tracking-tight text-white">
-              {isBet && mood !== "all" ? `mood «${mood}» пуст` : "the feed is empty"}
+              {isBet && mood !== "all"
+                ? t.feed.moodEmpty.replace("{m}", mood)
+                : t.feed.empty}
             </p>
             <p className="mt-2 text-sm font-semibold text-white/55">
               {isBet && mood !== "all"
-                ? "попробуй другое настроение — клипы размечаются куратором"
-                : "add clips to /data/posts.csv — they will appear here"}
+                ? t.feed.moodEmptyHint
+                : t.feed.emptyHint}
             </p>
           </div>
         </div>

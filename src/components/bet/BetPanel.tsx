@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Coins, Gift, Lock, Share2 } from "lucide-react";
+import { Coins, Gift, Lock } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
-import { fmtBalance } from "@/lib/econ";
+import { fmtBalance, DAILY_CHALLENGE_BONUS_CENTS } from "@/lib/econ";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
 import { useAccount, type AccountView } from "@/hooks/use-account";
@@ -12,6 +12,7 @@ import PredictModal from "./PredictModal";
 import AuthGateOverlay from "./AuthGateOverlay";
 import { useLang } from "@/lib/i18n";
 import ShareSeam from "./ShareSeam";
+import ShareRow, { buildShareText } from "./ShareRow";
 
 /**
  * BetPanel v5 — панель предикшен-ленты (REAL / SYNTH + банк + таймер).
@@ -71,7 +72,7 @@ function crashFrame(clip: string, kind: "nb-crush" | "nb-glitch") {
 }
 
 export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPanelProps) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { account, authed, refresh: refreshAccount, setAccount, claimDaily } = useAccount();
 
   const [round, setRound] = useState<RoundView | null>(null);
@@ -91,7 +92,6 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
   const [wasActive, setWasActive] = useState(false);
   const [showTear, setShowTear] = useState(false);
   const [resultPop, setResultPop] = useState(0);
-  const [shared, setShared] = useState(false);
   /* v10: auth-гейт для гостей + спарклайн банка для инфографики */
   const [authGate, setAuthGate] = useState<Side | null>(null);
   const [spark, setSpark] = useState<number[]>([]);
@@ -317,27 +317,25 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     })();
   };
 
-  /* ---- Result / Share Card (v5): вердикт + сумма + deep link ---- */
-  const shareResult = useCallback(async () => {
-    const won = round?.myResult === "won";
-    const asReal = round?.resolvedAs === "real";
-    const url = withRef(`${window.location.origin}/v/${clipRef.current}`);
-    const text = won
-      ? `I called it: ${asReal ? "REAL" : "SYNTH"} · the bank paid me ${fmtUsd(round?.myPayoutCents ?? 0)} — check your eye:`
-      : `my bet missed: it was ${asReal ? "REAL" : "SYNTH"}. call it better than me:`;
-    track("share_result", clipRef.current, { won, as: round?.resolvedAs });
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "no reality.", text, url });
-      } else {
-        await navigator.clipboard.writeText(`${text} ${url}`);
-      }
-      setShared(true);
-      setTimeout(() => setShared(false), 1800);
-    } catch {
-      /* отмена — не беда */
-    }
-  }, [round?.myResult, round?.resolvedAs, round?.myPayoutCents]);
+  /* ---- Result / Share Card (v5→v13): вердикт + сумма + 6 целей шеринга ---- */
+  const shareUrl =
+    typeof window === "undefined"
+      ? ""
+      : withRef(`${window.location.origin}/v/${clipRef.current}`);
+  const shareText = buildShareText(
+    lang,
+    round?.myResult === "won",
+    round?.resolvedAs === "real",
+    Math.round(
+      (round?.myResult === "won" ? round?.myPayoutCents ?? 0 : round?.myBet?.amountCents ?? 0)
+    )
+  );
+  const trackShare = (target: string) =>
+    track("share_result", clipRef.current, {
+      won: round?.myResult === "won",
+      as: round?.resolvedAs,
+      target,
+    });
 
   if (!isActive && !showTear) return null;
 
@@ -470,6 +468,11 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                   {t.bet.streak}{streak}
                 </p>
               )}
+              {round?.challenge && !result.mine && (
+                <p className="mt-3 inline-flex items-center rounded-full border border-[rgba(255,184,0,0.4)] bg-[rgba(255,184,0,0.08)] px-3 py-1 text-[0.66rem] font-black tracking-[0.1em] text-[#ffb800]">
+                  {t.daily.badge} · +{DAILY_CHALLENGE_BONUS_CENTS} EYE
+                </p>
+              )}
             </div>
 
             {/* молния discharge — только победа */}
@@ -499,7 +502,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
               </svg>
             )}
 
-            {/* CTA (v5): следующий + поделиться результатом + ещё шов */}
+            {/* CTA (v13): следующий + 6 целей шеринга + ещё шов */}
             <div className="flex w-full flex-col items-stretch gap-2">
               {onNext && (
                 <button
@@ -510,21 +513,17 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                   {t.bet.next}
                 </button>
               )}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => void shareResult()}
-                  className="nb-btn nb-btn-real inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-[0.74rem] font-bold"
-                >
-                  <Share2 className="h-3.5 w-3.5" />
-                  {shared ? t.bet.copied : t.bet.shareResult}
-                </button>
-                <button
-                  onClick={again}
-                  className="nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.74rem] font-bold"
-                >
-                  {t.bet.moreSeams}
-                </button>
-              </div>
+              <ShareRow
+                url={shareUrl}
+                text={shareText}
+                onTrack={(target) => trackShare(target)}
+              />
+              <button
+                onClick={again}
+                className="nb-btn nb-btn-real w-full rounded-full px-4 py-2.5 text-[0.74rem] font-bold"
+              >
+                {t.bet.moreSeams}
+              </button>
               <div className="flex items-center justify-center gap-3">
                 <ShareSeam mode="invite" className="nb-btn nb-btn-real rounded-full px-4 py-2 text-[0.68rem] font-bold" />
                 <a
@@ -597,6 +596,14 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                     {round.status === "open" && <span aria-hidden className="nb-live-dot" />}
                     {round.status === "open" ? t.bet.bankLive : round.status === "locked" ? t.bet.bankFrozen : "resolved"}
                   </span>
+                  {round.challenge && (
+                    <span
+                      className="ml-1 inline-flex items-center rounded-full border border-[rgba(255,184,0,0.45)] bg-[rgba(255,184,0,0.1)] px-2 py-0.5 text-[0.52rem] font-black uppercase tracking-[0.12em] text-[#ffb800]"
+                      title={t.daily.bonus.replace("{N}", String(DAILY_CHALLENGE_BONUS_CENTS))}
+                    >
+                      ★ {t.daily.badge} +{DAILY_CHALLENGE_BONUS_CENTS}
+                    </span>
+                  )}
                   {streak >= 2 && (
                     <span
                       className="ml-auto text-[0.62rem] font-black tracking-[0.14em]"

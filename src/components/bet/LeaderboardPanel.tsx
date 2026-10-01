@@ -1,42 +1,44 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Eye, Trophy, X } from "lucide-react";
 import { fmtUsd } from "@/lib/bet/config";
+import { useLang } from "@/lib/i18n";
 
 /**
- * Best Eyes Leaderboard (v5): недельный топ точности, привязка к кошельку.
- * Лёгкая панель поверх предикшен-ленты: грузится только по открытию.
+ * God Eye Leaderboard (v13): сезонный топ точности по аккаунтам
+ * (было: недельный топ по legacy-кошелькам). Источник — публичный
+ * GET /api/leaderboard. Своя позиция видна всегда. Полная страница —
+ * /leaderboard.
  */
 
 interface EyeRow {
   rank: number;
-  wallet: string;
+  accountId: string;
+  name: string | null;
+  handle: string | null;
   bets: number;
-  wins: number;
-  accuracy: number;
+  correct: number;
+  winrate: number;
   netCents: number;
+  streak: number;
 }
 
 interface LBData {
-  rows: EyeRow[];
-  mine: (EyeRow & { qualified: boolean }) | null;
-  minBets: number;
-}
-
-function short(w: string): string {
-  if (w.startsWith("0x")) return `${w.slice(0, 6)}…${w.slice(-4)}`;
-  return `${w.slice(0, 4)}…${w.slice(-4)}`;
+  top?: EyeRow[];
+  me?: EyeRow | null;
 }
 
 export default function LeaderboardPanel({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<LBData | null>(null);
   const [error, setError] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { t } = useLang();
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch("/api/bet/leaderboard", { cache: "no-store" });
+      const r = await fetch("/api/leaderboard?limit=10", { cache: "no-store" });
       if (!r.ok) throw new Error("failed");
       setData((await r.json()) as LBData);
     } catch {
@@ -50,6 +52,13 @@ export default function LeaderboardPanel({ onClose }: { onClose: () => void }) {
       if (timer.current) clearTimeout(timer.current);
     };
   }, [load]);
+
+  const rows = data?.top ?? [];
+  const me = data?.me ?? null;
+  const meInTop = me ? rows.some((r) => r.accountId === me.accountId) : false;
+
+  const nameOf = (r: EyeRow) =>
+    r.name || r.handle || `eye #${r.rank}`;
 
   return (
     <div
@@ -72,10 +81,10 @@ export default function LeaderboardPanel({ onClose }: { onClose: () => void }) {
             </span>
             <div>
               <p className="text-[0.95rem] font-black leading-tight" style={{ color: "var(--nb-bone)" }}>
-                best eyes
+                {t.lb.title}
               </p>
               <p className="text-[0.6rem] font-bold uppercase tracking-[0.2em]" style={{ color: "rgba(242,237,228,.45)" }}>
-                week · accuracy
+                {t.lb.kicker} · winrate
               </p>
             </div>
           </div>
@@ -90,7 +99,7 @@ export default function LeaderboardPanel({ onClose }: { onClose: () => void }) {
 
         {error && (
           <p className="mt-5 text-center text-[0.78rem] font-bold" style={{ color: "var(--nb-blood)" }}>
-            таблица не открылась — попробуй ещё раз
+            {t.bet.networkDown}
           </p>
         )}
 
@@ -106,25 +115,50 @@ export default function LeaderboardPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {data && data.rows.length === 0 && (
+        {data && rows.length === 0 && (
           <div className="mt-6 flex flex-col items-center gap-2 py-4 text-center">
             <Eye className="h-7 w-7" style={{ color: "rgba(242,237,228,.4)" }} aria-hidden />
             <p className="text-[0.85rem] font-extrabold" style={{ color: "var(--nb-bone)" }}>
-              глаз недели ещё не определён
+              {t.lb.empty}
             </p>
             <p className="max-w-xs text-[0.72rem] font-semibold leading-relaxed" style={{ color: "rgba(242,237,228,.55)" }}>
-              подключи кошелёк и ставь: {data.minBets}+ резолвленных ставок за 7 дней — и ты в таблице
+              {t.lb.minBets}
             </p>
           </div>
         )}
 
-        {data && data.rows.length > 0 && (
+        {me && !meInTop && rows.length > 0 && (
+          <ol className="mt-4">
+            <li
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+              style={{
+                background: "rgba(200,255,0,.1)",
+                border: "1px solid rgba(200,255,0,.35)",
+              }}
+            >
+              <span className="w-7 shrink-0 text-center text-[0.85rem] font-black" style={{ color: "var(--nb-poison)" }}>
+                {me.rank}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[0.78rem] font-extrabold" style={{ color: "var(--nb-poison)" }}>
+                {nameOf(me)}
+              </span>
+              <span className="shrink-0 text-[0.66rem] font-bold" style={{ color: "rgba(242,237,228,.45)" }}>
+                {me.correct}/{me.bets}
+              </span>
+              <span className="w-12 shrink-0 text-right text-[0.85rem] font-black" style={{ color: "var(--nb-poison)" }}>
+                {me.winrate}%
+              </span>
+            </li>
+          </ol>
+        )}
+
+        {rows.length > 0 && (
           <ol className="mt-4 space-y-1.5">
-            {data.rows.map((r) => {
-              const isMe = data.mine?.wallet === r.wallet;
+            {rows.map((r) => {
+              const isMe = me?.accountId === r.accountId;
               return (
                 <li
-                  key={r.wallet}
+                  key={r.accountId}
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5"
                   style={{
                     background: isMe ? "rgba(200,255,0,.1)" : "rgba(242,237,228,.05)",
@@ -138,21 +172,21 @@ export default function LeaderboardPanel({ onClose }: { onClose: () => void }) {
                     {r.rank}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[0.78rem] font-extrabold" style={{ color: "var(--nb-bone)" }}>
-                    {short(r.wallet)}
+                    {nameOf(r)}
                     {isMe && (
                       <span className="ml-1.5 text-[0.6rem] font-black uppercase tracking-[0.16em]" style={{ color: "var(--nb-poison)" }}>
-                        ты
+                        {t.lb.you}
                       </span>
                     )}
                   </span>
                   <span className="shrink-0 text-[0.66rem] font-bold" style={{ color: "rgba(242,237,228,.45)" }}>
-                    {r.wins}/{r.bets}
+                    {r.correct}/{r.bets}
                   </span>
                   <span
                     className="w-12 shrink-0 text-right text-[0.85rem] font-black"
-                    style={{ color: r.accuracy >= 60 ? "var(--nb-poison)" : "var(--nb-bone)" }}
+                    style={{ color: r.winrate >= 60 ? "var(--nb-poison)" : "var(--nb-bone)" }}
                   >
-                    {r.accuracy}%
+                    {r.winrate}%
                   </span>
                   <span
                     className="w-16 shrink-0 text-right text-[0.66rem] font-black"
@@ -167,9 +201,13 @@ export default function LeaderboardPanel({ onClose }: { onClose: () => void }) {
           </ol>
         )}
 
-        <p className="mt-4 text-center text-[0.62rem] font-semibold leading-relaxed" style={{ color: "rgba(242,237,228,.4)" }}>
-          считаются только ставки с подключённым кошельком · окно 7 дней · минимум {data?.minBets ?? 5} ставок
-        </p>
+        <Link
+          href="/leaderboard"
+          className="mt-4 block text-center text-[0.64rem] font-black uppercase tracking-[0.2em] transition-colors"
+          style={{ color: "var(--nb-poison)" }}
+        >
+          {t.land.lb}
+        </Link>
       </div>
     </div>
   );

@@ -14,6 +14,8 @@ export interface RoundView {
   poolRealCents: number;
   poolSynthCents: number;
   poolTotalCents: number;
+  /** v13: Daily Challenge раунда дня */
+  challenge?: boolean;
   myBet: {
     side: "real" | "synth";
     amountCents: number;

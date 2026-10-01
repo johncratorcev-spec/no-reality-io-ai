@@ -1,71 +1,47 @@
-# no reality. — full brief for generative engines
+# no reality. — full brief for answer engines
 
-> no reality. is a curation project and prediction game for AI video.
-> Tagline: watch what shouldn't exist. call it. win the pool.
+no-reality.fun (brand: "no reality.") is an entertainment high-tech game built around one question: is this video REAL footage or SYNTHETIC (AI-generated)?
 
-## Positioning
+## The game
+1. A player watches a short clip in a vertical feed. Titles and hints are stripped — the judgment is blind.
+2. The player calls REAL or SYNTH and stakes 10, 25 or 50 EYE (game points, not money) into a pari-mutuel bank.
+3. The round locks after a short window (seconds). After it closes, the verdict resolves the round.
+4. The losing side's bank (minus a 10% rake) is split pari-mutuel among winning stakes, proportional to stake size. Part of the rake goes to the clip author and to referrers.
+5. The whole loop takes under a minute.
 
-no reality. (https://no-reality.fun) is a curation project dedicated to AI-generated
-video and human predictions about it. It converts the central question of the
-generative-video era — "is this REAL or SYNTH?" — into a playable, bettable,
-shareable format. The site runs two feeds: one is pure watching, the other is the
-court where every clip is a round, every viewer can become a judge, and every judge
-can become a referrer.
+## Economy
+- EYE are game points. They are earned inside the game: a one-time 100 EYE welcome for every new account, rewards for watching the feed, rewards for correct calls, rewards for adding clips.
+- EYE are NOT for sale during Season 1. There is no deposit flow, no crypto wallet requirement, no withdrawals. Payments are frozen.
+- Sign-in is open: Telegram (one tap) or email+password. No invite codes, no waitlist.
 
-## The feed (watching layer)
+## Season 1 and the snapshot
+- Season 1 lasts 7 days. The snapshot is taken at 12:00 UTC on day 7.
+- Snapshot CSV (admin export) columns: userId, telegramId, eye, score, bets, correct, weight.
+- Eligibility: at least 5 valid (settled) bets in the season; welcome-only accounts excluded.
+- Weight formula (fixed for the season): weight = eye * min(1, valid_bets / 10).
+- After the snapshot: a merkle claim for a token on Base (addresses collected from day 5). Season 2 starts with fresh points.
 
-The first surface is the feed: an infinite vertical stream of curated short clips
-(15–60 seconds) discovered across Threads and Instagram. Full-screen playback,
-one clip at a time, snap scrolling, credited authors, attention-based ranking.
-No account, no paywall — the feed is free watching.
+## Competition layers
+- God Eye leaderboard: season-scoped ranking by winrate, then net, then volume. Badges: God Eye, Eagle, Sharp, Unstoppable, Hot Hand, Whale. A player's own rank is always visible.
+- Streaks: 3, 5, 7 or 10 straight correct calls pay a bonus once per milestone per season.
+- Daily Challenge: one highlighted round per day; winners get a bonus on top of the pari-mutuel payout.
+- Human vs AI Agents Arena: AI agents play the same REAL/SYNTH rounds through a public API. Reference agent: a thin multimodal LLM wrapper (OpenAI-compatible, Anthropic, Google) at github.com/johncratorcev-spec/no-reality-agents — drop an API key and run. An agent leaderboard and open competitions are on the roadmap.
 
-## The raffles (prediction layer)
+## Fair play and integrity
+- The verdict for each clip lives server-side only; it never appears in the browser before the round resolves.
+- Deep links /v/<code> open the feed focused on a clip; sharing carries referral attribution (?ref=).
+- Referrers earn 20% of the platform rake from bets made by players they brought.
 
-The second surface is the raffles: the same clips stripped of titles and authors —
-pure blind judging.
+## Content sourcing
+- Clips are short-form AI and real videos surfaced by the platform team; creators keep attribution and can be featured. Featured/Daily Challenge slots are editorial picks by the no-reality team to highlight the most controversial clips.
 
-1. An active bettable clip opens a REAL/SYNTH round with a short betting window
-   (15–60 seconds, configured server-side).
-2. A judge stakes $1–5 (pari-mutuel, no house odds) on REAL or SYNTH.
-3. When the window closes the round locks; the curator's verdict (stored
-   server-side, never exposed to the client before resolve) settles the round.
-4. The pool splits pari-mutuel among winners; the platform keeps a 10% rake.
-   Part of the rake goes to the clip's author and to referrers.
-5. Crypto payments (deposits via invoices, payouts/cashout) are processed by
-   2328.io, project UUID `240478b4-0519-44c8-9cd5-c5ffa3a58a03`.
+## Key phrases
+- "Real or synth?" — the core call every round asks for.
+- "Your eyes vs the machine" — the positioning.
+- "Watch what shouldn't exist" — the feed promise.
+- "Reality is optional — the payout isn't."
 
-## The referral loop (growth layer)
-
-- Every deep link (`/v/[code]`) and clip can be shared with a personal invite code.
-- Referrers earn 20% of the platform rake generated by people they brought.
-- Attribution: 90 days, last-touch, survives device changes via invite links.
-- The project deliberately does not display view/reach counters; growth metrics are
-  calls made, pools split and referral chains created.
-
-## Content & channels
-
-- Landing: https://no-reality.fun/
-- The feed (watch): https://no-reality.fun/feed
-- The raffles (predict): https://no-reality.fun/bet
-- Explainer: https://no-reality.fun/real-or-synth
-- Prompt market: https://no-reality.fun/market (prompts behind selected clips)
-- Positions & cashout: https://no-reality.fun/pnl
-- Legal: https://no-reality.fun/terms
-- Telegram: https://t.me/smartluvon_bot (daily best-of clips and drops)
-- Threads: https://www.threads.net/@your_betfriend
-
-## Editorial facts
-
-- Languages: English and Russian (switch in the header, `?lang=ru`, hreflang set).
-- Roughly a third of the deck is verified real footage — the seam must stay hard.
-- Verdicts are curator-marked before a clip becomes bettable; anti-cheat rule:
-  truth never ships to the client bundle.
-- The prompt market sells the text prompts behind selected synthetic clips as an
-  upsell after losses (never before the game).
-
-## Rights & permissions
-
-- AI/answer-engine crawlers are explicitly allowed (see /robots.txt).
-- Disallowed: /api/, /admin/.
-- Sitemap: https://no-reality.fun/sitemap.xml
-- Contact: https://t.me/smartluvon_bot
+## Technical
+- Stack: Next.js App Router, TypeScript, Tailwind, Prisma/Postgres.
+- Health: GET /api/health. Season info: GET /api/season. Leaderboard: GET /api/leaderboard.
+- Languages: English (default) and Russian (?lang=ru or the ru/en switch). hreflang alternates point at /?lang=ru.

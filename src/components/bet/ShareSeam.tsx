@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { track } from "@/lib/bet/trackClient";
 import { withRef } from "@/lib/shareRef";
+import { useLang } from "@/lib/i18n";
 
 /**
  * ShareSeam — мотивация шеринга (вместо охватов): одна кнопка, два
@@ -14,6 +15,7 @@ import { withRef } from "@/lib/shareRef";
  * navigator.share, если платформа умеет (мобильный — главный канал),
  * иначе копирование в буфер + «скопировано». Атрибуция ?ref= вшивается
  * withRef() (свой код или захваченный — цепочка не рвётся).
+ * v13: копирайт из i18n (ru/en), без смеси языков.
  * Аналитика: share_click (§4.3.10) — best-effort.
  */
 
@@ -24,22 +26,20 @@ interface ShareSeamProps {
   label?: string;
 }
 
-const COPY = {
-  clip: {
-    title: "real or synth?",
-    text: "этот кадр не должен существовать. угадай, что здесь живое — шов есть.",
-    label: "шарить кадр",
-  },
-  invite: {
-    title: "no reality.",
-    text: "смотри то, чего не должно быть — и спорь на шов. 20% рейка приведённых глаз — твои.",
-    label: "приведи глаз — 20%",
-  },
-} as const;
-
 export default function ShareSeam({ mode, clip, className, label }: ShareSeamProps) {
   const [copied, setCopied] = useState(false);
-  const copy = COPY[mode];
+  const { t, lang } = useLang();
+
+  const copy = {
+    title: "no reality.",
+    text:
+      mode === "clip"
+        ? t.share.seamClip
+        : t.share.inviteText,
+    label:
+      mode === "clip" ? t.share.seamClipLabel : t.share.seamInviteLabel,
+  };
+  void lang;
 
   const share = async () => {
     const base = clip ? `/v/${clip}` : "/";
@@ -65,7 +65,7 @@ export default function ShareSeam({ mode, clip, className, label }: ShareSeamPro
       onClick={() => void share()}
       className={className ?? "nb-btn nb-btn-real rounded-full px-4 py-2.5 text-[0.72rem] font-bold"}
     >
-      {copied ? "скопировано ✓" : label ?? copy.label}
+      {copied ? t.share.copied : label ?? copy.label}
     </button>
   );
 }
