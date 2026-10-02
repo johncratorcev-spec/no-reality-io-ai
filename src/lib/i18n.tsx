@@ -227,6 +227,9 @@ const en = {
   },
   bet: {
     inPool: "YOU'RE IN THE POOL",
+    /* v15 — соревнования (первое соревнование) */
+    competitionN: "competition {n}",
+    competitionFirst: "the first competition",
     wasReal: "IT WAS REAL FOOTAGE",
     wasSynth: "IT WAS SYNTHETIC",
     eyeWorked: "your eye hit · +",
@@ -514,6 +517,9 @@ const ru: Dict = {
   },
   bet: {
     inPool: "ТЫ В ПУЛЕ",
+    /* v15 — соревнования (первое соревнование) */
+    competitionN: "соревнование {n}",
+    competitionFirst: "первое соревнование",
     wasReal: "ЭТО БЫЛО ЖИВОЕ",
     wasSynth: "ЭТО СИНТЕТИКА",
     eyeWorked: "твой глаз сработал · +",

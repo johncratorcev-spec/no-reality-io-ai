@@ -3655,6 +3655,89 @@ section:hover .nr-mc-arrow,
   90%, 100% { transform: translateX(130%); }
 }
 
+/* ---------- v15: СОРЕВНОВАНИЯ — золото первого соревнования ---------- */
+.nr-night {
+  --nb-gold: #ffd24a;
+  --nb-gold-pale: #fff4d6;
+}
+
+/* золотая рамка панели: бегущий блик по контуру */
+@property --nb-comp-a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.nb-comp-frame {
+  border-color: rgba(255, 210, 74, 0.34) !important;
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.55),
+    0 0 26px rgba(255, 210, 74, 0.14),
+    inset 0 1px 0 rgba(255, 210, 74, 0.16) !important;
+}
+.nb-comp-frame::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--nb-comp-a),
+    transparent 0deg,
+    transparent 288deg,
+    rgba(255, 210, 74, 0.85) 322deg,
+    rgba(255, 244, 214, 0.95) 338deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: nb-comp-sweep 3.6s linear infinite;
+  pointer-events: none;
+}
+@keyframes nb-comp-sweep {
+  to {
+    --nb-comp-a: 360deg;
+  }
+}
+
+/* золотой чип-бейдж с бликом (карточка + риббон панели) */
+.nb-comp-chip {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 210, 74, 0.5);
+  background: linear-gradient(160deg, rgba(64, 46, 10, 0.85), rgba(26, 19, 6, 0.9));
+  color: var(--nb-gold);
+  box-shadow: 0 0 20px rgba(255, 210, 74, 0.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+}
+.nb-comp-chip::after {
+  content: "";
+  position: absolute;
+  top: -60%;
+  bottom: -60%;
+  width: 36%;
+  left: -48%;
+  background: linear-gradient(105deg, transparent, rgba(255, 244, 214, 0.55), transparent);
+  transform: skewX(-18deg);
+  animation: nb-comp-glare 3s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes nb-comp-glare {
+  0% {
+    left: -48%;
+  }
+  55%,
+  100% {
+    left: 135%;
+  }
+}
+
+/* текст «первое соревнование» под заголовком риббона */
+.nb-comp-sub {
+  color: rgba(255, 244, 214, 0.66);
+}
+
 /* ---------- доступность v10 ---------- */
 @media (prefers-reduced-motion: reduce) {
   .nr-au-aurora,
@@ -3665,7 +3748,9 @@ section:hover .nr-mc-arrow,
   .nr-ag-aura,
   .nr-ag-cta::after,
   .nb-live-dot,
-  .nr-auth-shimmer {
+  .nr-auth-shimmer,
+  .nb-comp-frame::before,
+  .nb-comp-chip::after {
     animation: none !important;
   }
   .nr-au-up,

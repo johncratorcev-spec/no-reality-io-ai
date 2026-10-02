@@ -2,6 +2,9 @@ import "server-only";
 
 import { createHash, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
+import { competitionCodeOf as competitionOf, competitionNumberOf } from "@/lib/competition";
+
+export { competitionOf, competitionNumberOf };
 
 /**
  * v14 — таблица clips как ЕДИНСТВЕННЫЙ источник контента (CSV удалён).
@@ -116,6 +119,8 @@ export interface PublicClip {
   status: "queued" | "live" | "resolved" | "void";
   badge: string;
   featured: boolean;
+  /** v15: соревнование (badge вида "raffle-01") — специальное оформление */
+  competition?: string;
   /** resolved: раскрытая метка; иначе отсутствует */
   resolvedAs?: "real" | "synth";
   /** resolved: label_commit для сверки карточки результата */
@@ -123,6 +128,11 @@ export interface PublicClip {
   /** void: раунд отменён (битая ссылка), ставки возвращены */
   voided?: boolean;
 }
+
+/**
+ * v15 — соревнования: каноническая реализация в @/lib/competition
+ * (клиент-безопасный модуль), здесь — реэкспорт для серверных вызовов.
+ */
 
 export function clipProxyUrl(id: string): string {
   return `/api/clip/${encodeURIComponent(id)}/video`;
@@ -147,6 +157,8 @@ export function toPublicClip(c: {
     badge: (c.badge || "").trim(),
     featured: c.featuredUntil ? c.featuredUntil.getTime() > Date.now() : false,
   };
+  const competition = competitionOf(out.badge);
+  if (competition) out.competition = competition;
   if (status === "resolved") {
     out.resolvedAs = c.label === "real" ? "real" : "synth";
     out.labelCommit = c.labelCommit;

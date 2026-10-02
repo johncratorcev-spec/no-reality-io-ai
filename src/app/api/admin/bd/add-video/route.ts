@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminConfigured, hasAdminSession } from "@/lib/admin/session";
 import { jinaMeta, parsePostInput, verifyVideoUrl } from "@/lib/panel_extract";
 import { db } from "@/lib/db";
-import { labelCommitOf, scrubCaption } from "@/lib/clips";
+import { labelCommitOf, scrubCaption, competitionOf } from "@/lib/clips";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -148,7 +148,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const badge = (body?.badge ?? "").trim().slice(0, 40);
+  /* v15 — бейдж соревнования: ТОЛЬКО шаблон raffle-NN (иначе 400);
+     пустой бейдж = обычный клип без золота */
+  const badgeRaw = (body?.badge ?? "").trim().toLowerCase();
+  const competition = competitionOf(badgeRaw);
+  if (badgeRaw && !competition) {
+    return NextResponse.json(
+      { ok: false, error: "badge must match raffle-<number> (e.g. raffle-01) or be empty" },
+      { status: 400 }
+    );
+  }
+  const badge = competition ?? "";
   const id = generateClipId();
 
   /* --- дубли по уникальному source_url + запись в clips --- */

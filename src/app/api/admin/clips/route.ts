@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasAdminSession, legacyKeyMatches, adminCodeMatches } from "@/lib/admin/session";
 import { rateLimit } from "@/lib/rateLimit";
 import { db } from "@/lib/db";
-import { labelCommitOf, scrubCaption } from "@/lib/clips";
+import { labelCommitOf, scrubCaption, competitionOf } from "@/lib/clips";
 import { checkVideoAlive } from "@/lib/bet/core";
 import { parsePostInput, jinaMeta, verifyVideoUrl } from "@/lib/panel_extract";
 
@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
         closesAt: true,
         resolvedAt: true,
         listedBy: true,
+        badge: true,
         createdAt: true,
       },
     });
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
         caption: c.captionPublic,
         author: c.authorHandle, // только админ; публичный payload автора не отдаёт
         labelCommit: c.labelCommit,
+        badge: c.badge,
         opensAt: c.opensAt?.toISOString() ?? null,
         closesAt: c.closesAt?.toISOString() ?? null,
         resolvedAt: c.resolvedAt?.toISOString() ?? null,
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
     input?: unknown;
     listedBy?: unknown;
     status?: unknown;
+    badge?: unknown;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -163,6 +166,20 @@ export async function POST(req: NextRequest) {
      Админ создаёт либо draft (отложить), либо queued (дефолт ТЗ) */
   const initialStatus = body.status === "draft" ? "draft" : "queued";
 
+  /* v15 — бейдж соревнования: признаётся ТОЛЬКО шаблон raffle-NN;
+     произвольный текст бейджем не становится (косметика витрины — отдельно) */
+  const badgeRaw = typeof body.badge === "string" ? body.badge.trim().toLowerCase() : "";
+  const competition = competitionOf(badgeRaw);
+  if (badgeRaw && !competition) {
+    return NextResponse.json(
+      {
+        error: "bad_badge",
+        message: "badge must match raffle-<number> (competition) or be omitted",
+      },
+      { status: 400 }
+    );
+  }
+
   /* id — короткий публичный код (ничего не раскрывает) */
   const id = generateClipId();
 
@@ -178,6 +195,7 @@ export async function POST(req: NextRequest) {
         labelCommit: labelCommitOf(id, label),
         status: initialStatus,
         listedBy,
+        badge: competition ?? "",
       },
     });
     return NextResponse.json({

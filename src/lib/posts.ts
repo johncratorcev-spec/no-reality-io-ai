@@ -1,4 +1,5 @@
 import { feedClips, type PublicClip } from "@/lib/clips";
+import { competitionNumberOf } from "@/lib/competition";
 
 export type ClientRankedPost = {
   /** публичный id клипа (= utm_code для мигрированных строк) */
@@ -11,6 +12,8 @@ export type ClientRankedPost = {
   score: number;
   featured?: boolean;
   badge?: string;
+  /** v15: соревнование (badge="raffle-NN") — номер для оформления */
+  competition?: string;
   status: "queued" | "live" | "resolved" | "void";
   /** только у resolved: раскрытая метка для витрины */
   resolvedAs?: "real" | "synth";
@@ -32,6 +35,9 @@ export async function getRankedPosts(): Promise<ClientRankedPost[]> {
     score: c.score,
     featured: c.featured || undefined,
     badge: c.badge || undefined,
+    competition: c.competition
+      ? competitionNumberOf(c.competition) || undefined
+      : undefined,
     status: c.status,
     resolvedAs: c.resolvedAs,
     bettable: c.status === "live",

@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Coins, Gift, Lock } from "lucide-react";
+import { Coins, Gift, Lock, Trophy } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
 import { fmtBalance, DAILY_CHALLENGE_BONUS_CENTS } from "@/lib/econ";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
+import { competitionNumberOf } from "@/lib/competition";
 import { useAccount, type AccountView } from "@/hooks/use-account";
 import type { RoundView } from "@/lib/bet/roundView";
 import PredictModal from "./PredictModal";
@@ -96,6 +97,8 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
   /* v10: auth-гейт для гостей + спарклайн банка для инфографики */
   const [authGate, setAuthGate] = useState<Side | null>(null);
   const [spark, setSpark] = useState<number[]>([]);
+  /* v15: соревнование этого клипа (badge="raffle-NN") — золотое оформление */
+  const [competition, setCompetition] = useState<string | null>(null);
 
   const skewRef = useRef(0);
   const settledRef = useRef(false);
@@ -127,8 +130,13 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
           setRound(null);
           return;
         }
-        const d = (await r.json()) as { round?: RoundView; error?: string };
+        const d = (await r.json()) as {
+          round?: RoundView;
+          clip?: { competition?: string | null } | null;
+          error?: string;
+        };
         if (!alive) return;
+        setCompetition(d.clip?.competition ?? null);
         if (d.round) {
           skewRef.current = Date.now() - new Date(d.round.serverNow).getTime();
           setRound(d.round);
@@ -304,13 +312,17 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
           cache: "no-store",
         });
         if (r.ok) {
-          const d = (await r.json()) as { round?: RoundView };
+          const d = (await r.json()) as {
+            round?: RoundView;
+            clip?: { competition?: string | null } | null;
+          };
           if (d.round) {
             skewRef.current = Date.now() - new Date(d.round.serverNow).getTime();
             setRound(d.round);
             setBankKey((k) => k + 1);
             setSpark([d.round.poolTotalCents]);
           }
+          setCompetition(d.clip?.competition ?? null);
         }
       } catch {
         /* тишина */
@@ -371,6 +383,11 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
 
   const hasMyBet = Boolean(round?.myBet && ["active", "pending", "won", "lost"].includes(round.myBet.status));
 
+  /* v15: номер соревнования для золотого оформления */
+  const compNum = competitionNumberOf(competition);
+  const isComp = Boolean(compNum);
+  const compLabel = isComp ? t.bet.competitionN.replace("{n}", compNum) : "";
+
   return (
     <>
       {/* ---------- вуаль iris-cut при активации кадра ---------- */}
@@ -420,8 +437,18 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
           <div className="pointer-events-auto flex w-full max-w-sm flex-col items-center gap-3 text-center">
             {/* сама карта результата */}
             <div
-              className={`nb-panel w-full rounded-3xl px-6 py-6 ${result.mine === "lost" ? "nb-crush" : ""}`}
+              className={`nb-panel w-full rounded-3xl px-6 py-6 ${result.mine === "lost" ? "nb-crush" : ""} ${isComp ? "nb-comp-frame" : ""}`}
             >
+              {/* v15: СОРЕВНОВАНИЕ — золотой кикер над вердиктом */}
+              {isComp && (
+                <p
+                  className="nb-comp-chip mx-auto mb-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[0.58rem] font-black uppercase tracking-[0.18em]"
+                  aria-label={`${compLabel} · ${t.bet.competitionFirst}`}
+                >
+                  <Trophy className="h-3 w-3" aria-hidden />
+                  {compLabel}
+                </p>
+              )}
               <p
                 className="text-[0.6rem] font-black uppercase tracking-[0.3em]"
                 style={{ color: "rgba(242,237,228,.45)" }}
@@ -589,9 +616,25 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
             isActive && landHard && activations === 1 ? "nb-land" : ""
           }`}
         >
+          {/* v15: СОРЕВНОВАНИЕ — золотой риббон над панелью */}
+          {isComp && (
+            <div
+              className="nb-comp-chip pointer-events-auto mb-1.5 flex items-center justify-center gap-2 rounded-full px-3 py-1.5"
+              aria-label={`${compLabel} · ${t.bet.competitionFirst}`}
+            >
+              <Trophy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="text-[0.62rem] font-black uppercase tracking-[0.2em]">
+                {compLabel}
+              </span>
+              <span aria-hidden className="h-2.5 w-px shrink-0" style={{ background: "rgba(255,210,74,.4)" }} />
+              <span className="nb-comp-sub truncate text-[0.58rem] font-bold uppercase tracking-[0.14em]">
+                {t.bet.competitionFirst}
+              </span>
+            </div>
+          )}
           <div
             key={shake}
-            className={`nb-panel pointer-events-auto rounded-2xl px-3.5 py-3 ${shake > 0 ? "nb-shake" : ""}`}
+            className={`nb-panel pointer-events-auto rounded-2xl px-3.5 py-3 ${shake > 0 ? "nb-shake" : ""} ${isComp ? "nb-comp-frame" : ""}`}
           >
             {/* строка банка */}
             <div className="flex items-center gap-2.5">

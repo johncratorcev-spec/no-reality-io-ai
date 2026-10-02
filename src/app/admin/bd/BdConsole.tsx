@@ -53,6 +53,8 @@ export default function BdConsole() {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [truth, setTruth] = useState("");
+  /* v15 — бейдж соревнования (raffle-NN): золотое оформление */
+  const [badge, setBadge] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -103,7 +105,7 @@ export default function BdConsole() {
       const r = await fetch("/api/admin/bd/add-video", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url, video, title, author, truth }),
+        body: JSON.stringify({ url, video, title, author, truth, badge }),
       });
       const d = (await r.json()) as { ok?: boolean; error?: string; result?: { utm: string; author: string } };
       if (r.ok && d.ok) {
@@ -277,6 +279,12 @@ export default function BdConsole() {
             className="w-full rounded-xl border border-white/12 bg-black/40 px-3.5 py-2.5 text-[0.78rem] font-bold text-white outline-none focus:border-[#c8ff00]/50"
           />
         </div>
+        <input
+          value={badge}
+          onChange={(e) => setBadge(e.target.value)}
+          placeholder="competition badge (optional): raffle-01 — золотое оформление первого соревнования"
+          className="mt-2 w-full rounded-xl border border-[#ffd24a]/25 bg-black/40 px-3.5 py-2.5 text-[0.78rem] font-bold text-white outline-none focus:border-[#ffd24a]/60"
+        />
         <div className="mt-2 flex items-center gap-2">
           <select
             value={truth}

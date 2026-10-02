@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Play, Share2, Sparkles, Volume2, VolumeX, WifiOff } from "lucide-react";
+import { Check, Play, Share2, Sparkles, Trophy, Volume2, VolumeX, WifiOff } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
@@ -192,19 +192,30 @@ export default function ClipCard({
       {/* ---------- верхний ряд ---------- */}
       <div className="absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <span
-            className="rounded-full border border-white/10 bg-[rgba(16,13,22,0.72)] px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-white/75 backdrop-blur-md"
-            aria-hidden
-          >
-            {isBet ? (
-              <>
-                <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#FF003C] align-middle" />
-                {t.feed.bettable}
-              </>
-            ) : (
-              `${String(index + 1).padStart(2, "0")} / ${total}`
-            )}
-          </span>
+          {/* v15: СОРЕВНОВАНИЕ — золотой бейдж вместо обычного «raffle» */}
+          {isBet && post.competition ? (
+            <span
+              className="nb-comp-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.18em]"
+              aria-label={`${t.bet.competitionN.replace("{n}", post.competition)} · ${t.bet.competitionFirst}`}
+            >
+              <Trophy className="h-3.5 w-3.5" aria-hidden />
+              {t.bet.competitionN.replace("{n}", post.competition)}
+            </span>
+          ) : (
+            <span
+              className="rounded-full border border-white/10 bg-[rgba(16,13,22,0.72)] px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-white/75 backdrop-blur-md"
+              aria-hidden
+            >
+              {isBet ? (
+                <>
+                  <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#FF003C] align-middle" />
+                  {t.feed.bettable}
+                </>
+              ) : (
+                `${String(index + 1).padStart(2, "0")} / ${total}`
+              )}
+            </span>
+          )}
           {/* v5: платное размещение (Boosted / Featured Clip) */}
           {post.featured && (
             <span
