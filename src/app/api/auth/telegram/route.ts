@@ -30,7 +30,10 @@ export const dynamic = "force-dynamic";
  * кампании для BD-трафика, email/google — открытые запасные двери.
  */
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip =
+    req.headers.get("x-real-ip")?.trim() ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "local";
   const rl = rateLimit(`tg-auth:${ip}`, 10, 60_000);
   if (!rl.ok) {
     return NextResponse.json(

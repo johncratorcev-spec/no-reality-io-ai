@@ -27,19 +27,32 @@ declare global {
   }
 }
 
+/* Домен, привязанный к боту через BotFather /setdomain. Telegram принимает
+   ТОЛЬКО его: на www, *.vercel.app и localhost виджет рисует «Bot domain invalid». */
+const TG_LOGIN_HOST = (process.env.NEXT_PUBLIC_TELEGRAM_LOGIN_HOST || "no-reality.fun")
+  .trim()
+  .toLowerCase();
+
+/* защита от open redirect: только относительные пути этого сайта */
+function sanitizeNext(raw: string | null): string {
+  if (raw && raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/\\")) return raw;
+  return "/bet";
+}
+
 export default function AuthForm({ botUsername }: { botUsername?: string }) {
   const params = useSearchParams();
-  const next = params.get("next") || "/bet";
+  const next = sanitizeNext(params.get("next"));
 
   /* виджет Telegram рисует «Bot domain invalid» на хостах, которых нет
      в /setdomain бота — на localhost/чужих превью-доменах слот прячем.
      Решение принимаем ПОСЛЕ гидратации (отложенный тик), чтобы SSR и
      первый клиентский рендер совпадали байт в байт */
-  const [tgHostOk, setTgHostOk] = useState(false);
+  /* null — хост ещё не проверен: ничего не показываем, чтобы на
+     no-reality.fun не мелькала заметка «works on no-reality.fun» */
+  const [tgHostOk, setTgHostOk] = useState<boolean | null>(null);
   useEffect(() => {
     const t = setTimeout(() => {
-      const host = window.location.hostname;
-      setTgHostOk(!/^(localhost|127\.|0\.0\.0\.0)$/.test(host));
+      setTgHostOk(window.location.hostname.toLowerCase() === TG_LOGIN_HOST);
     }, 0);
     return () => clearTimeout(t);
   }, []);
@@ -222,9 +235,13 @@ export default function AuthForm({ botUsername }: { botUsername?: string }) {
             <span className="h-px flex-1 bg-white/10" />or by email<span className="h-px flex-1 bg-white/10" />
           </div>
         )}
-        {TG_BOT && !tgHostOk && (
+        {TG_BOT && tgHostOk === false && (
           <p className="nr-au-up mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-center text-[0.66rem] font-bold text-white/45" style={{ animationDelay: "200ms" }}>
-            telegram sign-in works on no-reality.fun —
+            telegram sign-in works on{" "}
+            <a href={`https://${TG_LOGIN_HOST}/auth`} className="underline hover:text-white/80">
+              {TG_LOGIN_HOST}
+            </a>{" "}
+            —
             <br />here use email or google.
           </p>
         )}
@@ -257,7 +274,7 @@ export default function AuthForm({ botUsername }: { botUsername?: string }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") void submit();
+              if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) void submit();
             }}
             placeholder="password (8+)"
             className="nr-au-input"

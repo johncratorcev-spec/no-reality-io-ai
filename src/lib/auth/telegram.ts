@@ -61,7 +61,9 @@ let usernameCache: { value: string; at: number } | null = null;
 export async function resolveTelegramBotUsername(): Promise<string> {
   const fromEnv = telegramBotUsername();
   if (fromEnv) return fromEnv;
-  if (usernameCache && Date.now() - usernameCache.at < 600_000) {
+  /* удачный резолв живёт 10 мин, неудачный — 1 мин: иначе при недоступном
+     api.telegram.org каждый заход на /auth ждал бы таймаут */
+  if (usernameCache && Date.now() - usernameCache.at < (usernameCache.value ? 600_000 : 60_000)) {
     return usernameCache.value;
   }
   const token = telegramBotToken();
@@ -69,14 +71,16 @@ export async function resolveTelegramBotUsername(): Promise<string> {
   try {
     const r = await fetch(`https://api.telegram.org/bot${encodeURIComponent(token)}/getMe`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(2_500),
     });
     const d = (await r.json()) as { ok?: boolean; result?: { username?: string } };
     const name = d.ok && d.result?.username ? String(d.result.username) : "";
     usernameCache = { value: name, at: Date.now() };
     return name;
   } catch {
-    return usernameCache?.value || "";
+    const value = usernameCache?.value || "";
+    usernameCache = { value, at: Date.now() };
+    return value;
   }
 }
 
