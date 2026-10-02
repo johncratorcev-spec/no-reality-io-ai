@@ -92,7 +92,6 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
   const filteredPosts = useMemo(() => {
     if (!isBet) return posts;
     let out = posts;
-    if (mood !== "all") out = out.filter((p) => (p.mood || "").toLowerCase() === mood);
     if (hardOn && hardCodes) {
       const set = new Set(hardCodes);
       out = out.filter((p) => set.has(p.utmCode));
@@ -202,7 +201,7 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
         <div className="max-w-sm rounded-3xl border border-white/10 bg-[rgba(16,13,22,0.8)] px-8 py-10 text-center backdrop-blur-md">
           <p className="text-lg font-extrabold tracking-tight text-white">the feed is empty</p>
           <p className="mt-2 text-sm font-semibold text-white/55">
-            add clips to <code className="font-mono text-white/75">/data/posts.csv</code> — they
+            BD-панель добавляет клипы в очередь <code className="font-mono text-white/75">/admin/bd</code> — they
             will appear here
           </p>
         </div>

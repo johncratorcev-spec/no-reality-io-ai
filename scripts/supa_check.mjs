@@ -69,14 +69,24 @@ async function run() {
   const rlsOff = rls.filter((r) => !r.relrowsecurity).map((r) => r.relname);
   ok("RLS включён на всех таблицах", rlsOff.length === 0, rlsOff.length ? `без RLS: ${rlsOff.join(", ")}` : `${rls.length} таблиц`);
 
-  /*PostgREST/anon заблокирован: RLS без политик = default deny, плюс
-     у роли anon не должно остаться GRANT'ов на таблицы (осознанная
-     модель v7: приложение ходит владельцем, anon не видит ничего) */
+  /*PostgREST/anon: v7-модель «0 грантов» + v14-исключения по ТЗ:
+     clips (только безопасные колонки — label/video_url/source_url/
+     author_handle НЕ входят) и представление clip_reveals. Всё
+     остальное под default-deny. */
   const anonGrants = await one(
     `SELECT COUNT(*)::int AS n FROM information_schema.role_table_grants
-     WHERE table_schema='public' AND grantee='anon'`
+     WHERE table_schema='public' AND grantee='anon'
+       AND table_name NOT IN ('clips', 'clip_reveals')`
   );
-  ok("PostgREST/anon заблокирован (RLS default-deny, 0 грантов anon)", (anonGrants?.n ?? 1) === 0, `anon grants=${anonGrants?.n}`);
+  ok("PostgREST/anon заблокирован (кроме clips/clip_reveals по ТЗ)", (anonGrants?.n ?? 1) === 0, `anon grants=${anonGrants?.n}`);
+  const anonCols = await q(
+    `SELECT column_name FROM information_schema.role_column_grants
+     WHERE table_schema='public' AND grantee='anon' AND table_name='clips'`
+  ).catch(() => []);
+  const bad = (anonCols || []).map((r) => r.column_name).filter((c) =>
+    ["label", "video_url", "source_url", "author_handle"].includes(c)
+  );
+  ok("anon не читает метку/видео/исходник клипа", bad.length === 0, bad.length ? `утечка: ${bad.join(",")}` : "только безопасные колонки");
 
   /* 3. счётчики */
   for (const t of ["Account", "LedgerTxn", "Round", "Bet", "TrackEvent", "EmailAuth"]) {

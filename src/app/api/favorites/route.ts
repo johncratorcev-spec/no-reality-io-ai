@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import bs58 from "bs58";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
-import { getPostByCode } from "@/lib/csv";
 import { getRankedPosts } from "@/lib/posts";
 import { invalidateFavoriteCounts } from "@/lib/favstats";
 
@@ -53,7 +52,7 @@ function sessionWallet(req: NextRequest): string | null {
   return null;
 }
 
-/** title/author/hasVideo straight from the ranked feed (cached CSV read) */
+/** title/hasVideo из клипов БД (v14: автор публично не отдаётся) */
 async function metasFor(codes: string[]) {
   const wanted = new Set(codes);
   const map = new Map<string, { title: string; author: string; hasVideo: boolean }>();
@@ -63,21 +62,12 @@ async function metasFor(codes: string[]) {
       if (!wanted.has(p.utmCode)) continue;
       map.set(p.utmCode, {
         title: p.title ?? "",
-        author: p.author ?? "",
-        hasVideo: Boolean(p.videoUrl) || (p.media?.length ?? 0) > 0,
+        author: "",
+        hasVideo: Boolean(p.videoUrl),
       });
     }
   } catch {
     /* posts unavailable — titles stay empty */
-  }
-  for (const c of codes) {
-    if (map.has(c)) continue;
-    const p = getPostByCode(c);
-    map.set(c, {
-      title: p?.title ?? "",
-      author: p?.author ?? "",
-      hasVideo: Boolean(p?.videoUrl) || (p?.media?.length ?? 0) > 0,
-    });
   }
   return map;
 }

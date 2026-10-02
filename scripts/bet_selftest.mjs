@@ -11,9 +11,10 @@
  *  6. Битая сторона → 400 bad_side; чужой round → 404
  *  7. Резолв после closes_at: пари-мьютюэль математика
  *     (рейк 10%, payout_i = floor(prize × amount_i / winPool))
- *  8. Реферал: bet с ref → ReferralEvent (kind=bet_rake, 20% рейка × доля)
+ *  8. v14: рейк без реферальной доли (процент — только с пачек):
+ *     refShareCents = 0, ReferralEvent bet_rake не пишется
  *  9. Аналитика: TrackEvent bet_placed/bet_won/bet_lost пишутся
- * 10. Админ-cron: /api/round/expired/resolve — 401 без ключа, работает с ключом
+ * 10. Админ-cron: /api/cron/tick — 401 без ключа, работает с ключом
  * 11. Ставки на клип без truth → not_bettable
  *
  * Запуск: node scripts/bet_selftest.mjs [--cleanup-only]
@@ -34,11 +35,16 @@ const ADMIN_SECRET_ENV = (readFileSync(path.resolve(process.cwd(), ".env"), "utf
   .split("=")[1]?.replace(/"/g, "")
   .trim();
 
-const CSV_PATH = path.resolve(process.cwd(), "data/posts.csv");
+function envFromDotenv(name) {
+  const line = readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
+    .split("\n")
+    .find((l) => l.startsWith(`${name}=`));
+  return line ? line.slice(name.length + 1).trim().replace(/^"|"$/g, "") : "";
+}
 
 let passed = 0;
 let failed = 0;
-const created = { rounds: [], bets: [], events: [], referrals: [] };
+const created = { rounds: [], bets: [], events: [], referrals: [], clips: [] };
 
 function ok(name, cond, extra = "") {
   if (cond) {
@@ -50,18 +56,7 @@ function ok(name, cond, extra = "") {
   }
 }
 
-/* ---------- CSV truth (кураторские данные для ожидаемых резолвов) ---------- */
-function truthOf(code) {
-  const raw = fs.readFileSync(CSV_PATH, "utf-8").split("\n");
-  const header = raw[0].split(",");
-  const ti = header.indexOf("utm_code");
-  const th = header.indexOf("truth");
-  for (let i = 1; i < raw.length; i++) {
-    const cols = raw[i].split(",");
-    if (cols[ti] === code) return cols[th] || "";
-  }
-  return "";
-}
+/* ---------- v14: метка тестового клипа известна при севе (CSV удалён) ---------- */
 
 
 /* ---------- cookie-jar fetch (v10: полный jar — регистрация даёт nr_uid+nr_auth) ---------- */
@@ -128,10 +123,23 @@ async function registerBettor(api, tag) {
 async function run() {
   console.log(`\n[bet-selftest] ${BASE} (window=${process.env.BET_WINDOW_SEC || "45 default"}s)\n`);
 
-  /* === 1. ленивое открытие раунда === */
-  const code = "71vsIPUu"; // pawcrew — truth=real по разметке
-  const truth = truthOf(code);
-  ok("csv truth известен тесту", truth === "real" || truth === "synth", `truth=${truth}`);
+  /* === 1. v14: раунд открывает планировщик из очереди clips ===
+     Сеим тестовый клип с известной меткой (real), закрываем чужие окна,
+     тикаем крон — клип становится live, раунд открыт. */
+  const PEPPER = envFromDotenv("COMMIT_PEPPER");
+  const commitOf = (id, label) =>
+    createHash("sha256").update(`${label}:${id}:${PEPPER}`).digest("hex");
+  const code = `bet${Date.now().toString(36)}`.slice(0, 16);
+  const truth = "real";
+  const sampleVideo = "https://www.w3schools.com/html/mov_bbb.mp4";
+  await q(
+    `insert into clips (id, source_url, video_url, author_handle, caption_public, label, label_commit, status, listed_by, created_at, updated_at)
+     values ($1,$2,$3,'@bet','',$4,$5,'queued','selftest', now() - interval '7 days', now())
+     on conflict (id) do nothing`,
+    [code, `https://example.com/bet/${code}`, sampleVideo, truth, commitOf(code, truth)]
+  );
+  created.clips.push(code);
+  ok("клип засеян с известной меткой", true, `truth=${truth}`);
 
   /* v11: регистрации ЗАРАНЕЕ — окно раунда 60с меньше суммы латентностей
      последовательных запросов к Supabase (~6с каждый), поэтому ставки
@@ -145,6 +153,14 @@ async function run() {
   const C = makeClient("bettor-C");
   await registerBettor(C, "C");
 
+  /* регистрации закончены — ТОЛЬКО ТЕПЕРЬ открываем окно (45с мало
+     для латентности Supabase × все регистрации) */
+  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+  await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET_ENV)}`);
+  const seeded = await one(`select status from clips where id = $1`, [code]);
+  ok("клип в live (планировщик)", seeded?.status === "live", seeded?.status ?? "");
+
+  /* аноним: просмотр раунда можно, ставка нельзя (гейт на действии) */
   const Anon = makeClient("anon");
   const rAnon = await Anon("GET", `/api/round?clip=${code}`);
   if (rAnon.json?.round?.id) {
@@ -232,21 +248,14 @@ async function run() {
   const betC = meC.json.bets?.find((b) => b.id === b3.json.bet_id);
   ok("C: статус/выплата по формуле", betC && betC.status === (expect.C > 0 ? "won" : "lost") && betC.payoutCents === expect.C, `payout=${betC?.payoutCents} expect=${expect.C}`);
 
-  /* === 8. рефералка: rr-<roundId>-rselftest99 ===
-     refCut = floor(rake * 0.2 * 50/110) = floor(11*0.2*0.4545) = 1 монета */
+  /* === 8. v14: реферальная доля рейка УДАЛЕНА (ТЗ: процент — только с пачек)
+     refCut = 0; ReferralEvent bet_rake не пишется; refShare на раунде = 0 */
   const refOrderId = `rr-${round.id}-rselftest99`;
   const refRow = await one(
     'SELECT "refCode", kind, "amountUsdt", "payoutUsdt" FROM "ReferralEvent" WHERE "orderId" = $1',
     [refOrderId]
   );
-  const expectRef = Math.floor(rake * 0.2 * (50 / total));
-  ok("ReferralEvent bet_rake создан", Boolean(refRow), refRow ? `payout=${refRow.payoutUsdt}` : "нет строки");
-  ok(
-    "реферер получает 20% рейка × долю",
-    refRow && refRow.payoutUsdt === (expectRef / 100).toFixed(2),
-    `expect=${(expectRef / 100).toFixed(2)}`
-  );
-  created.referrals.push(refOrderId);
+  ok("ReferralEvent bet_rake больше не пишется", !refRow, refRow ? `payout=${refRow.payoutUsdt}` : "нет строки");
 
   const roundRow = await one('SELECT "rakeCents", "authorShareCents", "refShareCents" FROM "Round" WHERE id = $1', [round.id]);
   ok("рейк записан на раунде", roundRow?.rakeCents === rake, `rake=${roundRow?.rakeCents}`);
@@ -255,7 +264,7 @@ async function run() {
     roundRow?.authorShareCents === Math.floor(rake * 0.15),
     `author=${roundRow?.authorShareCents}`
   );
-  ok("refShare = сумме реферальных", roundRow?.refShareCents === expectRef, `ref=${roundRow?.refShareCents}`);
+  ok("refShare = 0 (v14: процент только с пачек)", roundRow?.refShareCents === 0, `ref=${roundRow?.refShareCents}`);
 
   /* === 9. аналитика === */
   const evPlaced = await one("SELECT COUNT(*)::int AS c FROM \"TrackEvent\" WHERE name='bet_placed' AND \"clipCode\"=$1", [code]);
@@ -263,14 +272,11 @@ async function run() {
   ok("TrackEvent bet_placed пишутся", evPlaced.c >= 3, `count=${evPlaced.c}`);
   ok("TrackEvent bet_won/lost пишутся", evWon.c >= 3, `count=${evWon.c}`);
 
-  /* === 10. админ-cron === */
-  const noKey = await makeClient("cron")("POST", "/api/round/expired/resolve");
+  /* === 10. админ-cron (v14: /api/cron/tick) === */
+  const noKey = await makeClient("cron")("GET", "/api/cron/tick");
   ok("cron без ключа → 401", noKey.status === 401);
-  const withKey = await makeClient("cron")(
-    "POST",
-    `/api/round/expired/resolve?key=${ADMIN_SECRET_ENV}`
-  );
-  ok("cron с ключом → 200", withKey.status === 200, `resolvedCount=${withKey.json?.resolvedCount}`);
+  const withKey = await makeClient("cron")("GET", `/api/cron/tick?key=${ADMIN_SECRET_ENV}`);
+  ok("cron с ключом → 200", withKey.status === 200, `resolved=${withKey.json?.resolved}`);
 }
 
 /* ---------- очистка ---------- */
@@ -283,7 +289,10 @@ async function cleanup() {
   await del("ReferralEvent", "orderId", created.referrals);
   await del("Bet", "roundId", created.rounds);
   await del("Round", "id", created.rounds);
-  await q('DELETE FROM "TrackEvent" WHERE "clipCode" = $1', ["71vsIPUu"]);
+  for (const cid of created.clips) {
+    await q(`DELETE FROM "TrackEvent" WHERE "clipCode" = $1`, [cid]).catch(() => {});
+    await q(`DELETE FROM clips WHERE id = $1`, [cid]).catch(() => {});
+  }
   /* v10: регистрационные следы ставщиков (EmailAuth до Account — FK) */
   for (const id of betAccounts.filter(Boolean)) {
     await q('DELETE FROM "LedgerTxn" WHERE "accountId" = $1', [id]);

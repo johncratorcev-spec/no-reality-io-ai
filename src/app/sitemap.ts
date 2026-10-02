@@ -29,10 +29,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     p("/leaderboard", 0.8, "hourly"),
     p("/real-or-synth", 0.9, "weekly"),
     p("/roadmap", 0.6, "weekly"),
-    p("/predict", 0.7, "weekly"),
-    p("/pnl", 0.4, "weekly"),
+    p("/ref", 0.4, "weekly"),
     p("/collab", 0.6, "weekly"),
-    p("/future", 0.5, "weekly"),
     p("/terms", 0.3, "yearly"),
     p("/creators", 0.3, "yearly"),
   ];

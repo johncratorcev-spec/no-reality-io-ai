@@ -230,6 +230,14 @@ model Account {
   balanceCents Int       @default(0) // кэш баланса; истина — LedgerTxn
   lastDailyAt  DateTime? // последний daily-бонус (UTC-день)
   streakDays   Int       @default(0) // подряд дней с daily-бонусом
+  // v14 — рефералка: код у всех с регистрации; revshare активируется
+  // разовой оплатой 3 USDT (invoice rev-<accountId>); USDT-балансы в центах.
+  refCode        String?  @unique // персональный код (?ref=код)
+  referredById   String? // код/аккаунт пригласившего (самоприглашение не пишется)
+  revshare       Boolean  @default(false) // процент включён (3 USDT уплачены)
+  refEarnedCents Int      @default(0) // накоплено USDT-центов по 20% с пачек рефералов
+  refPaidCents   Int      @default(0) // выплачено админом
+  refBurnedCents Int      @default(0) // сгорело до включения revshare (не возвращается)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -520,11 +528,12 @@ model Bet {
   paymentId   String?  @unique // uuid платежа 2328 (webhook)
   status      String   @default("pending")
   payoutCents Int?
-  // кэшаут выигрыша через 2328.io Payout API (bw-<batchId>): одна выплата
-  // покрывает пачку won-ставок; failed-webhook снимает claimed обратно
-  claimed       Boolean    @default(false)
-  claimedAt     DateTime?
-  payoutOrderId String?
+  // v14 — вес $NR: betSec — секунда ставки от opensAt; weightMilli —
+  // min(stake, 50 EYE) × decay (первые 5с ×1, середина ×0.4, последние 5с ×0),
+  // считается ТОЛЬКО у won-ставок при резолве (милледесятые, int).
+  betSec        Int?
+  weightMilli   Int?
+  decayMilli    Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -535,8 +544,7 @@ model Bet {
   @@index([bettorId])
   @@index([fingerprint])
   @@index([refCode])
-  @@index([bettorId, status, claimed])
-  @@index([payoutOrderId])
+  @@index([bettorId, status])
 }
 
 // События аналитики (ТЗ v2 §4.3.10 — «обязательно писать»):
@@ -578,4 +586,113 @@ model BoostOrder {
 
   @@index([clipCode])
   @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v14 — таблица clips: единственный источник контента (CSV удалён из дерева).
+//
+// ЖИЗНЕННЫЙ ЦИКЛ: queued → live → resolved (или void). Планировщик берёт
+// самый старый queued, когда нет live, и открывает окно BET_WINDOW_SEC.
+// По closes_at ОДНА транзакция: метка, банк, вес, reveal. Повтор
+// идемпотентен. Ставок нет — резолв всё равно есть. Битая ссылка — void,
+// ставки назад, метка не раскрывается. Ручной override — только на void.
+//
+// СЕКРЕТНОСТЬ:
+//   - video_url живёт ТОЛЬКО на сервере; клиент играет через прокси
+//     /api/clip/[id]/video;
+//   - label + label_commit: commit = sha256(label + ':' + id + ':' + COMMIT_PEPPER);
+//     метка не отдаётся никому до resolved (RLS default-deny + гранты колонок,
+//     представление clip_reveals показывает метку и хеш только после резолва);
+//   - публичный раунд отдаёт id, прокси видео, closes_at, пулы, label_commit —
+//     и НЕ отдаёт метку, автора, исходную ссылку.
+//
+// caption_public проходит фильтр запрещённых слов (seedance, higgsfield,
+// kling, runway, veo, ai, prompt, нейро) при вставке и при выдаче.
+model Clip {
+  id            String    @id // публичный код (для миграции — utm_code из CSV)
+  sourceUrl     String    @unique @map("source_url") // исходная ссылка — только серверу
+  videoUrl      String    @map("video_url") // прямой MP4 — только серверу (клиент: прокси)
+  authorHandle  String    @default("") @map("author_handle") // только серверу (в раунд не отдаётся)
+  captionPublic String    @default("") @map("caption_public") // подпись после фильтра запрещённых слов
+  label         String // real | synth — RLS закрывает до resolved
+  labelCommit   String    @map("label_commit") // sha256(label:id:COMMIT_PEPPER)
+  status        String    @default("queued") // queued | live | resolved | void
+  opensAt       DateTime? @map("opens_at")
+  closesAt      DateTime? @map("closes_at")
+  resolvedAt    DateTime? @map("resolved_at")
+  listedBy      String    @default("bd") @map("listed_by") // кто внёс клип в очередь
+  // витрина ленты (наследие витрины CSV): featured — админ-флаг, badge —
+  // косметика карточки, pin — абсолютный слот в ленте
+  featuredUntil DateTime? @map("featured_until")
+  badge         String    @default("")
+  pin           Int       @default(0)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([status, closesAt])
+  @@map("clips")
+}
+
+// v14 — касса: ровно ДВА платежа, инвойс создаёт только сервер.
+//   kind = "pack": order_id = "eye-" + accountId + "-" + sku + "-" + nonce
+//     пачки EYE: 100 = 1 USDT, 300 = 2.5 USDT, 1000 = 7 USDT.
+//     paid → EYE дописывается в игровой леджер один раз (refKey pack:<orderId>).
+//     Инвойс НЕ минтит $NR и НЕ пишет сезонный вес.
+//   kind = "rev": order_id = "rev-" + accountId, ровно 3 USDT, один раз.
+//     paid → revshare = true (процент по ссылке включён).
+// Вебхук 2328 сверяет подпись и идемпотентен по order_id; редирект не
+// начисляет и не включает статус.
+model PayOrder {
+  id          String    @id @default(uuid())
+  accountId   String    @map("accountId")
+  orderId     String    @unique @map("order_id")
+  kind        String // pack | rev
+  sku         Int? // 100 | 300 | 1000 (pack)
+  eyeAmount   Int?      @map("eye_amount") // сколько EYE начислить (pack)
+  amountMicros Int      @map("amount_micros") // цена в USDT-микро (1 USDT = 1_000_000)
+  paymentId   String?   @unique @map("payment_id")
+  status      String    @default("pending") // pending | paid | failed
+  txid        String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  paidAt      DateTime? @map("paid_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([accountId, status])
+  @@index([status])
+  @@map("pay_orders")
+}
+
+// v14 — merkle-клейм сезона (ТЗ §Раздача $NR): Base, фикс-саплай, пресейла
+// нет. Адрес публикуется ТОЛЬКО на этом домене после снапшота; клейм
+// merkle, один раз. Строится админом после снапшота, когда собраны
+// адреса игроков: root + proofs хранятся здесь; до клейма публичны
+// только ранг и число ранних верных коллов — НЕ число монет.
+model SeasonClaim {
+  id         String   @id @default(uuid())
+  seasonCode String   @unique @map("season_code")
+  root       String
+  supply     Int
+  gamePack   Int      @map("game_pack")
+  claimsJson String   @map("claims_json") // [{address, amount, proof[]}] — server-only
+  leafCount  Int      @default(0) @map("leaf_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("season_claims")
+}
+
+// v14 — регистрация Base-адреса для клейма (ТЗ: «Адрес только на этом
+// домене после снапшота. Клейм merkle, один раз»).
+//   - accountId unique: у аккаунта ровно одна попытка (один раз);
+//   - address unique: один адрес не может собрать два клейма;
+//   - принимается ТОЛЬКО после снапшота сезона (guard в /api/me/nr).
+model ClaimAddress {
+  id         String   @id @default(uuid())
+  seasonCode String   @map("season_code")
+  accountId  String   @unique @map("account_id")
+  address    String   @unique // 0x… (lowercase), Base
+  txHash     String?  @map("tx_hash")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("claim_addresses")
 }

@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { trackEvent } from "@/lib/bet/events";
+import { attributeReferral } from "@/lib/referral";
 import { is2328PaymentConfigured, create2328Payment } from "@/lib/2328/payment";
 
 /**
@@ -118,6 +119,9 @@ export type LedgerKind =
   | "guess_reward" // v8: бонус за верное предсказание (won-ставка)
   | "video_reward" // v8: бонус куратору за добавление видео в ленту
   | "streak_bonus" // v13: бонус за веху серии верных коллов (3/5/7/10)
+  | "bet_refund" // v14: возврат ставки при void-раунде (битая ссылка)
+  | "pack_purchase" // v14: пачка EYE оплачена (eye-* webhook paid, один раз)
+  | "ref_payout" // v14: USDT-выплата пригласившему зафиксирована админом
   | "daily_challenge_bonus" // v13: бонус победителям Daily Challenge раунда
   | "bet_stake"
   | "bet_payout"
@@ -252,16 +256,31 @@ export async function debitBetStake(
 /**
  * Ленивое создание аккаунта + welcome-бонус (идемпотентно).
  * Новый аккаунт = ноль форм: регистрация случается сама.
+ * v14: refCode выдаётся ВСЕМ с регистрации (ссылка ?ref=код); при
+ * создании можно сразу атрибутировать пригласившего (rawRef) —
+ * самоприглашение не пишется (attributeReferral).
  */
-export async function ensureAccount(id: string) {
+export async function ensureAccount(id: string, rawRef?: unknown) {
   let account = await db.account.findUnique({ where: { id } });
-  if (account) return account;
+  if (account) {
+    if (rawRef !== undefined && !account.referredById) {
+      await attributeReferral(account.id, rawRef).catch(() => null);
+    }
+    return account;
+  }
 
   account = await db.account.create({ data: { id } }).catch(async () => {
     /* гонка двух параллельных ensure — просто перечитаем */
     return db.account.findUnique({ where: { id } });
   });
   if (!account) throw new EconError("account unavailable", 500, "account_failed");
+
+  /* v14: персональный код с первой секунды жизни аккаунта */
+  const { ensureRefCode } = await import("@/lib/referral");
+  await ensureRefCode(account.id).catch(() => null);
+  if (rawRef !== undefined) {
+    await attributeReferral(account.id, rawRef).catch(() => null);
+  }
 
   if (ECON.welcomeBonusCents > 0) {
     const credited = await applyLedger(

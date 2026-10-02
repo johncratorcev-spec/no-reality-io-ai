@@ -13,6 +13,7 @@ import AuthGateOverlay from "./AuthGateOverlay";
 import { useLang } from "@/lib/i18n";
 import ShareSeam from "./ShareSeam";
 import ShareRow, { buildShareText } from "./ShareRow";
+import PackRow from "./PackRow";
 
 /**
  * BetPanel v5 — панель предикшен-ленты (REAL / SYNTH + банк + таймер).
@@ -439,6 +440,47 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                 style={{ background: "rgba(242,237,228,.18)" }}
               />
 
+              {/* v14 — карточка после закрытия: колл, метка, хеш сошёлся,
+                  на какой секунде был верный колл */}
+              <div
+                className="mt-4 space-y-1.5 text-left text-[0.62rem] font-bold uppercase tracking-[0.14em]"
+                style={{ color: "rgba(242,237,228,.5)" }}
+              >
+                {hasMyBet && (
+                  <p>
+                    {t.bet.yourCall}{" "}
+                    <span style={{ color: "rgba(242,237,228,.85)" }}>
+                      {round?.myBet?.side === "real" ? "REAL" : "SYNTH"}
+                    </span>
+                  </p>
+                )}
+                {typeof round?.myBetSec === "number" && round.myResult === "won" && (
+                  <p>
+                    {t.bet.callAtSec}{" "}
+                    <span style={{ color: "rgba(242,237,228,.85)" }}>
+                      {round.myBetSec}s
+                    </span>
+                  </p>
+                )}
+                {typeof round?.firstCorrectSec === "number" && (
+                  <p>
+                    {t.bet.firstCorrect}{" "}
+                    <span style={{ color: "rgba(242,237,228,.85)" }}>
+                      {round.firstCorrectSec}s
+                    </span>
+                  </p>
+                )}
+                {round?.labelCommit && (
+                  <p className="break-all normal-case tracking-normal">
+                    {round.hashMatched ? "✓ " : "? "}
+                    sha256 commit{" "}
+                    <span style={{ color: "rgba(242,237,228,.75)" }}>
+                      {round.labelCommit.slice(0, 16)}…
+                    </span>
+                  </p>
+                )}
+              </div>
+
               {result.mine === "won" && (
                 <p className="mt-4 text-[1.05rem] font-black" style={{ color: "var(--nb-poison)" }}>
                   {t.bet.eyeWorked}{fmtUsd(result.payout)}
@@ -524,16 +566,17 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
               >
                 {t.bet.moreSeams}
               </button>
-              <div className="flex items-center justify-center gap-3">
-                <ShareSeam mode="invite" className="nb-btn nb-btn-real rounded-full px-4 py-2 text-[0.68rem] font-bold" />
-                <a
-                  href="/pnl"
-                  className="text-[0.64rem] font-bold underline decoration-dotted underline-offset-4"
-                  style={{ color: "rgba(242,237,228,.5)" }}
-                >
-                  {t.bet.cashoutPnl}
-                </a>
-              </div>
+              {(account?.balanceCents ?? 0) <= 0 ? (
+                /* v14 — пачка на нуле баланса после закрытого раунда */
+                <PackRow
+                  onPaid={(acc) => setAccount(acc)}
+                  compact
+                />
+              ) : (
+                <div className="flex items-center justify-center gap-3">
+                  <ShareSeam mode="invite" className="nb-btn nb-btn-real rounded-full px-4 py-2 text-[0.68rem] font-bold" />
+                </div>
+              )}
             </div>
           </div>
         </div>

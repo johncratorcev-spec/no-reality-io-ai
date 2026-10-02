@@ -6,7 +6,7 @@
 export interface RoundView {
   id: string;
   clipCode: string;
-  status: "open" | "locked" | "resolved";
+  status: "open" | "locked" | "resolved" | "void";
   opensAt?: string;
   closesAt: string;
   serverNow: string;
@@ -21,9 +21,15 @@ export interface RoundView {
     amountCents: number;
     status: string;
     payoutCents: number | null;
+    betSec?: number | null;
   } | null;
   resolvedAs?: "real" | "synth";
   myResult?: "won" | "lost" | null;
   myPayoutCents?: number | null;
   rakeCents?: number;
+  /* v14 — карточка после закрытия: колл, метка, хеш, секунда верного колла */
+  labelCommit?: string;
+  hashMatched?: boolean;
+  myBetSec?: number | null;
+  firstCorrectSec?: number | null;
 }

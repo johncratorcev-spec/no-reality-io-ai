@@ -47,7 +47,7 @@ export function betDemoEnabled(): boolean {
  * формат суммы для UI (v7): всё, что проходит через fmtUsd, — ВИРТУАЛЬНЫЕ
  * МОНЕТЫ (ставки/пулы/выигрыши внутренних монет): 237 → "237", 500 → "500".
  * Имя сохранено ради диффа; "$" здесь больше не существует — реальные
- * деньги остались только в pnl-кэшауте (там свой локальный fmtUsd).
+ * деньги живут только в кассе (пачки/revshare в USDT, lib/packs.ts).
  */
 export function fmtUsd(cents: number): string {
   return String(Math.round(cents));

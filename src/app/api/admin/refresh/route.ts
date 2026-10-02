@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       {
         ok: false,
         error:
-          "refresh job is not available on serverless: update data/posts.csv via git commit (auto-redeploy)",
+          "refresh job is not available on serverless: clip video links live in the clips table (BD panel re-adds if a CDN link dies)",
       },
       { status: 501 }
     );

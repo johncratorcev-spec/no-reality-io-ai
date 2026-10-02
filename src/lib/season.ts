@@ -9,13 +9,15 @@ import { db } from "@/lib/db";
  * конец — 12:00 UTC T+7. Снапшот снимается админом в любой момент
  * после endsAt (GET /api/admin/snapshot?key=…), затем сезон архивируется.
  *
- * ПРАВИЛА СЕЗОНА (объявлены в день старта, менять на неделе запрещено):
- *   - EYE — очки за игру, не продаются (платежи выключены приказом);
- *   - в срез попадают аккаунты с eye и ≥ 5 settled (won|lost) ставками;
- *   - аккаунты «только welcome, 0 ставок» и дубли (telegramId unique)
- *     в срез не попадают;
- *   - вес фиксируется формулой weight = eye * min(1, valid_bets / 10);
- *   - токен на Base — merkle claim ПОСЛЕ снапшота (адреса с дня 5).
+ * ПРАВИЛА СЕЗОНА (v14, ТЗ §Раздача $NR):
+ *   - EYE — очки пари-мьютюэля; докупаются ТОЛЬКО пачками (касса);
+ *   - $NR докупить нельзя: инвойс не минтит $NR и не пишет сезонный вес;
+ *   - вес сезона = sum(stake × time_decay) по ВЕРНЫМ ставкам
+ *     (1/0.4/0 по окну, кеп ставки 50 EYE), ноль при < 20 верных раундов,
+ *     кеп аккаунта 2% игровой пачки; доли 75/15/10;
+ *   - расчёт веса: src/lib/nr-snapshot.ts; прежняя формула «баланс ×
+ *     нормированное число ставок» УДАЛЕНА из кода и с сайта (ТЗ);
+ *   - токен на Base — merkle claim ПОСЛЕ снапшота, один раз.
  */
 
 const DAY_MS = 86_400_000;
@@ -24,10 +26,12 @@ export const SEASON_NAME = "Season 1";
 export const SEASON_DAYS = 7;
 /** час среза по UTC (объявленное правило) */
 export const SNAPSHOT_HOUR_UTC = 12;
-/** минимум валидных ставок для попадания в срез */
-export const SNAPSHOT_MIN_BETS = 5;
-/** знаменатель формулы веса */
-export const SNAPSHOT_BETS_NORM = 10;
+/* v14: формулы среза переехали в nr-snapshot.ts (weight = stake×decay
+   верных коллов, кепы 50 EYE / <20 раундов / 2% пачки). Ниже — публичные
+   константы правил сезона. */
+export const SNAPSHOT_MIN_CORRECT_ROUNDS = 20;
+export const SNAPSHOT_STAKE_CAP_EYE = 50;
+export const SNAPSHOT_ACCOUNT_CAP_PCT = 0.02;
 
 export interface SeasonRow {
   id: string;
@@ -113,100 +117,4 @@ export function seasonView(s: SeasonRow): SeasonInfo {
 export async function seasonInfo(): Promise<SeasonInfo | null> {
   const s = await ensureActiveSeason();
   return s ? seasonView(s) : null;
-}
-
-export interface SnapshotRow {
-  userId: string;
-  telegramId: string;
-  displayName: string;
-  eye: number;
-  score: number;
-  bets: number;
-  correct: number;
-  weight: number;
-}
-
-/**
- * Строки снапшота сезона: settled (won|lost) ставки в окне сезона,
- * группировка по аккаунту, отсев < SNAPSHOT_MIN_BETS валидных ставок.
- * eye — текущий баланс (истина — LedgerTxn), score — чистый игровой
- * результат (выплаты − ставки), weight — формула сезона.
- */
-export async function snapshotRows(season: SeasonRow): Promise<SnapshotRow[]> {
-  const window = { gte: season.startsAt, lt: season.endsAt };
-
-  const settled = await db.bet.groupBy({
-    by: ["accountId"],
-    where: { createdAt: window, status: { in: ["won", "lost"] }, accountId: { not: null } },
-    _count: { _all: true },
-    _sum: { amountCents: true },
-  });
-  const won = await db.bet.groupBy({
-    by: ["accountId"],
-    where: { createdAt: window, status: "won", accountId: { not: null } },
-    _count: { _all: true },
-    _sum: { payoutCents: true },
-  });
-  const wonByAcc = new Map(won.map((w) => [w.accountId!, w]));
-
-  const ids = settled.map((s) => s.accountId!);
-  if (ids.length === 0) return [];
-  const accounts = await db.account.findMany({
-    where: { id: { in: ids } },
-    select: {
-      id: true,
-      telegramId: true,
-      displayName: true,
-      tgUsername: true,
-      balanceCents: true,
-      createdAt: true,
-    },
-  });
-  const accById = new Map(accounts.map((a) => [a.id, a]));
-
-  const rows: SnapshotRow[] = [];
-  for (const s of settled) {
-    const bets = s._count._all;
-    if (bets < SNAPSHOT_MIN_BETS) continue; /* отсев: недостаточно игры */
-    const acc = accById.get(s.accountId!);
-    if (!acc) continue;
-    const w = wonByAcc.get(acc.id);
-    const staked = s._sum.amountCents ?? 0;
-    const paid = w?._sum.payoutCents ?? 0;
-    rows.push({
-      userId: acc.id,
-      telegramId: acc.telegramId ?? "",
-      displayName: acc.displayName || (acc.tgUsername ? `@${acc.tgUsername}` : ""),
-      eye: acc.balanceCents,
-      score: paid - staked,
-      bets,
-      correct: w?._count._all ?? 0,
-      weight: Math.round(acc.balanceCents * Math.min(1, bets / SNAPSHOT_BETS_NORM)),
-    });
-  }
-  /* сильнее — выше: вес убывает, при равенстве раньше созданный */
-  rows.sort((a, b) => b.weight - a.weight || a.userId.localeCompare(b.userId));
-  return rows;
-}
-
-/** CSV снапшота (артефакт для партнёров). */
-export function snapshotCsv(rows: SnapshotRow[]): string {
-  const head = "userId,telegramId,eye,score,bets,correct,weight,displayName";
-  const body = rows
-    .map((r) =>
-      [
-        r.userId,
-        r.telegramId,
-        r.eye,
-        r.score,
-        r.bets,
-        r.correct,
-        r.weight,
-        r.displayName.replace(/[\r\n,"]/g, " ").trim(),
-      ]
-        .map((v) => `"${String(v)}"`)
-        .join(",")
-    )
-    .join("\n");
-  return `${head}\n${body}\n`;
 }

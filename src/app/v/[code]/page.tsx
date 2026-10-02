@@ -30,13 +30,13 @@ export async function generateMetadata({
   /* deep link first: OG-карточка = «REAL or SYNTH?» + кадр */
   const t = post.title ? post.title.slice(0, 160) : undefined;
   return {
-    title: `REAL or SYNTH? — ${post.author || "video"}`.slice(0, 120),
+    title: "REAL or SYNTH?".slice(0, 120),
     description: t
       ? `${t.slice(0, 110)} — real or synth? call it and win the pool.`
       : "real or synth? call it — 10–50 EYE, the bank resolves in under a minute.",
     alternates: { canonical: `/v/${post.utmCode}` },
     openGraph: {
-      title: `REAL or SYNTH? — ${post.author || "video"} on no reality.`,
+      title: "REAL or SYNTH? — no reality.",
       description: t
         ? `${t.slice(0, 110)} — real or synth? call it and win the pool.`
         : "real or synth? call it and win the pool.",
@@ -53,7 +53,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: "summary_large_image",
-      title: `REAL or SYNTH? — ${post.author || "video"}`,
+      title: "REAL or SYNTH?",
       description: t
         ? `${t.slice(0, 110)} — real or synth? call it and win the pool.`
         : "real or synth? call it and win the pool.",
@@ -74,12 +74,13 @@ export default async function VideoByCodePage({ params }: PageProps) {
 
   /* searchParams ?donate/?drop устарели — принимаются молча, игнорируются */
 
+  /* v14: bet-режим = клип сейчас live (раунд открыл планировщик);
+     resolved/queued — обычный просмотр с раскрытием результата */
+  const bettable = post.status === "live";
   return (
     <FeedScreen
-      posts={toClientRankedPosts(
-        post.truth ? posts.filter((p) => p.truth) : posts
-      )}
-      mode={post.truth ? "bet" : "watch"}
+      posts={toClientRankedPosts(bettable ? posts : posts)}
+      mode={bettable ? "bet" : "watch"}
       focusCode={post.utmCode}
     />
   );

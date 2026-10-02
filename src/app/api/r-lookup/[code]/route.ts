@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
-import { getPostByCode } from "@/lib/csv";
+import { clipById } from "@/lib/clips";
 
 export const dynamic = "force-dynamic";
 
@@ -35,13 +35,13 @@ export async function GET(
     return NextResponse.json({ error: "Bad code" }, { status: 400 });
   }
 
-  const post = getPostByCode(code);
+  const post = await clipById(code);
   if (!post) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   return NextResponse.json(
-    { code, url: post.url },
+    { code, url: post.sourceUrl },
     { headers: { "cache-control": "public, max-age=300" } }
   );
 }

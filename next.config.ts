@@ -3,12 +3,10 @@ import type { NextConfig } from "next";
 const isNetlify = Boolean(process.env.NETLIFY);
 
 /* Файлы, нужные Node-рантайму на serverless (Netlify):
-   - data/posts.csv — источник ленты (плюс встроенный снапшот-фолбэк);
    - db/custom.db — SQLite, создаётся prisma db push при сборке на Netlify;
    - Prisma client + query engine (bun на Netlify пропускает postinstall-скрипты
      недоверенных пакетов, поэтому клиент генерится явно в build-команде). */
 const serverlessIncludes = [
-  "./data/posts.csv",
   "./db/custom.db",
   "./prisma/schema.prisma",
   "./node_modules/.prisma/**",
@@ -20,7 +18,8 @@ const tracedRoutes = [
   "/v/[code]",
   "/r/[code]",
   "/api/admin/refresh",
-  "/api/wallet/deposit",
+  "/api/cron/tick",
+  "/api/packs",
   "/api/webhooks/2328",
 ];
 

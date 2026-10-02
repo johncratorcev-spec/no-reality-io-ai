@@ -13,23 +13,23 @@
  *    4. подделанный hash → 401
  *    5. auth_date 25 часов назад → 401 (replay)
  *    6. мусорный id → 401
- * B. Петля ставки (10/25/50):
+ * B. Петля ставки (10/25/50) — v14: раунд живёт в планировщике clips:
  *    7. ставка 10 EYE → ok, баланс 90; DB: bet_stake −10
  *    8. ставка 75 EYE (вне 10..50) → 400
  *    9. второй аккаунт ставит 25 на другую сторону → баланс 75
- *   10. админ-резолв REAL → победитель: 90 + payout + guess_reward,
- *       проигравший: 75; математика пари-мьютюэля сходится
+ *   10. авторезолв REAL (закрытие окна + тик) → победитель: 90 + payout
+ *       + guess_reward, проигравший: 75; математика пари-мьютюэля сходится
  *   11. DB: LedgerTxn bet_payout + guess_reward(+10), Σdelta == баланс
- * C. Платежи выключены приказом:
- *   12. POST /api/wallet/deposit → 403 payments_disabled
- *   13. POST /api/me/cashout → 403 cashout_disabled
- *   14. POST /api/boost/checkout → 403 payments_disabled
- * D. Снапшот Season 1:
+ * C. Платежи v14 (только пачки + rev; легаси-контуры удалены):
+ *   12. POST /api/wallet/deposit → 404 (маршрут удалён)
+ *   13. POST /api/me/cashout → 404 (выкупа очков нет)
+ *   14. POST /api/boost/checkout → 404 (маршрут удалён)
+ * D. Снапшот Season 1 (v14 — раздача $NR):
  *   15. GET /api/admin/snapshot без ключа → 401
- *   16. с ключом → CSV-шапка userId,telegramId,eye,score,bets,correct,weight
- *   17. в CSV: игрок петли с ≥5 settled ставками; weight = eye*min(1,bets/10)
- *   18. аккаунт с 3 settled ставками НЕ в CSV (порог 5)
- *   19. аккаунт «только welcome» НЕ в CSV
+ *   16. с ключом → CSV-шапка rank,accountId,…,correctRounds,earlyCorrect,weightEye,amountNr
+ *   17. в CSV: игрок петли; правило min-20 верных раундов
+ *   18. аккаунт с 3 ставками без веса/суммы
+ *   19. шапка содержит earlyCorrect
  * E. Страницы:
  *   20. GET / → 200, «Season 1 live», кнопка call it
  *   21. GET /seam → 307/308 → /bet
@@ -64,6 +64,7 @@ let failed = 0;
 const cleanupAccounts = [];
 const cleanupBets = [];
 const cleanupRounds = [];
+const cleanupClips = [];
 
 function ok(name, cond, extra = "") {
   if (cond) {
@@ -185,13 +186,41 @@ async function run() {
   const junk = await A("POST", "/api/auth/telegram", tgPayload(TG_TOKEN, { id: "not-a-number" }));
   ok("6 мусорный id → 401", junk.status === 401);
 
-  console.log("\n=== B. Петля ставки 10/25/50 → вердикт → ledger ===");
-  /* открываем раунд на реальном клипе из ленты */
-  const clipRes = await fetch(`${BASE}/api/posts`);
-  const posts = (await clipRes.json())?.posts || [];
-  const clip = posts.find((p) => p.bettable) || posts[0];
-  const clipCode = clip?.utmCode || clip?.utm_code;
-  ok("7.0 клип из ленты найден", Boolean(clipCode), clipCode);
+  console.log("\n=== B. Петля ставки 10/25/50 → авторезолв → ledger ===");
+  /* v14: раунд открывает планировщик из очереди clips. Сеим тестовый клип
+     (label=real → REAL выигрывает), закрываем чужие окна и тикаем. */
+  const PEPPER = envFromDotenv("COMMIT_PEPPER");
+  const commitOf = (id, label) =>
+    crypto.createHash("sha256").update(`${label}:${id}:${PEPPER}`).digest("hex");
+  const loopClipId = `loop${Date.now().toString(36)}`.slice(0, 16);
+  const sampleVideo = "https://www.w3schools.com/html/mov_bbb.mp4";
+  await q(
+    `insert into clips (id, source_url, video_url, author_handle, caption_public, label, label_commit, status, listed_by, created_at, updated_at)
+     values ($1,$2,$3,'@loop','',$4,$5,'queued','selftest', now() - interval '7 days', now())
+     on conflict (id) do nothing`,
+    [loopClipId, `https://example.com/loop/${loopClipId}`, sampleVideo, "real", commitOf(loopClipId, "real")]
+  );
+  cleanupClips.push(loopClipId);
+  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+  const tickRes = await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET)}`);
+  ok("6b cron/tick 200", tickRes.status === 200);
+
+  /* ждём, пока планировщик дойдёт до нашего клипа (чужие queued могли быть старше) */
+  let clipCode = null;
+  for (let i = 0; i < 10; i++) {
+    const row = await one(`select id, status from clips where id = $1`, [loopClipId]);
+    if (row?.status === "live") {
+      clipCode = loopClipId;
+      break;
+    }
+    if (row?.status === "queued") {
+      /* наш клип ещё не первый — подрежем created_at и тикнем снова */
+      await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+      await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET)}`);
+    } else break;
+    await new Promise((r) => setTimeout(r, 700));
+  }
+  ok("7.0 тестовый клип в live", Boolean(clipCode), clipCode ?? "");
 
   const rv = await A("GET", `/api/round?clip=${encodeURIComponent(clipCode)}`);
   const roundId = rv.json?.round?.id || rv.json?.id;
@@ -220,9 +249,12 @@ async function run() {
   cleanupBets.push(bet1.json?.bet_id, bet2.json?.bet_id);
   cleanupRounds.push(roundId2);
 
-  /* админ закрывает раунд руками (REAL) */
-  const resolve = await A("POST", `/api/admin/rounds?key=${ADMIN_SECRET}`, { roundId: roundId2, verdict: "real" });
-  ok("10 админ-резолв REAL → ok", resolve.status === 200 && resolve.json?.ok === true, JSON.stringify(resolve.json?.summary || {}).slice(0, 120));
+  /* закрываем окно → планировщик авторезолвит (label=real → REAL) */
+  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where id = $1`, [roundId2]);
+  await q(`update "Bet" set "betSec" = 0 where "roundId" = $1 and side = 'real'`, [roundId2]);
+  await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET)}`);
+  const resolvedRow = await one(`select status, "resolvedAs" from "Round" where id = $1`, [roundId2]);
+  ok("10 авторезолв REAL → ok", resolvedRow?.status === "resolved" && resolvedRow?.resolvedAs === "real", JSON.stringify(resolvedRow ?? {}).slice(0, 120));
 
   const sumA = await ledgerSum(accA);
   const sumB = await ledgerSum(accB);
@@ -236,13 +268,13 @@ async function run() {
   );
   ok("11b DB: guess_reward +10", Number(guess?.delta) === 10);
 
-  console.log("\n=== C. Платежи выключены приказом ===");
+  console.log("\n=== C. Платежи v14: легаси-контуры удалены ===");
   const dep = await A("POST", "/api/wallet/deposit", { amount_cents: 500 });
-  ok("12 deposit → 403 payments_disabled", dep.status === 403 && dep.json?.error === "payments_disabled");
+  ok("12 deposit → 404 (маршрут удалён)", dep.status === 404);
   const cash = await A("POST", "/api/me/cashout", { wallet: "TQn9Y2khDD95J42FQtQTdwVVRZq7NmH5s1" });
-  ok("13 cashout → 403 cashout_disabled", cash.status === 403 && cash.json?.error === "cashout_disabled");
+  ok("13 cashout → 404 (выкупа очков нет)", cash.status === 404);
   const boost = await A("POST", "/api/boost/checkout", { code: clipCode, days: 1 });
-  ok("14 boost checkout → 403 payments_disabled", boost.status === 403 && boost.json?.error === "payments_disabled");
+  ok("14 boost checkout → 404 (маршрут удалён)", boost.status === 404);
 
   console.log("\n=== D. Снапшот Season 1 ===");
   /* досеиваем ставки: у accB должно остаться <5 settled, у accA добавим 4 settled → 5 */
@@ -290,21 +322,26 @@ async function run() {
   const snap = await A("GET", `/api/admin/snapshot?key=${ADMIN_SECRET}`);
   const lines = snap.text.trim().split("\n");
   const header = lines[0];
-  ok("16 CSV 200 + шапка", snap.status === 200 && header === "userId,telegramId,eye,score,bets,correct,weight,displayName", header);
+  /* v14: снапшот переведён на правила раздачи $NR (вес = stake × decay
+     по верным ставкам, < 20 верных раундов → ноль) — формула
+     eye*min(1,bets/10) удалена из кода и сайта по ТЗ. Шапка новая. */
+  ok("16 CSV 200 + шапка v14", snap.status === 200 && header === "rank,accountId,telegramId,displayName,correctRounds,earlyCorrect,weightEye,amountNr", header);
   const rowA = lines.find((l) => l.includes(accA));
   ok("17 игрок петли в CSV", Boolean(rowA), rowA?.slice(0, 120));
   if (rowA) {
     const cells = rowA.split(",").map((c) => c.replaceAll('"', ""));
-    const eye = Number(cells[2]);
-    const bets = Number(cells[4]);
-    const weight = Number(cells[6]);
-    const expected = Math.round(eye * Math.min(1, bets / 10));
-    ok("17b weight = eye*min(1,bets/10)", weight === expected, `eye=${eye} bets=${bets} w=${weight}`);
-    ok("17c bets ≥ 5 (ставка петли + 4 сеяных)", bets >= 5, `bets=${bets}`);
+    const correct = Number(cells[4]);
+    const weightEye = Number(cells[6]);
+    const amountNr = Number(cells[7]);
+    ok("17b правило min-20: мало верных раундов → вес/сумма 0", correct < 20 ? weightEye === 0 && amountNr === 0 : amountNr >= 0, `correct=${correct} w=${weightEye} nr=${amountNr}`);
   }
   const shortIn = lines.some((l) => l.includes(accShort));
-  ok("18 аккаунт с 3 ставками НЕ в CSV", !shortIn);
-  ok("19 шапка содержит telegramId колонку", header.includes("telegramId"));
+  /* v14: снапшот не режет строки — резит ВЕС (минимум 20 верных раундов):
+     аккаунт с 3 сеяными ставками либо не попадает (нет won), либо вес 0 */
+  const shortRow = lines.find((l) => l.includes(accShort));
+  const shortZero = !shortRow || (Number(shortRow.split(",")[6].replaceAll('"', "")) === 0 && Number(shortRow.split(",")[7].replaceAll('"', "")) === 0);
+  ok("18 аккаунт с 3 ставками без веса/суммы", shortZero, shortRow?.slice(0, 80));
+  ok("19 шапка содержит earlyCorrect колонку", header.includes("earlyCorrect"));
 
   console.log("\n=== E. Страницы ===");
   const home = await fetch(`${BASE}/`);
@@ -353,6 +390,12 @@ async function cleanupDb() {
       await q(`DELETE FROM "TrackEvent" WHERE "clipCode" = (SELECT "clipCode" FROM "Round" WHERE id = $1) AND "meta" LIKE '%' || $1 || '%'`, [rid]).catch(() => {});
       await q(`DELETE FROM "Bet" WHERE "roundId" = $1`, [rid]);
       await q(`DELETE FROM "Round" WHERE id = $1`, [rid]);
+    }
+    for (const cid of cleanupClips) {
+      if (!cid) continue;
+      await q(`DELETE FROM "Bet" WHERE "roundId" IN (SELECT id FROM "Round" WHERE "clipCode" = $1)`, [cid]).catch(() => {});
+      await q(`DELETE FROM "Round" WHERE "clipCode" = $1`, [cid]).catch(() => {});
+      await q(`DELETE FROM clips WHERE id = $1`, [cid]).catch(() => {});
     }
     console.log("cleanup: selftest-данные вычищены");
   } catch (e) {

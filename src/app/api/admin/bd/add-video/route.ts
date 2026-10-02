@@ -1,47 +1,26 @@
-import fs from "node:fs";
-import Papa from "papaparse";
-import { customAlphabet } from "nanoid";
 import { NextRequest, NextResponse } from "next/server";
 import { adminConfigured, hasAdminSession } from "@/lib/admin/session";
-import { commitFile, getCsvFromGitHub, ghEnabled } from "@/lib/panel_github";
 import { jinaMeta, parsePostInput, verifyVideoUrl } from "@/lib/panel_extract";
+import { db } from "@/lib/db";
+import { labelCommitOf, scrubCaption } from "@/lib/clips";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 
 /**
- * v13 — POST /api/admin/bd/add-video: быстрая заливка клипа BD.
+ * v14 — POST /api/admin/bd/add-video: быстрая заливка клипа BD.
  *
  * Доступ: только сессия nr_admin. Источники: Threads (полный парсинг)
  * и X/Twitter (метаданные best-effort, адрес видео — вручную: у X нет
  * публичного прямого mp4 без авторизации — это честное ограничение).
  *
- * Запись: dev/sandbox — атомарный append в data/posts.csv;
- * serverless (Vercel) — коммит data/posts.csv в GitHub (автодеплой).
- * truth: real|synth — BD помечает сразу (раунд станет ставочным),
- * пусто — раунд закрывается вручную через Oracle Console.
+ * ЗАПИСЬ (v14): строка таблицы clips — CSV и GitHub-коммиты удалены.
+ *   status = queued СРАЗУ (ТЗ §Авторезолв: «Дом ставит queued сразу»);
+ *   позже планировщик сам откроет окно пользователю — правила метки те же.
+ *   label: real|synth — ОБЯЗАТЕЛЕН (без метки — 400).
+ *   caption_public проходит фильтр генеративных маркеров.
  */
 
-const SERVERLESS = !!(process.env.VERCEL || process.env.NETLIFY);
-const CSV_PATH = () => `${process.cwd()}/data/posts.csv`;
-
-const nanoid = customAlphabet(
-  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_",
-  8
-);
-
-interface Body {
-  url?: string;
-  title?: string;
-  author?: string;
-  video?: string;
-  badge?: string;
-  truth?: string;
-  mood?: string;
-}
-
-/** x.com / twitter.com status → { id, url } | null */
 function parseXInput(raw: string): { id: string; url: string } | null {
   const s = raw.trim();
   if (!s) return null;
@@ -55,39 +34,22 @@ function parseXInput(raw: string): { id: string; url: string } | null {
   return null;
 }
 
-function isDupe(rows: Record<string, string>[], code: string): boolean {
-  return rows.some((r) => {
-    const u = (r.url || "").trim();
-    return u.includes(`/share/${code}/`) || u.includes(`/post/${code}`) || u.includes(`/status/${code}`);
-  });
+interface Body {
+  url?: string;
+  title?: string;
+  author?: string;
+  video?: string;
+  badge?: string;
+  truth?: string;
 }
 
-function buildRow(cols: {
-  url: string;
-  title: string;
-  author: string;
-  video: string;
-  badge: string;
-  truth: string;
-  mood: string;
-}): Record<string, string> {
-  return {
-    url: cols.url,
-    title: cols.title,
-    author: cols.author,
-    utm_code: nanoid(),
-    video_url: cols.video,
-    boost_until: "",
-    badge: cols.badge,
-    pin: "",
-    is_paid: "",
-    price_usdt: "",
-    prompt_preview: "",
-    seller_wallet: "",
-    media: "",
-    truth: cols.truth,
-    mood: cols.mood,
-  };
+const ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
+function generateClipId(): string {
+  let s = "";
+  const buf = new Uint8Array(10);
+  crypto.getRandomValues(buf);
+  for (const b of buf) s += ALPHABET[b % ALPHABET.length];
+  return s;
 }
 
 export async function POST(req: NextRequest) {
@@ -104,14 +66,15 @@ export async function POST(req: NextRequest) {
   if (!url || url.length > 2000) {
     return NextResponse.json({ ok: false, error: "empty or too long link" }, { status: 400 });
   }
-  const truth = ["real", "synth", ""].includes((body?.truth ?? "").trim().toLowerCase())
-    ? (body?.truth ?? "").trim().toLowerCase()
-    : "";
-  const mood = (body?.mood ?? "").trim().slice(0, 24);
-  const badge = (body?.badge ?? "").trim().slice(0, 40);
-  const video = (body?.video ?? "").trim();
-  const titleCustom = (body?.title ?? "").trim();
-  const authorCustom = (body?.author ?? "").trim();
+
+  /* --- метка обязательна (ТЗ: «Без метки — 400») --- */
+  const truth = (body?.truth ?? "").trim().toLowerCase();
+  if (truth !== "real" && truth !== "synth") {
+    return NextResponse.json(
+      { ok: false, error: "label required: real or synth (no label — no round)" },
+      { status: 400 }
+    );
+  }
 
   const xPost = parseXInput(url);
   const threads = xPost ? null : parsePostInput(url);
@@ -126,14 +89,14 @@ export async function POST(req: NextRequest) {
   const code = xPost ? xPost.id : (threads as { code: string }).code;
 
   /* --- метаданные: Threads → jina; X → jina best-effort --- */
-  let title = titleCustom;
-  let author = authorCustom;
+  let title = (body?.title ?? "").trim();
+  let author = (body?.author ?? "").trim();
   if (!title || !author) {
     try {
       const meta = await jinaMeta(sourceUrl);
       if (meta) {
         if (!title) title = meta.title ?? "";
-        if (!author) author = meta.author ?? (xPost ? "" : "@unknown");
+        if (!author) author = meta.author ?? (xPost ? "" : "");
       }
     } catch {
       /* метаданные не пришли — заполним вручную */
@@ -141,7 +104,7 @@ export async function POST(req: NextRequest) {
   }
   if (!title) title = xPost ? `X post ${code}` : "untitled clip";
   if (!author) author = xPost ? "@x-unknown" : "@unknown";
-  if (!titleCustom && /[а-яё]/i.test(title)) {
+  if (!(body?.title ?? "").trim() && /[а-яё]/i.test(title)) {
     return NextResponse.json(
       {
         ok: false,
@@ -152,6 +115,7 @@ export async function POST(req: NextRequest) {
   }
 
   /* --- адрес видео: у Threads обязателен; у X — из формы (ограничение X) --- */
+  const video = (body?.video ?? "").trim();
   let videoUrl = video;
   if (!videoUrl && xPost) {
     return NextResponse.json(
@@ -184,59 +148,51 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const row = buildRow({ url: sourceUrl, title, author, video: videoUrl, badge, truth, mood });
+  const badge = (body?.badge ?? "").trim().slice(0, 40);
+  const id = generateClipId();
 
-  /* --- дубли + запись --- */
-  if (SERVERLESS && ghEnabled()) {
-    const raw = await getCsvFromGitHub();
-    const parsed = Papa.parse<Record<string, string>>(raw, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h) => h.trim().toLowerCase(),
-    });
-    if (isDupe(parsed.data ?? [], code)) {
-      return NextResponse.json({ ok: false, error: "this post is already in the feed" }, { status: 409 });
-    }
-    const rowCsv = Papa.unparse([Object.values(row)]);
-    /* если в CSV нет новых колонок — допишем заголовок один раз */
-    const headerHasAll = (raw.split("\n")[0] || "").includes("truth");
-    const nextCsv = headerHasAll
-      ? `${raw.replace(/\s*$/, "\n")}${rowCsv}\n`
-      : `${raw.replace(/\s*$/, "\n")}${Papa.unparse([row])}\n`;
-    const sha = await commitFile(
-      "data/posts.csv",
-      nextCsv,
-      `bd: + ${author}${badge ? ` [${badge}]` : ""} (${code.slice(0, 24)})`
-    );
-    return NextResponse.json({
-      ok: true,
-      mode: "serverless",
-      result: { code, utm: row.utm_code, author, title: title.slice(0, 200), truth, commit: sha.slice(0, 7) },
-    });
-  }
-
-  /* dev/sandbox: локальный CSV */
-  const raw = fs.readFileSync(CSV_PATH(), "utf-8");
-  const parsed = Papa.parse<Record<string, string>>(raw, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h) => h.trim().toLowerCase(),
-  });
-  if (isDupe(parsed.data ?? [], code)) {
+  /* --- дубли по уникальному source_url + запись в clips --- */
+  const dupe = await db.clip.findUnique({ where: { sourceUrl }, select: { id: true } });
+  if (dupe) {
     return NextResponse.json({ ok: false, error: "this post is already in the feed" }, { status: 409 });
   }
-  parsed.data.push(row);
-  const out = Papa.unparse(parsed.data, { columns: Object.keys(row) });
-  const tmp = `${CSV_PATH()}.tmp`;
-  fs.writeFileSync(tmp, out.endsWith("\n") ? out : `${out}\n`, "utf-8");
-  fs.renameSync(tmp, CSV_PATH());
-  console.log(`[admin/bd/add-video] created: ${row.utm_code} truth=${truth || "-"} src=${xPost ? "x" : "threads"}`);
 
-  return NextResponse.json({
-    ok: true,
-    mode: "local",
-    result: { code, utm: row.utm_code, author, title: title.slice(0, 200), truth },
-  });
+  try {
+    const clip = await db.clip.create({
+      data: {
+        id,
+        sourceUrl,
+        videoUrl,
+        authorHandle: author,
+        captionPublic: scrubCaption(title),
+        label: truth,
+        labelCommit: labelCommitOf(id, truth),
+        status: "queued",
+        listedBy: "bd",
+        badge,
+      },
+    });
+    console.log(`[admin/bd/add-video] created: ${clip.id} label=${truth} src=${xPost ? "x" : "threads"}`);
+    return NextResponse.json({
+      ok: true,
+      mode: "db",
+      result: {
+        clipId: clip.id,
+        author,
+        caption: clip.captionPublic,
+        truth,
+        status: clip.status,
+        labelCommit: clip.labelCommit,
+      },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Unique")) {
+      return NextResponse.json({ ok: false, error: "this post is already in the feed" }, { status: 409 });
+    }
+    console.error("[admin/bd/add-video] failed:", msg);
+    return NextResponse.json({ ok: false, error: "db_unavailable" }, { status: 503 });
+  }
 }
 
 /* простой rate-limit 10/мин на IP (поверх сессии) */

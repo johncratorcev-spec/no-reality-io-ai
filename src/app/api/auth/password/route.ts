@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { email?: unknown; password?: unknown } = {};
+  let body: { email?: unknown; password?: unknown; ref?: unknown } = {};
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -85,7 +85,9 @@ export async function POST(req: NextRequest) {
        (усыновление гостя, welcome ровно раз, passTier) */
     const result = await signInOrRegister(email, password, req);
     void recordAttempt(ipHash, true, email);
-    const fresh = await ensureAccount(result.accountId);
+    /* v14: ref из тела ИЛИ из cookie nr_ref (ловец ?ref= на клиенте) */
+    const refRaw = body.ref ?? req.cookies.get("nr_ref")?.value;
+    const fresh = await ensureAccount(result.accountId, refRaw);
     return setSessionCookies(
       NextResponse.json({
         ok: true,

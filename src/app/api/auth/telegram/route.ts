@@ -1,7 +1,8 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { applyLedger, ECON, accountView } from "@/lib/account";
+import { applyLedger, ECON, accountView, ensureAccount } from "@/lib/account";
+import { attributeReferral, ensureRefCode } from "@/lib/referral";
 import { setSessionCookies } from "@/lib/auth/session";
 import {
   telegramBotToken,
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
           },
         })
         .catch(() => null);
+      await ensureRefCode(existing.id).catch(() => null);
       const fresh = await db.account.findUniqueOrThrow({ where: { id: existing.id } });
       const res = NextResponse.json({
         ok: true,
@@ -114,6 +116,10 @@ export async function POST(req: NextRequest) {
             if (ECON.welcomeBonusCents > 0) {
               await applyLedger(ghost.id, ECON.welcomeBonusCents, "signup_bonus", `signup:${ghost.id}`);
             }
+            /* v14: код с регистрации + атрибуция пригласившего (?ref —
+               тело ИЛИ cookie nr_ref от ловца на клиенте) */
+            await ensureRefCode(ghost.id).catch(() => null);
+            await attributeReferral(ghost.id, body.ref ?? req.cookies.get("nr_ref")?.value).catch(() => null);
             const fresh = await db.account.findUniqueOrThrow({ where: { id: ghost.id } });
             const res = NextResponse.json({
               ok: true,
@@ -129,6 +135,7 @@ export async function POST(req: NextRequest) {
 
     /* --- 3. чистый новый аккаунт: welcome +100 EYE ровно один раз --- */
     const id = randomUUID();
+    const { deriveAccountRefCode } = await import("@/lib/referral");
     await db.account.create({
       data: {
         id,
@@ -136,6 +143,7 @@ export async function POST(req: NextRequest) {
         tgUsername: p.username ?? null,
         displayName: telegramDisplayName(p) || null,
         passTier: 1,
+        refCode: deriveAccountRefCode(id),
       },
     });
     if (ECON.welcomeBonusCents > 0) {
@@ -148,6 +156,8 @@ export async function POST(req: NextRequest) {
       );
     }
     const fresh = await db.account.findUniqueOrThrow({ where: { id } });
+    /* v14: атрибуция нового аккаунта по ?ref (тело ИЛИ cookie nr_ref) */
+    await attributeReferral(id, body.ref ?? req.cookies.get("nr_ref")?.value).catch(() => null);
     const res = NextResponse.json({ ok: true, created: true, account: accountView(fresh) });
     return setSessionCookies(res, id);
   } catch (e) {

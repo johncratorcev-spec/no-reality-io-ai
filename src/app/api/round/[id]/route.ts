@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { roundView, resolveRound } from "@/lib/bet/core";
+import { clipById, labelCommitMatches } from "@/lib/clips";
 import { readBettor, bettorResponse } from "@/lib/bet/identity";
 import { rateLimit } from "@/lib/rateLimit";
 
@@ -50,10 +51,35 @@ export async function GET(
     const myBet = await db.bet.findFirst({
       where: { roundId: current.id, bettorId: bettor.id },
       orderBy: { createdAt: "desc" },
-      select: { side: true, amountCents: true, status: true, payoutCents: true },
+      select: {
+        side: true,
+        amountCents: true,
+        status: true,
+        payoutCents: true,
+        betSec: true,
+      },
     });
 
-    return bettorResponse(bettor, { round: roundView(current, myBet) });
+    /* v14: label_commit клипа (публичен всегда — это commit, не метка) */
+    const clip = await clipById(current.clipCode);
+    let firstCorrectSec: number | null = null;
+    if (current.status === "resolved") {
+      const agg = await db.bet.aggregate({
+        where: { roundId: current.id, status: "won", betSec: { not: null } },
+        _min: { betSec: true },
+      });
+      firstCorrectSec = agg._min.betSec ?? null;
+    }
+
+    const hashMatched =
+      current.status === "resolved" && clip
+        ? labelCommitMatches(clip.id, clip.label, clip.labelCommit)
+        : undefined;
+
+    return bettorResponse(
+      bettor,
+      { round: roundView(current, myBet, clip?.labelCommit ?? null, firstCorrectSec, hashMatched) }
+    );
   } catch (e) {
     console.error("[round:get] failed:", e instanceof Error ? e.message : e);
     return bettorResponse(bettor, { error: "round_unavailable" }, 503);

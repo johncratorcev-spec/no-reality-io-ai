@@ -6,7 +6,7 @@ import {
   roundView,
 } from "@/lib/bet/core";
 import { readBettor } from "@/lib/bet/identity";
-import { normalizeRefCode, deriveRefCode } from "@/lib/referral";
+import { normalizeRefCode } from "@/lib/referral";
 import { visitorHashOf } from "@/lib/utm";
 import { rateLimit } from "@/lib/rateLimit";
 import {
@@ -73,13 +73,13 @@ export async function POST(req: NextRequest) {
 
   const bettor = readBettor(req);
   const fingerprint = visitorHashOf(ip, ua);
-  /* v10 усиление: саморефка закрыта — свой пригласительный код
-     (derives от uid) не даёт доли рейка с собственных ставок */
+  /* v14 усиление: самоприглашение не пишется — свой refCode ставкой
+     не атрибутируется (доля и так удалена из рейка, тут чистая гигиена) */
   const rawRef = normalizeRefCode(body.ref);
-  const refCode =
-    rawRef && rawRef === deriveRefCode(`uid:${authAccountId.toLowerCase()}`)
-      ? null
-      : rawRef;
+  const selfCode = await ensureAccount(authAccountId)
+    .then((a) => a?.refCode ?? null)
+    .catch(() => null);
+  const refCode = rawRef && rawRef === selfCode ? null : rawRef;
   /* v5: легаси-куки кошелька (если остались от старой сессии) — сразу пишем
      в ставку (Best Eyes Leaderboard + кэшаут). v7.1: крипто-подключение
      удалено, новые кошелёчные сессии не появляются. */
@@ -119,7 +119,13 @@ export async function POST(req: NextRequest) {
       const myBet = await db.bet.findFirst({
         where: { roundId, bettorId: bettor.id },
         orderBy: { createdAt: "desc" },
-        select: { side: true, amountCents: true, status: true, payoutCents: true },
+        select: {
+          side: true,
+          amountCents: true,
+          status: true,
+          payoutCents: true,
+          betSec: true,
+        },
       });
       return accountResponseWrapped(account, bettor, {
         bet_id: result.betId,

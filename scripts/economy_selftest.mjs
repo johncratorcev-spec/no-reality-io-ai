@@ -47,7 +47,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { createHmac } from "node:crypto";
+import { createHmac, createHash } from "node:crypto";
 import path from "node:path";
 
 import { readFileSync } from "node:fs";
@@ -55,6 +55,13 @@ import { readFileSync } from "node:fs";
 import { q, one, close } from "./lib/supadb.mjs";
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
+function envFromDotenv(name) {
+  const line = readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
+    .split("\n")
+    .find((l) => l.startsWith(`${name}=`));
+  return line ? line.slice(name.length + 1).trim().replace(/^"|"$/g, "") : "";
+}
+
 const ADMIN_SECRET_ENV = (readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
   .split("\n")
   .find((l) => l.startsWith("ADMIN_SECRET=")) || "")
@@ -76,6 +83,7 @@ const cleanup = {
   utmClicks: [],
   refProfiles: [],
   events: [],
+  clips: [],
 };
 
 function ok(name, cond, extra = "") {
@@ -264,10 +272,10 @@ async function run() {
      вставкой в БД, как это делал бы легаси-инвойс). === */
   const balBefore = await balOf();
   const depOff = await U("POST", "/api/wallet/deposit", { amount_cents: 500 });
-  ok("deposit → 403 payments_disabled", depOff.status === 403 && depOff.json.error === "payments_disabled", depOff.json.error || String(depOff.status));
+  ok("deposit → 404 (легаси-маршрут удалён в v14)", depOff.status === 404, String(depOff.status));
   ok("после отказа баланс не тронут", (await balOf()) === balBefore, `${balBefore}`);
   const boostOff = await U("POST", "/api/boost/checkout", { code: CLIP, days: 1 });
-  ok("boost checkout → 403 payments_disabled", boostOff.status === 403 && boostOff.json.error === "payments_disabled", String(boostOff.status));
+  ok("boost checkout → 404 (легаси-маршрут удалён в v14)", boostOff.status === 404, String(boostOff.status));
 
   /* сидим оплаченный заказ напрямую и проверяем подпись webhook'а */
   const seedOrderId = `dp-selftest-${Date.now()}`;
@@ -302,8 +310,24 @@ async function run() {
   ok("двойного зачисления нет (refKey unique)", (ledgerDep?.n ?? 0) === 1, `rows=${ledgerDep?.n}`);
   await q(`DELETE FROM "DepositOrder" WHERE "orderId" = $1`, [seedOrderId]);
 
-  /* === E. ставка с баланса === */
-  const roundOpen = await U("GET", `/api/round?clip=${CLIP}`);
+  /* === E. ставка с баланса (v14: сеим свой клип и открываем раунд
+     планировщиком — легаси-клипы CSV больше не существуют) === */
+  const PEPPER = envFromDotenv("COMMIT_PEPPER");
+  const commitOf = (id, label) =>
+    createHash("sha256").update(`${label}:${id}:${PEPPER}`).digest("hex");
+  const clipId = `eco${Date.now().toString(36)}`.slice(0, 16);
+  await q(
+    `insert into clips (id, source_url, video_url, author_handle, caption_public, label, label_commit, status, listed_by, created_at, updated_at)
+     values ($1,$2,$3,'@eco','',$4,$5,'queued','selftest', now() - interval '7 days', now())
+     on conflict (id) do nothing`,
+    [clipId, `https://example.com/eco/${clipId}`, "https://www.w3schools.com/html/mov_bbb.mp4", "real", commitOf(clipId, "real")]
+  );
+  cleanup.clips.push(clipId);
+  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+  await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET_ENV)}`);
+  const seededClip = await one(`select status from clips where id = $1`, [clipId]);
+  ok("сеяный клип в live", seededClip?.status === "live", seededClip?.status ?? "");
+  const roundOpen = await U("GET", `/api/round?clip=${clipId}`);
   const round = roundOpen.json.round;
   ok("раунд открыт", roundOpen.status === 200 && Boolean(round?.id), round?.id?.slice(0, 8));
   cleanup.rounds.push(round?.id);
@@ -366,10 +390,20 @@ async function run() {
     [crypto.randomUUID(), poorAccId, `selftest:drain:${poorAccId}`]
   );
   await q('UPDATE "Account" SET "balanceCents" = 5 WHERE id = $1', [poorAccId]);
-  const poorRound = await Poor("GET", `/api/round?clip=${CLIP}`);
-  /* раунд уже занят ставкой игрока с того же IP-fingerprint → поднимем свой */
-  const poorRound2 = await Poor("GET", `/api/round?clip=puhGJNmX`);
-  const targetRound = poorRound2.json.round ?? poorRound.json.round;
+  /* свежее окно для poor-ставки: окно первого раунда могло истечь
+     за время регистраций/дренажа (латентность Supabase) */
+  const clipId2 = `eco${Date.now().toString(36)}`.slice(0, 16);
+  await q(
+    `insert into clips (id, source_url, video_url, author_handle, caption_public, label, label_commit, status, listed_by, created_at, updated_at)
+     values ($1,$2,$3,'@eco','',$4,$5,'queued','selftest', now() - interval '7 days', now())
+     on conflict (id) do nothing`,
+    [clipId2, `https://example.com/eco/${clipId2}`, "https://www.w3schools.com/html/mov_bbb.mp4", "synth", commitOf(clipId2, "synth")]
+  );
+  cleanup.clips.push(clipId2);
+  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+  await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET_ENV)}`);
+  const poorRound = await Poor("GET", `/api/round?clip=${clipId2}`);
+  const targetRound = poorRound.json.round;
   cleanup.rounds.push(targetRound?.id);
   const poorBet = await Poor("POST", "/api/bet", {
     round_id: targetRound.id,
@@ -560,6 +594,10 @@ async function cleanupDb() {
     for (const id of cleanup.rounds.filter(Boolean)) {
       await q('DELETE FROM "Bet" WHERE "roundId" = $1', [id]);
       await q('DELETE FROM "Round" WHERE id = $1', [id]);
+    }
+    for (const cid of cleanup.clips.filter(Boolean)) {
+      await q(`DELETE FROM "TrackEvent" WHERE "clipCode" = $1`, [cid]).catch(() => {});
+      await q(`DELETE FROM clips WHERE id = $1`, [cid]).catch(() => {});
     }
     for (const key of cleanup.utmClicks) {
       const [owner, target] = key.split(":");

@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
-import { getPostByCode } from "@/lib/csv";
+import { clipById } from "@/lib/clips";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +23,8 @@ export async function GET(
 
   let author = "";
   try {
-    const post = getPostByCode(code);
-    author = post?.author ? `@${post.author.replace(/^@/, "")}` : "";
+    /* v14: автор публично не отдаётся — OG без него */
+    await clipById(code);
   } catch {
     /* без автора — ок */
   }

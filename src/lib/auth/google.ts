@@ -135,6 +135,12 @@ export async function signInWithGoogle(
         data: { passTier: 1 },
       });
     }
+    /* v14: поздняя атрибуция (если аккаунт ещё без пригласившего) */
+    const refRaw = req.cookies.get("nr_ref")?.value;
+    if (refRaw) {
+      const { attributeReferral } = await import("@/lib/referral");
+      await attributeReferral(byEmail.id, refRaw).catch(() => null);
+    }
     void trackEvent("google_signin", { meta: { linked: true } });
     return { accountId: byEmail.id, linked: false, newAccount: false };
   }
@@ -150,14 +156,21 @@ export async function signInWithGoogle(
         .catch(() => false);
       if (linked) {
         await ensureAccount(guest.id);
+        /* v14: атрибуция усыновлённого гостя по ?ref (cookie nr_ref) */
+        const refRaw = req.cookies.get("nr_ref")?.value;
+        if (refRaw) {
+          const { attributeReferral } = await import("@/lib/referral");
+          await attributeReferral(guest.id, refRaw).catch(() => null);
+        }
         void trackEvent("google_signin", { meta: { linked: true } });
         return { accountId: guest.id, linked: true, newAccount: false };
       }
     }
   }
 
-  /* свежий аккаунт: google = регистрация с порогом 0 */
-  const acc = await ensureAccount(randomId());
+  /* свежий аккаунт: google = регистрация с порогом 0 (+ ?ref атрибуция) */
+  const refRaw = req.cookies.get("nr_ref")?.value;
+  const acc = await ensureAccount(randomId(), refRaw);
   await db.account.update({
     where: { id: acc.id },
     data: { email: profile.email, passTier: 1 },

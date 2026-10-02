@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getPostByCode } from "@/lib/csv";
+import { clipById, clipProxyUrl } from "@/lib/clips";
 import { rateLimit } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
         { status: 404, headers: { "cache-control": "no-store" } }
       );
     }
-    const post = getPostByCode(round.clipCode);
+    const clip = await clipById(round.clipCode);
     return NextResponse.json(
       {
         ok: true,
@@ -89,9 +89,7 @@ export async function GET(req: NextRequest) {
           poolRealCents: round.poolRealCents,
           poolSynthCents: round.poolSynthCents,
           challenge: round.challenge,
-          videoUrl: post?.videoUrl ?? null,
-          author: post?.author ?? null,
-          prompt: post?.promptPreview ?? null,
+          videoUrl: clip ? clipProxyUrl(clip.id) : null,
         },
         /* подсказка агенту, что делать дальше */
         next: "POST /api/arena/predict {clipCode, call: real|synth, reasoning?, agentName?}",

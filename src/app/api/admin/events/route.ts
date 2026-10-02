@@ -1,35 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import Papa from "papaparse";
 import { hasAdminSession } from "@/lib/admin/session";
 import { rateLimit } from "@/lib/rateLimit";
-import { getPostsFromCSV } from "@/lib/csv";
+import { db } from "@/lib/db";
 import { ECON, applyLedger, ensureAccount } from "@/lib/account";
+import { labelCommitOf, scrubCaption } from "@/lib/clips";
 
 export const dynamic = "force-dynamic";
 
 /* ================================================================
-   v7 — «легко создавать события (фото, видео)» из панели.
+   v14 — «легко создавать события» из панели: строка таблицы clips.
+   (CSV удалён из дерева — ТЗ §Миграция.)
 
-   GET  /api/admin/events          — список событий ленты (для панели).
-   POST /api/admin/events          — добавить событие строкой в posts.csv:
-       { title, author, url?, truth: "real"|"synth", mood?,
-         videoUrl?, imageUrl? }        ← фото (imageUrl) или видео (videoUrl)
-   Приложение читает CSV с проверкой mtime — новая карточка появляется
-   в лентах без перезапуска. utm_code генерируется автоматически (nanoid).
+   GET  /api/admin/events          — список клипов (для панели).
+   POST /api/admin/events          — вставить клип:
+       { title, author?, url?, videoUrl, truth: "real"|"synth", badge? }
+   Без метки — 400. Клип сразу queued; планировщик сам откроет окно.
    ================================================================ */
-
-const CSV_PATH = path.join(process.cwd(), "data", "posts.csv");
-const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-
-function newUtmCode(): string {
-  let s = "";
-  for (let i = 0; i < 8; i++) {
-    s += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
-  }
-  return s;
-}
 
 function httpsUrl(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -48,15 +34,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const posts = getPostsFromCSV().map((p) => ({
-      code: p.utmCode,
-      title: p.title,
-      author: p.author,
-      truth: p.truth ?? null,
-      mood: p.mood ?? null,
+    const rows = await db.clip.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 40,
+      select: {
+        id: true,
+        captionPublic: true,
+        authorHandle: true,
+        label: true,
+        videoUrl: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+    const posts = rows.map((p) => ({
+      code: p.id,
+      title: p.captionPublic,
+      author: p.authorHandle,
+      truth: p.label === "real" || p.label === "synth" ? p.label : null,
+      status: p.status,
       hasVideo: Boolean(p.videoUrl),
-      hasPhoto: Boolean(p.media?.some((m) => m.type === "image")),
-      boostedUntil: p.boostUntil ?? null,
     }));
     return NextResponse.json({ ok: true, posts });
   } catch {
@@ -82,70 +79,55 @@ export async function POST(req: NextRequest) {
   }
 
   const title = safeText(body.title, 220);
-  const author = safeText(body.author, 80) || "@no-reality";
+  const author = safeText(body.author, 80);
   const postUrl = httpsUrl(body.url) || "https://www.threads.com/";
   const videoUrl = httpsUrl(body.videoUrl);
-  const imageUrl = httpsUrl(body.imageUrl);
   const truthRaw = String(body.truth || "").trim().toLowerCase();
   const truth = truthRaw === "real" || truthRaw === "synth" ? truthRaw : "";
-  const moodRaw = String(body.mood || "").trim().toLowerCase();
-  const mood = ["swag", "creepy", "future", "ufo"].includes(moodRaw) ? moodRaw : "";
+  const badge = safeText(body.badge, 40);
 
   if (!title) {
     return NextResponse.json({ error: "title_required" }, { status: 400 });
   }
   if (!truth) {
-    return NextResponse.json({ error: "truth_required (real|synth)" }, { status: 400 });
+    return NextResponse.json({ error: "label_required (real|synth)" }, { status: 400 });
   }
-  if (!videoUrl && !imageUrl) {
+  if (!videoUrl) {
     return NextResponse.json(
-      { error: "videoUrl or imageUrl (https) required" },
+      { error: "videoUrl (https) required" },
       { status: 400 }
     );
   }
 
-  /* карусель: фото → слайд i, видео → слайд v (или колонка video_url) */
-  const media = videoUrl
-    ? ""
-    : JSON.stringify([{ t: "i", u: imageUrl }]);
-
-  const row = {
-    url: postUrl,
-    title,
-    author,
-    utm_code: newUtmCode(),
-    video_url: videoUrl || "",
-    boost_until: "",
-    badge: "",
-    pin: "",
-    is_paid: "",
-    price_usdt: "",
-    prompt_preview: "",
-    seller_wallet: "",
-    media,
-    truth,
-    mood,
-  };
+  const idChars = "abcdefghijkmnpqrstuvwxyz23456789";
+  let clipId = "";
+  const rnd = new Uint8Array(10);
+  crypto.getRandomValues(rnd);
+  for (const b of rnd) clipId += idChars[b % idChars.length];
 
   try {
-    /* папа-парс туда-обратно: не ломаем кавычки/запятые в заголовках */
-    const raw = fs.readFileSync(CSV_PATH, "utf-8");
-    const parsed = Papa.parse<Record<string, string>>(raw, {
-      header: true,
-      skipEmptyLines: true,
+    const dupe = await db.clip.findUnique({ where: { sourceUrl: postUrl }, select: { id: true } });
+    if (dupe) {
+      return NextResponse.json({ error: "this post is already in the feed" }, { status: 409 });
+    }
+    const clip = await db.clip.create({
+      data: {
+        id: clipId,
+        sourceUrl: postUrl,
+        videoUrl,
+        authorHandle: author,
+        captionPublic: scrubCaption(title),
+        label: truth,
+        labelCommit: labelCommitOf(clipId, truth),
+        status: "queued",
+        listedBy: "panel",
+        badge,
+      },
     });
-    parsed.data.push(row);
-    const out = Papa.unparse(parsed.data, { columns: Object.keys(row) });
-    /* атомарная запись: tmp + rename, чтобы читатели не увидели полстроки */
-    const tmp = `${CSV_PATH}.tmp`;
-    fs.writeFileSync(tmp, out.endsWith("\n") ? out : `${out}\n`, "utf-8");
-    fs.renameSync(tmp, CSV_PATH);
-    console.log(`[admin/events] created: code=${row.utm_code} truth=${truth} media=${videoUrl ? "video" : "photo"}`);
+    console.log(`[admin/events] created: clip=${clip.id} label=${truth}`);
 
-    /* v8: награда за ДОБАВЛЕНИЕ ВИДЕО В ЛЕНТУ — куратору панели монеты
-       на аккаунт (nr_uid из той же сессии браузера), идемпотентно по
-       refKey video:<clipCode> — повторная публикация кода невозможна,
-       а дубль ledger-строки отсеет unique-констрейнт. best-effort. */
+    /* v8: награда за ДОБАВЛЕНИЕ ВИДЕО — куратору панели монеты,
+       идемпотентно по refKey video:<clipId>. best-effort. */
     let rewardCents = 0;
     const curatorUid = req.cookies.get("nr_uid")?.value;
     if (ECON.videoRewardCents > 0 && curatorUid && /^[0-9a-f-]{36}$/i.test(curatorUid)) {
@@ -155,21 +137,22 @@ export async function POST(req: NextRequest) {
           curator.id,
           ECON.videoRewardCents,
           "video_reward",
-          `video:${row.utm_code}`,
-          { clip: row.utm_code, title: title.slice(0, 80) }
+          `video:${clip.id}`,
+          { clip: clip.id, title: title.slice(0, 80) }
         );
-        if (credited) {
-          rewardCents = ECON.videoRewardCents;
-          console.log(`[money-op][econ] video_reward`, JSON.stringify({ accountId: curator.id, clip: row.utm_code, cents: rewardCents }));
-        }
+        if (credited) rewardCents = ECON.videoRewardCents;
       } catch (e) {
         console.error("[admin/events] video reward failed:", e instanceof Error ? e.message : e);
       }
     }
 
-    return NextResponse.json({ ok: true, code: row.utm_code, media: videoUrl ? "video" : "photo", rewardCents });
+    return NextResponse.json({ ok: true, code: clip.id, media: "video", rewardCents });
   } catch (e) {
-    console.error("[admin/events] write failed:", e instanceof Error ? e.message : e);
-    return NextResponse.json({ error: "csv_write_failed" }, { status: 500 });
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Unique")) {
+      return NextResponse.json({ error: "this post is already in the feed" }, { status: 409 });
+    }
+    console.error("[admin/events] write failed:", msg);
+    return NextResponse.json({ error: "db_write_failed" }, { status: 500 });
   }
 }

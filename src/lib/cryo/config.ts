@@ -22,7 +22,7 @@ export interface CryoOptionConfigItem {
 }
 
 export interface CryoMarketConfigItem {
-  /** utm_code поста из data/posts.csv */
+  /** публичный код клипа (clips.id) */
   postCode: string;
   /** вопрос рынка (Block 4: материализуется посимвольно изо льда) */
   question: string;

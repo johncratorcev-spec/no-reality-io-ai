@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { readBettor, bettorResponse } from "@/lib/bet/identity";
 import { rateLimit } from "@/lib/rateLimit";
-import { claimableSummary } from "@/lib/bet/cashout";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/me/bets — история ставок игрока (§4.2), если есть сессия-cookie.
- * История даёт «дофамин/стыд» после резолва и повод вернуться.
+ * v14: кэшаут-поля удалены («Выкупа очков нет»); вернувшиеся ставки —
+ * чистая история + вес $NR по верным коллам.
  */
 export async function GET(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
@@ -19,35 +19,28 @@ export async function GET(req: NextRequest) {
 
   const bettor = readBettor(req);
   if (bettor.isNew) {
-    return bettorResponse(bettor, {
-      bets: [],
-      claimableCents: 0,
-      claimedTotalCents: 0,
-      payoutsEnabled: false,
-    });
+    return bettorResponse(bettor, { bets: [] });
   }
 
   try {
-    const [bets, summary] = await Promise.all([
-      db.bet.findMany({
-        where: { bettorId: bettor.id },
-        orderBy: { createdAt: "desc" },
-        take: 30,
-        select: {
-          id: true,
-          clipCode: true,
-          side: true,
-          amountCents: true,
-          status: true,
-          payoutCents: true,
-          mode: true,
-          claimed: true,
-          createdAt: true,
-          round: { select: { status: true, resolvedAs: true, closesAt: true } },
-        },
-      }),
-      claimableSummary(bettor.id),
-    ]);
+    const bets = await db.bet.findMany({
+      where: { bettorId: bettor.id },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      select: {
+        id: true,
+        clipCode: true,
+        side: true,
+        amountCents: true,
+        status: true,
+        payoutCents: true,
+        mode: true,
+        betSec: true,
+        weightMilli: true,
+        createdAt: true,
+        round: { select: { status: true, resolvedAs: true, closesAt: true } },
+      },
+    });
 
     return bettorResponse(
       bettor,
@@ -60,23 +53,15 @@ export async function GET(req: NextRequest) {
           status: b.status,
           payoutCents: b.payoutCents,
           mode: b.mode,
-          claimed: b.claimed,
+          weightMilli: b.weightMilli,
           roundStatus: b.round.status,
           resolvedAs: b.round.resolvedAs,
           createdAt: b.createdAt.toISOString(),
         })),
-        claimableCents: summary.claimableCents,
-        claimedTotalCents: summary.claimedTotalCents,
-        payoutsEnabled: summary.payoutsEnabled,
       }
     );
   } catch (e) {
-    console.error("[me:bets] failed:", e instanceof Error ? e.message : e);
-    return bettorResponse(bettor, {
-      bets: [],
-      claimableCents: 0,
-      claimedTotalCents: 0,
-      payoutsEnabled: false,
-    });
+    console.error("e:bets] failed:", e instanceof Error ? e.message : e);
+    return bettorResponse(bettor, { bets: [] });
   }
 }

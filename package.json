@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "prisma generate && node scripts/gen-posts-snapshot.mjs && next build && node scripts/copy-standalone.mjs",
+    "build": "prisma generate && next build && node scripts/copy-standalone.mjs",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "db:push": "prisma db push --accept-data-loss",
@@ -12,7 +12,6 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "test:bet": "node scripts/bet_selftest.mjs",
-    "test:cashout": "node scripts/cashout_selftest.mjs",
     "test:market": "node scripts/boost_selftest.mjs"
   },
   "dependencies": {

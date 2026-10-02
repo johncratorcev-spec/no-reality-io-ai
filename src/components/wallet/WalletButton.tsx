@@ -233,7 +233,7 @@ export default function WalletButton() {
                   </ul>
                   {favs.items.length > 5 && (
                     <a
-                      href="/pnl"
+                      href="/ref"
                       className="mt-1 block text-right text-[0.6rem] font-extrabold text-[#6d4fc2]/70 transition-colors hover:text-[#6d4fc2]"
                     >
                       all favorites →

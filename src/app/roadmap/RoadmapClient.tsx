@@ -55,7 +55,7 @@ const CONTENT = {
         accent: "blood" as const,
         items: [
           "$NR launches on Base (Coinbase L2) — fast, cheap, onchain",
-          "the season snapshot feeds a merkle claim: your season weight = eye * min(1, valid_bets / 10)",
+          "the season snapshot feeds a merkle claim on Base: weight = your correct calls × time decay — early eyes weigh gold, last-second calls weigh nothing",
           "claim happens AFTER the snapshot — addresses collected from day 5, no pre-sale, no exceptions",
           "on-chain leaderboard and on-chain creator rewards",
           "contract address will be published here first — beware of fakes",
@@ -101,7 +101,7 @@ const CONTENT = {
         accent: "blood" as const,
         items: [
           "$NR выходит на Base (L2 от Coinbase) — быстро, дёшево, ончейн",
-          "снапшот сезона кормит merkle claim: твой вес = eye * min(1, valid_bets / 10)",
+          "снапшот сезона кормит merkle claim на Base: вес = верные коллы × затухание времени — ранние глаза весят золото, последние секунды не весят ничего",
           "claim — ТОЛЬКО после снапшота: адреса собираются с дня 5, без пресейла, без исключений",
           "ончейн-лидерборд и ончейн-награды авторам",
           "адрес контракта опубликуем здесь первым — остерегайтесь подделок",

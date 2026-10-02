@@ -48,7 +48,6 @@ function readAdmin() {
   );
 }
 
-const CSV_PATH = path.resolve(process.cwd(), "data", "posts.csv");
 const PAYMENT_KEY = "test-payment-key";
 const CLIP = "71vsIPUu";
 
@@ -249,7 +248,6 @@ async function run() {
   ok("в БД scrypt-хеш, исходного пароля нет", String(hashRow?.passwordHash || "").startsWith("scrypt$") && !String(hashRow?.passwordHash || "").includes("supersecret1"));
 
   /* === B. награда за добавление видео в ленту (куратор, v10: с регистрацией) === */
-  const csvBackup = fs.readFileSync(CSV_PATH, "utf-8");
   const Curator = makeClient("curator");
   const regC = await Curator("POST", "/api/auth/password", {
     email: `pw-curator-${stamp}@test.dev`,
@@ -264,7 +262,8 @@ async function run() {
   const noSess = await Curator("POST", "/api/admin/events", {
     title: `v8 selftest event ${stamp}`,
     truth: "synth",
-    videoUrl: "https://cdn.coverr.co/videos/coverr-test/main.mp4",
+    url: `https://example.com/v8/${stamp}`,
+    videoUrl: `https://cdn.coverr.co/videos/coverr-test/main.mp4?stamp=${stamp}`,
   });
   ok("POST events без админ-сессии → 401", noSess.status === 401, `status=${noSess.status}`);
 
@@ -275,7 +274,8 @@ async function run() {
     title: `v8 selftest event ${stamp}`,
     truth: "synth",
     mood: "future",
-    videoUrl: "https://cdn.coverr.co/videos/coverr-test/main.mp4",
+    url: `https://example.com/v8/${stamp}`,
+    videoUrl: `https://cdn.coverr.co/videos/coverr-test/main.mp4?stamp=${stamp}`,
   });
   ok(
     "событие создано → rewardCents 100",
@@ -300,9 +300,9 @@ async function run() {
   /* === C. инвойсы 2328.io только на специальных событиях === */
   const boost = await Curator("POST", "/api/boost/checkout", { code: CLIP, days: 1 });
   ok(
-    "boost checkout → 403 payments_disabled (v11: платежи заморожены)",
-    boost.status === 403 && boost.json.error === "payments_disabled",
-    boost.json.error || String(boost.status)
+    "boost checkout → 404 (v14: легаси-маршрут удалён)",
+    boost.status === 404,
+    String(boost.status)
   );
 
   /* у аккаунтов, прошедших только auth/награды/просмотры — ноль инвойсов */
@@ -351,6 +351,8 @@ async function cleanupDb() {
     }
     await q('DELETE FROM "PromoCode" WHERE batch = \'selftest\'', []);
     await q('DELETE FROM "PromoAttempt" WHERE "ipHash" = $1', [LOCAL_IP_HASH]);
+    await q(`DELETE FROM "TrackEvent" WHERE "clipCode" IN (SELECT id FROM clips WHERE source_url LIKE 'https://cdn.coverr.co/videos/coverr-test/main.mp4%')`).catch(() => {});
+    await q(`DELETE FROM clips WHERE source_url LIKE 'https://cdn.coverr.co/videos/coverr-test/main.mp4%'`).catch(() => {});
   } catch (e) {
     console.warn("[cleanup] db skip:", e instanceof Error ? e.message : e);
   }
@@ -358,17 +360,11 @@ async function cleanupDb() {
 
 const isCleanupOnly = process.argv.includes("--cleanup-only");
 const mock = isCleanupOnly ? null : await ensureMock();
-const csvBackup = isCleanupOnly ? null : fs.readFileSync(CSV_PATH, "utf-8");
 try {
   if (!isCleanupOnly) await run();
 } finally {
   if (!isCleanupOnly) {
-    try {
-      fs.writeFileSync(CSV_PATH, csvBackup, "utf-8");
-      console.log("[cleanup] posts.csv восстановлен");
-    } catch (e) {
-      console.warn("[cleanup] csv restore failed:", e instanceof Error ? e.message : e);
-    }
+    /* v14: CSV больше нет — клипы живут в БД и чистятся точечно */
   }
   await cleanupDb();
   if (mock) mock.kill();

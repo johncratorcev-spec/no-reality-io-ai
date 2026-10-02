@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { getPostByCode } from "@/lib/csv";
+import { clipById } from "@/lib/clips";
 import { rateLimit } from "@/lib/rateLimit";
 import { FEATURES } from "@/lib/features";
 import {
@@ -44,7 +44,7 @@ export async function GET(
     });
   }
 
-  const post = getPostByCode(code);
+  const post = await clipById(code);
   if (!post) {
     return new NextResponse("Not found", { status: 404 });
   }
@@ -102,5 +102,5 @@ export async function GET(
     }
   }
 
-  return NextResponse.redirect(post.url, 302);
+  return NextResponse.redirect(post.sourceUrl, 302);
 }

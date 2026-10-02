@@ -64,10 +64,10 @@ async function run() {
 
   const C = makeClient("curator");
   const status = await C("GET", "/api/boost/status?code=71vsIPUu");
-  ok("1 status-поллинг публичен", status.status === 200, JSON.stringify(status.json || {}).slice(0, 80));
+  ok("1 status-маршрут удалён (v14)", status.status === 404, String(status.status));
 
   const off = await C("POST", "/api/boost/checkout", { code: "71vsIPUu", days: 1 });
-  ok("2 чекаут → 403 payments_disabled", off.status === 403 && off.json?.error === "payments_disabled", `${off.status} ${off.json?.error || ""}`);
+  ok("2 чекаут → 404 (легаси-маршрут удалён)", off.status === 404, String(off.status));
 
   const rows = await one(
     `SELECT COUNT(*)::int AS n FROM "BoostOrder" WHERE "buyerHash" = $1 OR "createdAt" > now() - interval '1 minute' AND "orderId" LIKE 'bs-%'`,
@@ -77,10 +77,10 @@ async function run() {
 
   const anon = makeClient("anon");
   const off2 = await anon("POST", "/api/boost/checkout", { code: "71vsIPUu", days: 3 });
-  ok("4 гость тоже получает 403 (гейт раньше auth)", off2.status === 403 && off2.json?.error === "payments_disabled", String(off2.status));
+  ok("4 гость тоже получает 404 (маршрут удалён)", off2.status === 404, String(off2.status));
 
   const off3 = await C("POST", "/api/boost/checkout", { code: "71vsIPUu", days: 7 });
-  ok("5 повторный чекаут → 403 без инвойсов", off3.status === 403 && off3.json?.error === "payments_disabled", String(off3.status));
+  ok("5 повторный чекаут → 404 без инвойсов", off3.status === 404, String(off3.status));
 
   console.log(`\n===== v11 BOOST (frozen) SELFTEST: ${passed} PASS / ${failed} FAIL =====`);
   if (failed > 0) process.exitCode = 1;

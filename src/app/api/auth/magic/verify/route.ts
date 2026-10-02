@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
   if (wallet) await linkMagicUser(email, wallet);
 
   const res = NextResponse.redirect(
-    new URL("/pnl", req.nextUrl.origin),
+    new URL("/ref", req.nextUrl.origin),
     302
   );
   res.cookies.set(EMAIL_COOKIE, email, {

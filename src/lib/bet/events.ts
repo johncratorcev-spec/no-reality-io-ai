@@ -13,6 +13,10 @@ import { db } from "@/lib/db";
  */
 export type TrackName =
   | "clip_view"
+  | "round_void" // v14: раунд закрыт void (битая ссылка/override)
+  | "clip_promoted" // v14: планировщик открыл окно клипа
+  | "pack_paid" // v14: пачка EYE оплачена
+  | "revshare_on" // v14: revshare разблокирован (3 USDT)
   | "prediction_view"
   | "wallet_connect"
   | "bet_placed"

@@ -5,9 +5,9 @@ import { adminConfigured, hasAdminSession } from "@/lib/admin/session";
 export const dynamic = "force-dynamic";
 
 /**
- * v13 — POST /api/admin/bd/feature: пометки из BD-панели.
+ * v14 — POST /api/admin/bd/feature: пометки из BD-панели.
  *
- *   { kind: "featured", clip, on: true }   → PostStats.featuredUntil = +24ч
+ *   { kind: "featured", clip, on: true }   → clips.featured_until = +24ч
  *   { kind: "featured", clip, on: false }  → снять featured
  *   { kind: "daily", clip, label? }        → Daily Challenge сегодняшнего
  *     UTC-дня: upsert строки дня + флаг challenge на открытых раундах
@@ -40,11 +40,8 @@ export async function POST(req: NextRequest) {
     if (kind === "featured") {
       const on = body?.on !== false;
       const until = on ? new Date(Date.now() + 24 * 3_600_000) : null;
-      await db.postStats.upsert({
-        where: { utmCode: clip },
-        create: { utmCode: clip, featuredUntil: until },
-        update: { featuredUntil: until },
-      });
+      /* v14: витринный флаг живёт на самом клипе (CSV/PostStats больше не источник) */
+      await db.clip.update({ where: { id: clip }, data: { featuredUntil: until } });
       console.log(`[admin/bd] featured ${on ? "ON " : "OFF"} ${clip}`);
       return NextResponse.json({
         ok: true,

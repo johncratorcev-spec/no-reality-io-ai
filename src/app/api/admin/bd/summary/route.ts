@@ -89,12 +89,23 @@ export async function GET(req: NextRequest) {
     const newAccounts24 = await db.account.count({ where: { createdAt: { gte: dayAgo } } });
     const newAccounts7 = await db.account.count({ where: { createdAt: { gte: weekAgo } } });
 
+    /* --- v14: конвейер клипов (очередь/живой/резолвнутые за 24ч) --- */
+    const pipeline = {
+      queued: await db.clip.count({ where: { status: "queued" } }),
+      live: await db.clip.count({ where: { status: "live" } }),
+      resolved24h: await db.clip.count({
+        where: { status: "resolved", resolvedAt: { gte: dayAgo } },
+      }),
+      void: await db.clip.count({ where: { status: "void" } }),
+    };
+
     /* --- daily challenge + featured --- */
     const today = new Date().toISOString().slice(0, 10);
     const daily = await db.dailyChallenge.findUnique({ where: { day: today } });
-    const featured = await db.postStats.findMany({
+    /* v14: featured живёт на clips */
+    const featured = await db.clip.findMany({
       where: { featuredUntil: { gt: new Date() } },
-      select: { utmCode: true, featuredUntil: true, score: true },
+      select: { id: true, featuredUntil: true },
       orderBy: { featuredUntil: "desc" },
       take: 10,
     });
@@ -129,7 +140,8 @@ export async function GET(req: NextRequest) {
         last24: { bets: bets24.length, volume: bets24.reduce((s, b) => s + b.amountCents, 0), newAccounts: newAccounts24 },
         last7: { bets: bets7.length, volume: bets7.reduce((s, b) => s + b.amountCents, 0), newAccounts: newAccounts7 },
         daily: daily ? { clip: daily.clipCode, label: daily.label } : null,
-        featured: featured.map((f) => ({ clip: f.utmCode, until: f.featuredUntil?.toISOString() ?? null })),
+        featured: featured.map((f) => ({ clip: f.id, until: f.featuredUntil?.toISOString() ?? null })),
+        pipeline,
         ts: new Date().toISOString(),
       },
       { headers: { "cache-control": "no-store" } }

@@ -6,7 +6,7 @@
  *
  * Отключить: REFRESH_JOB=off в окружении.
  * На serverless (Netlify/Vercel) не запускается: нет python/headless-браузера,
- * лямбда живет минуты — ссылки там обновляются коммитом в data/posts.csv.
+ * лямбда живет минуты; v14 — клипы живут в таблице clips БД.
  */
 
 import { isServerless } from "@/lib/env";

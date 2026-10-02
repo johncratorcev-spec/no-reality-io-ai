@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
-import { getPostByCode } from "@/lib/csv";
+import { clipById } from "@/lib/clips";
 import { FEATURES } from "@/lib/features";
 import { visitorSalt } from "@/lib/utm";
 
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   if (!/^[A-Za-z0-9_-]{2,32}$/.test(code)) {
     return new NextResponse(null, { status: 204 });
   }
-  if (!getPostByCode(code)) {
+  if (!(await clipById(code))) {
     return new NextResponse(null, { status: 204 }); // неизвестный код — молча
   }
 

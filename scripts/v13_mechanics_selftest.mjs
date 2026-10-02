@@ -74,13 +74,25 @@ async function run() {
   const badKey = await j("/api/arena/round", { headers: { "x-agent-key": "wrong-key-000" } });
   ok("G2. чужой ключ → 401", badKey.status === 401);
 
-  /* Preparing an open round: first bettable clip from /api/posts (bettable=true, truth is not disclosed) + lazy opening */
-  const posts = await j("/api/posts");
-  const bettable = (posts.json?.posts ?? []).filter((p) => p.bettable && p.utmCode);
-  if (bettable.length > 0) {
-    await j(`/api/round?clip=${encodeURIComponent(bettable[0].utmCode)}`);
-    await new Promise((r) => setTimeout(r, 1200));
-  }
+  /* v14: готовим открытый раунд — сеим клип в очередь clips и тикаем
+     планировщик (легаси /api/posts и CSV больше не существуют) */
+  const { q: q13, close: close13 } = await import("./lib/supadb.mjs");
+  const { createHash } = await import("node:crypto");
+  const ADMIN13 = envFromDotenv("ADMIN_SECRET");
+  const PEPPER13 = envFromDotenv("COMMIT_PEPPER");
+  const clipId = `arn${Date.now().toString(36)}`.slice(0, 16);
+  const commit13 = (id, label) =>
+    createHash("sha256").update(`${label}:${id}:${PEPPER13}`).digest("hex");
+  await q13(
+    `insert into clips (id, source_url, video_url, author_handle, caption_public, label, label_commit, status, listed_by, created_at, updated_at)
+     values ($1,$2,$3,'@arena','',$4,$5,'queued','selftest', now() - interval '7 days', now())
+     on conflict (id) do nothing`,
+    [clipId, `https://example.com/arena/${clipId}`, "https://www.w3schools.com/html/mov_bbb.mp4", "real", commit13(clipId, "real")]
+  ).catch(() => {});
+  await q13(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`).catch(() => {});
+  await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN13)}`).catch(() => {});
+  await j(`/api/round?clip=${encodeURIComponent(clipId)}`);
+  await new Promise((r) => setTimeout(r, 1200));
 
   const round = await j("/api/arena/round", { headers: { "x-agent-key": ARENA_KEY } });
   ok(
@@ -144,6 +156,15 @@ async function run() {
       p.status === 200 && html.toLowerCase().includes(need.toLowerCase())
     );
   }
+
+  /* v14: вычищаем сеяный клип арены */
+  try {
+    const { q: qc } = await import("./lib/supadb.mjs");
+    await qc(`DELETE FROM "Bet" WHERE "roundId" IN (SELECT id FROM "Round" WHERE "clipCode" = $1)`, [clipId]).catch(() => {});
+    await qc(`DELETE FROM "ArenaPrediction" WHERE "roundId" IN (SELECT id FROM "Round" WHERE "clipCode" = $1)`, [clipId]).catch(() => {});
+    await qc(`DELETE FROM "Round" WHERE "clipCode" = $1`, [clipId]).catch(() => {});
+    await qc(`DELETE FROM clips WHERE id = $1`, [clipId]).catch(() => {});
+  } catch {}
 
   console.log(`\n=== ИТОГ: ${passed} PASS / ${failed} FAIL ===`);
 

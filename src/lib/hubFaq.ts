@@ -23,10 +23,10 @@ export const HUB_FAQ: HubFaqItem[] = [
   },
   {
     q: "Who gets into the snapshot?",
-    a: "Accounts with EYE and at least 5 valid (settled) bets during the season. Accounts that only claimed the welcome bonus and never bet are excluded, same as obvious duplicates. The weight formula is fixed for the whole season: weight = eye * min(1, valid_bets / 10). Rules will not change mid-season.",
+    a: "Your season weight is built ONLY from correct calls: every winning stake counts min(stake, 50 EYE) × time decay — call within the first 5 seconds of the window ×1, mid-window ×0.4, the last 5 seconds ×0. Fewer than 20 correct rounds in the season — your weight is zero. One account is capped at 2% of the game pack, the excess burns. Pack purchases and referral money never touch the weight.",
     ru: {
       q: "Кто попадает в снапшот?",
-      a: "Аккаунты с EYE и минимум 5 валидными (засчитанными) ставками за сезон. Аккаунты «только welcome и 0 ставок» и явные дубли отсеваются. Формула веса зафиксирована на весь сезон: weight = eye * min(1, valid_bets / 10). Правила в середине сезона не меняются.",
+      a: "Вес сезона строится ТОЛЬКО из верных коллов: каждая победившая ставка даёт min(ставка, 50 EYE) × затухание по окну — колл в первые 5 секунд ×1, середина ×0.4, последние 5 секунд ×0. Меньше 20 верных раундов за сезон — вес ноль. На аккаунт кеп 2% игровой пачки, лишнее сгорает. Пачки и реферальские деньги в весе не участвуют.",
     },
   },
   {

@@ -4,8 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Coins, Gift, Eye, Target, Video, X, Zap } from "lucide-react";
 import { BET, fmtUsd } from "@/lib/bet/config";
 import {
-  DEPOSIT_PRESETS_CENTS,
-  DEPOSIT_BONUS_PCTS,
   DAILY_BONUS_CENTS,
   GUESS_REWARD_CENTS,
   VIDEO_REWARD_CENTS,
@@ -18,6 +16,7 @@ import { FEATURES } from "@/lib/features";
 import type { RoundView } from "@/lib/bet/roundView";
 import type { AccountView } from "@/hooks/use-account";
 import { useLang } from "@/lib/i18n";
+import PackRow from "./PackRow";
 
 /**
  * PredictModal (v7) — модалка предикта: последняя ступень воронки.
@@ -401,72 +400,16 @@ export default function PredictModal({
           </div>
         )}
 
-        {/* ---- topup: пресеты пополнения с мультипликатором + статус ---- */}
-        {mode === "topup" && FEATURES.payments && (
+        {/* ---- v14 topup: пачки EYE (100/1, 300/2.5, 1000/7 USDT) ---- */}
+        {mode === "topup" && (
           <div className="mt-4">
-            {!deposit && (
-              <>
-                <p className="text-[0.72rem] font-bold" style={{ color: "rgba(242,237,228,.6)" }}>
-                  {t.bet.cryptoOnly}
-                </p>
-                <div className="mt-2.5 grid grid-cols-3 gap-2">
-                  {DEPOSIT_PRESETS_CENTS.map((c, i) => {
-                    const pct = DEPOSIT_BONUS_PCTS[i] ?? 0;
-                    const isBest = pct === Math.max(...DEPOSIT_BONUS_PCTS) && pct > 0;
-                    return (
-                      <button
-                        key={c}
-                        disabled={busy}
-                        onClick={() => void startDeposit(c)}
-                        className="nb-btn nb-btn-real relative rounded-2xl px-2 py-4 text-[1.05rem] font-black"
-                      >
-                        {fmtUsd(c)}
-                        {pct > 0 && (
-                          <span
-                            className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[0.52rem] font-black tracking-[0.08em]"
-                            style={{
-                              background: "var(--nb-poison)",
-                              color: "#0a080d",
-                            }}
-                          >
-                            +{pct}%{isBest ? ` · ${t.bet.bestRate}` : ""}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-
-            {deposit && depositStatus === "pending" && (
-              <div className="mt-3 flex flex-col items-center gap-2.5 py-2 text-center">
-                <Zap className="h-5 w-5 animate-pulse" style={{ color: "var(--nb-poison)" }} />
-                <p className="text-[0.82rem] font-black" style={{ color: "var(--nb-bone)" }}>
-                  {t.bet.awaitingNetwork}
-                </p>
-                <p className="text-[0.66rem] font-bold" style={{ color: "rgba(242,237,228,.55)" }}>
-                  {t.bet.topupHint}
-                </p>
-                {deposit.payUrl && (
-                  <a
-                    href={deposit.payUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="nb-btn mt-1 rounded-full px-5 py-2.5 text-[0.78rem] font-black"
-                    style={{ background: "var(--nb-bone)", color: "var(--nb-night)" }}
-                  >
-                    {t.bet.openInvoice}
-                  </a>
-                )}
-              </div>
-            )}
-
-            {depositStatus === "paid" && (
-              <p className="mt-3 text-center text-[0.85rem] font-black" style={{ color: "var(--nb-poison)" }}>
-                {t.bet.topupDone}
-              </p>
-            )}
+            <PackRow
+              compact
+              onPaid={(acc) => {
+                onAccountUpdate(acc);
+                tryAutoBet(acc);
+              }}
+            />
           </div>
         )}
 
