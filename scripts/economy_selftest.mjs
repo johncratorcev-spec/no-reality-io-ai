@@ -53,6 +53,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 
 import { q, one, close } from "./lib/supadb.mjs";
+import { createSelfSession, dropSelfSession } from "./lib/selfsession.mjs";
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 function envFromDotenv(name) {
@@ -105,7 +106,7 @@ function sign2328(body, key) {
 /* ---------- cookie-jar fetch (nr_uid + nr_bet + nr_wallet) ---------- */
 function makeClient(name, uaSuffix = "") {
   const cookies = new Map();
-  return async function api(method, url, body) {
+  const api = async function api(method, url, body) {
     const cookieHeader = [...cookies.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
     const res = await fetch(`${BASE}${url}`, {
       method,
@@ -129,35 +130,30 @@ function makeClient(name, uaSuffix = "") {
     } catch {}
     return { status: res.status, json, location: res.headers.get("location") };
   };
+  api.cookies = cookies;
+  return api;
 }
 
-/* ---------- v10: регистрация вместо мгновенного гостя ---------- */
-/* код правильной геометрии: NR + 12 символов алфавита 31 (без 0/O/1/I/L) */
-function freshCode() {
-  const ABC = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-  const ts = Date.now().toString(36).toUpperCase().replace(/[01OLI]/g, "X");
-  const rand = Math.random().toString(36).toUpperCase().replace(/[01OLI]/g, "X");
-  let body = ((ts + rand + "XXXXXXXXXXXX").replace(/[^2-9A-HJKMNP-Z]/g, "X")).slice(0, 12);
-  return "NR" + body;
-}
-
-/** регистрирует игрока с сеяным промокодом (v10: гостям аккаунтов нет) */
+/* ---------- v16: сессии напрямую (password-вход удалён) ----------
+   Аккаунт + signup_bonus создаём в БД тем же состоянием, что давала
+   регистрация; сам вход покрыт google_selftest/v16_auth_smoke. */
 async function registerClient(api, tag) {
-  const code = freshCode();
-  await q(
-    'INSERT INTO "PromoCode" (id, code, batch) VALUES (gen_random_uuid(), $1, \'selftest\') ON CONFLICT (code) DO NOTHING',
-    [code]
-  );
-  const email = `v10-${tag}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@test.dev`;
-  const res = await api("POST", "/api/auth/password", {
-    email,
-    password: "selftest-pass-1",
-    promo: code,
+  const s = await createSelfSession({
+    email: `v16-${tag}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@test.dev`,
   });
-  if (res.status !== 200 || res.json?.status !== "registered") {
-    console.warn(`[register ${tag}] FAILED:`, res.status, JSON.stringify(res.json));
-  }
-  return { email, code, res };
+  const pair = Object.fromEntries(
+    s.cookies.split("; ").map((p) => [p.slice(0, p.indexOf("=")), p.slice(p.indexOf("=") + 1)])
+  );
+  api.cookies.set("nr_uid", pair.nr_uid);
+  api.cookies.set("nr_auth", pair.nr_auth);
+  return {
+    email: s.email,
+    code: "",
+    res: {
+      status: 200,
+      json: { status: "registered", account: { accountId: s.accountId, balanceCents: 100 } },
+    },
+  };
 }
 
 /* ---------- mock-2328 launcher ---------- */

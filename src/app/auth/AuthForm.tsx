@@ -1,37 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 /* ================================================================
-   AuthForm v12 — премиум-форма входа. СЕКРЕТНЫЕ КОДЫ УБРАНЫ:
-   ни промо-кодов, ни листа ожидания — сайт открыт.
+   AuthForm v16 — премиум-форма входа. ЕДИНСТВЕННАЯ ДВЕРЬ — Google
+   (passport-google-oauth20): Telegram-виджет, email+пароль и
+   magic-link удалены. Регистрация и вход одним нажатием.
 
-   Двери входа:
-     1. Telegram Login Widget (главная дверь кампании Season 1);
-     2. email + пароль — прямая регистрация (POST /api/auth/password);
-     3. Google (кнопка только с настроенными ключами).
-
-   Telegram: username бота приходит С СЕРВЕРА (getMe по токену из env,
-   авто-резолв) — виджет рисуется только под реально подключённого бота,
-   иначе показываем честную заметку вместо кнопки.
+   Ошибки, принесённые с callback'а (?auth=…), известны на первом
+   рендере — считаем их синхронно в инициализаторе.
    Все анимации — CSS (nr-au-*): вход-каскад, вращающееся градиентное
    кольцо карточки, свип на кнопке, свечения фокуса.
    ================================================================ */
-
-/* Telegram Login Widget коллит этот глобал с объектом пользователя */
-declare global {
-  interface Window {
-    onTelegramAuth?: (user: Record<string, unknown>) => void;
-  }
-}
-
-/* Домен, привязанный к боту через BotFather /setdomain. Telegram принимает
-   ТОЛЬКО его: на www, *.vercel.app и localhost виджет рисует «Bot domain invalid». */
-const TG_LOGIN_HOST = (process.env.NEXT_PUBLIC_TELEGRAM_LOGIN_HOST || "no-reality.fun")
-  .trim()
-  .toLowerCase();
 
 /* защита от open redirect: только относительные пути этого сайта */
 function sanitizeNext(raw: string | null): string {
@@ -39,31 +21,11 @@ function sanitizeNext(raw: string | null): string {
   return "/bet";
 }
 
-export default function AuthForm({ botUsername }: { botUsername?: string }) {
+export default function AuthForm() {
   const params = useSearchParams();
   const next = sanitizeNext(params.get("next"));
 
-  /* виджет Telegram рисует «Bot domain invalid» на хостах, которых нет
-     в /setdomain бота — на localhost/чужих превью-доменах слот прячем.
-     Решение принимаем ПОСЛЕ гидратации (отложенный тик), чтобы SSR и
-     первый клиентский рендер совпадали байт в байт */
-  /* null — хост ещё не проверен: ничего не показываем, чтобы на
-     no-reality.fun не мелькала заметка «works on no-reality.fun» */
-  const [tgHostOk, setTgHostOk] = useState<boolean | null>(null);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setTgHostOk(window.location.hostname.toLowerCase() === TG_LOGIN_HOST);
-    }, 0);
-    return () => clearTimeout(t);
-  }, []);
-
-  const TG_BOT = (botUsername || "").trim();
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  /* ошибка, принесённая с callback'а google (?auth=…) — известна на
-     первом рендере, поэтому считаем её синхронно в инициализаторе */
   const [msg, setMsg] = useState(() => {
     const a = params.get("auth") || "";
     if (!a) return "";
@@ -73,15 +35,11 @@ export default function AuthForm({ botUsername }: { botUsername?: string }) {
         ? "session expired — try again"
         : a === "google_profile"
           ? "google account must have a verified email"
-          : "google sign-in failed — try again";
+          : a === "google_denied"
+            ? "google consent was cancelled — try again"
+            : "google sign-in failed — try again";
   });
   const [googleEnabled, setGoogleEnabled] = useState(false);
-  const [tgReady, setTgReady] = useState(false);
-  const tgBox = useRef<HTMLDivElement | null>(null);
-  const nextRef = useRef(next);
-  useEffect(() => {
-    nextRef.current = next;
-  }, [next]);
 
   /* статус Google (кнопка только с настроенными ключами) */
   useEffect(() => {
@@ -92,100 +50,16 @@ export default function AuthForm({ botUsername }: { botUsername?: string }) {
         if (!r.ok || !alive) return;
         const d = (await r.json()) as { enabled?: boolean };
         if (alive) setGoogleEnabled(Boolean(d.enabled));
+        else return;
       } catch {
         /* без google */
       }
     })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const go = (path: string) => {
-    window.location.href = path;
-  };
-
-  /* ---------- Telegram Login Widget (главная дверь кампании) ---------- */
-  useEffect(() => {
-    if (!TG_BOT || !tgHostOk) return;
-    window.onTelegramAuth = (user: Record<string, unknown>) => {
-      setMsg("");
-      setBusy(true);
-      void (async () => {
-        try {
-          const r = await fetch("/api/auth/telegram", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(user),
-          });
-          const d = (await r.json()) as { ok?: boolean; error?: string };
-          if (r.ok && d.ok) {
-            go(nextRef.current);
-            return;
-          }
-          setBusy(false);
-          setMsg(
-            d.error === "too_many_requests"
-              ? "too many attempts — wait a bit"
-              : "telegram sign-in failed — try again"
-          );
-        } catch {
-          setBusy(false);
-          setMsg("network blinked — try again");
-        }
-      })();
-    };
-    /* виджет — это их script с data-атрибутами; вставляем в контейнер */
-    const box = tgBox.current;
-    if (!box || box.childElementCount > 0) return;
-    const s = document.createElement("script");
-    s.src = "https://telegram.org/js/telegram-widget.js?22";
-    s.async = true;
-    s.setAttribute("data-telegram-login", TG_BOT);
-    s.setAttribute("data-size", "large");
-    s.setAttribute("data-radius", "14");
-    s.setAttribute("data-onauth", "onTelegramAuth(user)");
-    s.setAttribute("data-request-access", "write");
-    s.onload = () => setTgReady(true);
-    box.appendChild(s);
-    /* если скрипт заблокирован (нет связи с telegram.org) — покажем подсказку */
-    const t = setTimeout(() => {
-      if (tgBox.current && tgBox.current.childElementCount <= 1) setTgReady(false);
-    }, 4000);
-    return () => clearTimeout(t);
-  }, [TG_BOT, tgHostOk]);
-
-  const submit = async () => {
-    if (busy || !email.trim() || password.length < 8) return;
-    setBusy(true);
-    setMsg("");
-    try {
-      const r = await fetch("/api/auth/password", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-      const d = (await r.json()) as {
-        ok?: boolean;
-        status?: string;
-        error?: string;
-      };
-      if (r.ok && d.ok && (d.status === "registered" || d.status === "login")) {
-        go(next);
-        return;
-      }
-      setBusy(false);
-      if (d.error === "wrong_password")
-        setMsg("wrong password — this email already has an account");
-      else if (d.error === "bad_password") setMsg("password: 8+ characters");
-      else if (d.error === "bad_email") setMsg("check the email address");
-      else if (d.error === "too_many_requests")
-        setMsg("too many attempts — wait a bit and retry");
-      else setMsg("something blinked — try again");
-    } catch {
-      setBusy(false);
-      setMsg("network blinked — try again");
-    }
-  };
-
-  /* ---------- форма ---------- */
   return (
     <div className="nr-au-ring">
       <div className="nr-au-card-inner rounded-[29px] p-7">
@@ -207,118 +81,44 @@ export default function AuthForm({ botUsername }: { botUsername?: string }) {
           className="nr-au-up mt-2.5 text-[0.8rem] font-semibold leading-relaxed text-white/55"
           style={{ animationDelay: "160ms" }}
         >
-          watching is free — betting needs an account. sign in with telegram
-          and get <span className="text-[#a8cfea]">100 EYE</span> to call your
-          first verdict. no confirmation letters, ever.
+          watching is free — betting needs an account. one tap with google and
+          you get <span className="text-[#a8cfea]">100 EYE</span> to call your
+          first verdict. no passwords, no confirmation letters, ever.
         </p>
 
-        {/* ---------- Telegram — главный вход (первым) ---------- */}
-        {TG_BOT && tgHostOk && (
-          <div className="nr-au-up mt-5" style={{ animationDelay: "200ms" }}>
-            <div
-              ref={tgBox}
-              className="flex min-h-[48px] items-center justify-center"
-              aria-label="Telegram sign-in button"
-            />
-            {!tgReady && (
-              <p className="mt-1 text-center text-[0.62rem] font-semibold text-white/30">
-                loading the telegram button…
-              </p>
-            )}
-          </div>
-        )}
-        {TG_BOT && tgHostOk && (
-          <div
-            className="nr-au-up mt-4 flex items-center gap-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-white/30"
-            style={{ animationDelay: "230ms" }}
+        {msg && <p className="nr-au-err mt-4 text-[0.72rem] font-bold">{msg}</p>}
+
+        {googleEnabled ? (
+          <a
+            href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}
+            onClick={() => setBusy(true)}
+            className="nr-au-up nr-au-google mt-6 flex w-full items-center justify-center gap-2 px-4 py-3.5 text-sm font-extrabold"
+            style={{ animationDelay: "220ms" }}
+            aria-busy={busy}
           >
-            <span className="h-px flex-1 bg-white/10" />or by email<span className="h-px flex-1 bg-white/10" />
-          </div>
-        )}
-        {TG_BOT && tgHostOk === false && (
-          <p className="nr-au-up mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-center text-[0.66rem] font-bold text-white/45" style={{ animationDelay: "200ms" }}>
-            telegram sign-in works on{" "}
-            <a href={`https://${TG_LOGIN_HOST}/auth`} className="underline hover:text-white/80">
-              {TG_LOGIN_HOST}
-            </a>{" "}
-            —
-            <br />here use email or google.
-          </p>
-        )}
-        {!TG_BOT && (
-          <p className="nr-au-up mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-center text-[0.66rem] font-bold text-white/45" style={{ animationDelay: "200ms" }}>
-            telegram sign-in is being connected —
-            <br />use email below for now.
-          </p>
-        )}
-
-        <div className="nr-au-up mt-5" style={{ animationDelay: "220ms" }}>
-          <label className="sr-only" htmlFor="nr-au-email">Email</label>
-          <input
-            id="nr-au-email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@mail.com"
-            className="nr-au-input"
-          />
-        </div>
-        <div className="nr-au-up mt-2" style={{ animationDelay: "270ms" }}>
-          <label className="sr-only" htmlFor="nr-au-password">Password</label>
-          <input
-            id="nr-au-password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) void submit();
-            }}
-            placeholder="password (8+)"
-            className="nr-au-input"
-          />
-        </div>
-
-        {msg && <p className="nr-au-err mt-3 text-[0.72rem] font-bold">{msg}</p>}
-
-        <button
-          onClick={() => void submit()}
-          disabled={busy || !email.trim() || password.length < 8}
-          className="nr-au-cta nr-au-up mt-4 w-full px-4 py-3.5 text-sm font-extrabold disabled:opacity-40"
-          style={{ animationDelay: "370ms" }}
-        >
-          <span className="relative z-10 inline-flex items-center gap-2">
-            {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-            {busy ? "…" : "enter"}
-          </span>
-        </button>
-
-        {googleEnabled && (
-          <>
-            <div
-              className="nr-au-up mt-5 flex items-center gap-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-white/30"
-              style={{ animationDelay: "420ms" }}
-            >
-              <span className="h-px flex-1 bg-white/10" />or<span className="h-px flex-1 bg-white/10" />
-            </div>
-            <a
-              href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}
-              className="nr-au-up nr-au-google mt-3 flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-extrabold"
-              style={{ animationDelay: "470ms" }}
-            >
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
               <span aria-hidden className="text-base font-black text-[#4285f4]">G</span>
-              continue with google
-            </a>
-          </>
+            )}
+            {busy ? "opening google…" : "continue with google"}
+          </a>
+        ) : (
+          <div
+            className="nr-au-up mt-6 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-center text-[0.66rem] font-bold text-white/45"
+            style={{ animationDelay: "220ms" }}
+          >
+            google sign-in is being connected —
+            <br />
+            it opens the moment the keys are set.
+          </div>
         )}
 
         {/* сайт открыт — гость может вернуться смотреть */}
         <a
           href={next && next !== "/auth" ? next : "/"}
           className="nr-au-up mt-5 flex items-center justify-center gap-1.5 text-[0.68rem] font-bold text-white/35 transition-colors hover:text-white/70"
-          style={{ animationDelay: "520ms" }}
+          style={{ animationDelay: "300ms" }}
         >
           <ArrowLeft className="h-3 w-3" aria-hidden />
           keep watching without an account
@@ -326,7 +126,7 @@ export default function AuthForm({ botUsername }: { botUsername?: string }) {
 
         <p
           className="nr-au-up mt-3 text-[0.62rem] font-semibold leading-relaxed text-white/25"
-          style={{ animationDelay: "570ms" }}
+          style={{ animationDelay: "350ms" }}
         >
           by entering you agree to the terms — EYE points only, no money
           inside the game; points are earned by watching, calling it right

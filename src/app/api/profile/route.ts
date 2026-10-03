@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
 import { deriveRefCode, upsertReferralProfile } from "@/lib/referral";
 import { FEATURES } from "@/lib/features";
-import { emailSession } from "@/lib/magic";
+import { authedAccountId } from "@/lib/auth/session";
 import { normalizeOwnerCode } from "@/lib/utm";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +12,8 @@ export const dynamic = "force-dynamic";
 /* ================================================================
    GET /api/profile — профиль текущей сессии (task 44, §4+§5).
 
-   Личность (v7.1): nr_uid (мгновенный аккаунт / google / magic) —
-   основной субъект; legacy-куки кошельков ещё читаются для старых
+   Личность (v16): nr_uid (google-аккаунт с подписанным nr_auth) —
+   единственный субъект; legacy-куки кошельков ещё читаются для старых
    сессий. Отдаёт:
      - uid/email, персональный refCode + inviteUrl;
      - виральные бонусы: bonusCredits (free predictions) + бейджи;
@@ -63,7 +63,15 @@ export async function GET(req: NextRequest) {
   }
 
   const wallet = sessionWallet(req);
-  const email = emailSession(req);
+  /* v16: email только из google-аккаунта текущей ПОДПИСАННОЙ сессии */
+  const uid = authedAccountId(req);
+  let email: string | null = null;
+  if (uid) {
+    email = await db.account
+      .findUnique({ where: { id: uid }, select: { email: true } })
+      .then((a) => a?.email ?? null)
+      .catch(() => null);
+  }
   if (!wallet && !email) {
     return NextResponse.json(
       { error: "session required" },

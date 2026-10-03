@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import {
   GOOGLE_STATE_COOKIE,
-  exchangeCode,
+  authenticateGoogleCallback,
   googleConfigured,
   signInWithGoogle,
   stateMatches,
@@ -12,11 +12,11 @@ import { setSessionCookies } from "@/lib/auth/session";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/auth/google/callback — шаг 2 OAuth:
- * сверка state → обмен code → профиль Google → ОТКРЫТЫЙ вход (v12):
+ * GET /api/auth/google/callback — шаг 2 OAuth (v16, passport-google-oauth20):
+ * сверка state → passport обменивает code и тянет профиль → ОТКРЫТЫЙ вход:
  *
  *   - google-email уже с аккаунтом → вход (nr_uid + nr_auth) → ?next;
- *   - новый google-email → аккаунт сразу (секретные коды убраны вовсе);
+ *   - новый google-email → аккаунт сразу (регистрация без кодов);
  *   - живой гость (nr_uid без email) продолжает свой аккаунт.
  *
  * Ошибки OAuth — редирект на /auth?auth=… (экран входа).
@@ -42,7 +42,10 @@ export async function GET(req: NextRequest) {
 
   if (!code || !stateMatches(cookieState, urlState)) return fail("google_state");
 
-  const profile = await exchangeCode(code);
+  const result = await authenticateGoogleCallback(req);
+  if (result.error) return fail("google_failed");
+  if (result.failure) return fail(result.failure === "access_denied" ? "google_denied" : "google_profile");
+  const profile = result.profile;
   if (!profile || !profile.emailVerified) return fail("google_profile");
 
   try {

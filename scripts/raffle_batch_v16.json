@@ -1,0 +1,71 @@
+{
+  "comment": "v16 raffle batch — 5 Threads posts from user. Labels are curator ground truth (caption metadata + video forensics). videoUrl = signed CDN mp4 (oe epoch ~2026-10-08; refresh via scripts/refresh_clip_links.mjs or re-run add batch with fresh URLs).",
+  "analysis": {
+    "method": "agent-browser extraction (full mp4 download) + 3x3 contact sheets + z-ai vision second pass + caption metadata",
+    "note": "vision-on-stills overcalls REAL on modern generators (Seedance 2.5 / Veo stills are photographic); captions are decisive ground truth here"
+  },
+  "clips": [
+    {
+      "n": 1,
+      "shareUrl": "https://www.threads.com/share/BAUYej-f4n/",
+      "sourceUrl": "https://www.threads.com/@mmayrday/post/Dd_TT9UCOPT",
+      "author": "@mmayrday",
+      "status": "BLOCKED — BarcelonaGeoBlockedErrorRoot ('This content isn't available to everyone'), same as v15; no video extractable from sandbox",
+      "label": null,
+      "badge": "raffle-05",
+      "videoFile": null
+    },
+    {
+      "n": 2,
+      "shareUrl": "https://www.threads.com/share/BADjuQFbYc/",
+      "sourceUrl": "https://www.threads.com/@namro_r/post/Dd_eyUxkafC",
+      "author": "@namro_r",
+      "caption": "stadium night: a walk through the fire",
+      "label": "synth",
+      "labelWhy": "#aiart hashtag; NAMRO FILM stylized outro logo; pasted phone-camera UI overlay; smearing crowd faces; garbled prohibition-sign graffiti text",
+      "badge": "raffle-01",
+      "videoFile": "/tmp/raffle/clip_2.mp4",
+      "videoSpec": "960x720, 12.6s, 3.57MB",
+      "videoUrl": "https://scontent-hkg4-2.cdninstagram.com/o1/v/t2/f2/m86/AQMsimGczaHhpgVAfcRElgYvgnD7GT-xRPpO8B2hUmxCzajMuSanzSQc7WECC0GEuqA1TNLU1iXBfkv0S1JOpFpIpHAcHrCVb38UY-Q.mp4?_nc_cat=111&_nc_sid=5e9851&_nc_ht=scontent-hkg4-2.cdninstagram.com&_nc_ohc=5hNImK81B8UQ7kNvwGoWP5x&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5JTlNUQUdSQU0uRkVFRC5DMy45NjAuZGFzaF9iYXNlbGluZV8xX3YxIiwieHB2X2Fzc2V0X2lkIjoxMDc5NjM5NzM4MTY0OTk5LCJhc3NldF9hZ2VfZGF5cyI6MCwidmlfdXNlY2FzZV9pZCI6MTAwOTksImR1cmF0aW9uX3MiOjEyLCJ1cmxnZW5fc291cmNlIjoid3d3In0%3D&ccb=17-1&vs=6f5b647a5499b4fe&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC9FRTdCQ0EwMzA2RTU0MkYzQjdBQUMzMTk4QjU2MjA2OV92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYUWlnX3hwdl9wbGFjZW1lbnRfcGVybWFuZW50X3YyLzU0M0JCMkY2M0M4NjQ2RjM4NjUzNDI5NTgwNzhBNkQ0X2F1ZGlvX2Rhc2hpbml0Lm1wNBUCAsgBEgAoABgAGwKIB3VzZV9vaWwBMRJwcm9ncmVzc2l2ZV9yZWNpcGUBMRUAACaOnKHxpvvqAxUCKAJDMywXQCkAAAAAAAAYEmRhc2hfYmFzZWxpbmVfMV92MREAdeoHZeadAQA&_nc_gid=OWGgujo5WjmCuhNOtuJmOQ&_nc_ss=7f289&_nc_zt=28&oh=00_AQNgk6P-djozNepgvc5xtWnmA_pmpktblK9q_ti2sx0D1Q&oe=6AC28310"
+    },
+    {
+      "n": 3,
+      "shareUrl": "https://www.threads.com/share/BAuB_1pwqQ/",
+      "sourceUrl": "https://www.threads.com/@azed_ai/post/Dd_p_uKCmJc",
+      "author": "@azed_ai",
+      "caption": "golden hour heist chase through the container port",
+      "label": "synth",
+      "labelWhy": "author caption admits Seedance 2.5 generation ('Created this full 30-second cinematic heist chase'); garbled container brand text (GLSPEK/GCSEPK); account is an AI-video showcase",
+      "badge": "raffle-02",
+      "videoFile": "/tmp/raffle/clip_3.mp4",
+      "videoSpec": "1280x720, 30.2s, 6.0MB",
+      "videoUrl": "https://scontent-hkg1-1.cdninstagram.com/o1/v/t16/f2/m84/AQOMKUFt0H2vMZqTPP5vFQGXZ5gKAEArxc6wcZr3-y9REHhKvQmuq75SRUxwJcqGfLDn7uz6ONgc8MqVjTwhoTj3PlGfQncG2tLLNh8.mp4?_nc_cat=109&_nc_sid=5e9851&_nc_ht=scontent-hkg1-1.cdninstagram.com&_nc_ohc=8XuSUekahc8Q7kNvwEriO4G&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5JTlNUQUdSQU0uRkVFRC5DMy4xMjgwLmRhc2hfYmFzZWxpbmVfMV92MSIsInhwdl9hc3NldF9pZCI6MTc5ODk4NTE1ODIxMDY2OTQsImFzc2V0X2FnZV9kYXlzIjowLCJ2aV91c2VjYXNlX2lkIjoxMDE2NCwiZHVyYXRpb25fcyI6MzAsInVybGdlbl9zb3VyY2UiOiJ3d3cifQ%3D%3D&ccb=17-1&vs=3cb2ac5ccbf31d12&_nc_vs=HBksFQIYTGlnX2JhY2tmaWxsX3RpbWVsaW5lX3ZvZC85MEQxOThERkI5QkE0OENDQTVBRDJCQjBDODc5N0FFRV92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYUWlnX3hwdl9wbGFjZW1lbnRfcGVybWFuZW50X3YyL0E3MzNEQjZDMkY5MzRCMTlCMTQ0NUZGMzY5NzVGODNGX2F1ZGlvX2Rhc2hpbml0Lm1wNBUCAsgBEgAoABgAGwKIB3VzZV9vaWwBMRJwcm9ncmVzc2l2ZV9yZWNpcGUBMRUAACaMseiRl-v0PxUCKAJDMywXQD4KfvnbItEYEmRhc2hfYmFzZWxpbmVfMV92MREAdeoHZeieAQA&_nc_gid=-I3t4OHWuR7_wqAs8wxzUw&_nc_ss=7f289&_nc_zt=28&oh=00_AQMq3C__DVQ4HAkOPhRLznOfAwDnXUaoa1Cq536ORDj8HA&oe=6AC26EC3"
+    },
+    {
+      "n": 4,
+      "shareUrl": "https://www.threads.com/share/BAaS_pHD1Z/",
+      "sourceUrl": "https://www.threads.com/@igor_shikk/post/DeBFGjeEmUR",
+      "author": "@igor_shikk",
+      "caption": "a man and his doberman — sunset story",
+      "label": "synth",
+      "labelWhy": "promo account for a video-generation bot; fully white eyes on the owner in dark scenes; morphing hands; vision pass agrees SYNTH 95%",
+      "badge": "raffle-03",
+      "videoFile": "/tmp/raffle/clip_4.mp4",
+      "videoSpec": "852x478, 25.2s, 1.37MB",
+      "videoUrl": "https://scontent-hkg4-1.cdninstagram.com/o1/v/t2/f2/m86/AQOuTb_ocCfWxxENULPe2ku_yTWGaeWnaxkNOCv2uiccLZybfk32AsUxGhHe-3shmhIuR7fugyKZjLhW9y1gr3xHYnWHzbLDrRjemHM.mp4?_nc_cat=106&_nc_sid=5e9851&_nc_ht=scontent-hkg4-1.cdninstagram.com&_nc_ohc=ssZMQpK1NzwQ7kNvwE0Qj7p&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5JTlNUQUdSQU0uRkVFRC5DMy44NTIuZGFzaF9iYXNlbGluZV8xX3YxIiwieHB2X2Fzc2V0X2lkIjoxOTAxMDIwNTA0MjAyMzgwLCJhc3NldF9hZ2VfZGF5cyI6MCwidmlfdXNlY2FzZV9pZCI6MTAwOTksImR1cmF0aW9uX3MiOjI1LCJ1cmxnZW5fc291cmNlIjoid3d3In0%3D&ccb=17-1&vs=ee32eeacf2745d7d&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC8wRkUxQjM5ODRCNUU0QzQzQURDOTkxMDdGREQ3NzEwQ192aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYUWlnX3hwdl9wbGFjZW1lbnRfcGVybWFuZW50X3YyLzM0MTY4M0IzRTY1QjRCQ0Y4QzBFNEVFMjkzMjUxNEIzX2F1ZGlvX2Rhc2hpbml0Lm1wNBUCAsgBEgAoABgAGwKIB3VzZV9vaWwBMRJwcm9ncmVzc2l2ZV9yZWNpcGUBMRUAACaY8ui9-r3gBhUCKAJDMywXQDkKfvnbItEYEmRhc2hfYmFzZWxpbmVfMV92MREAdeoHZeadAQA&_nc_gid=8M4R_vgCwejCDlasmQPx2A&_nc_ss=7f289&_nc_zt=28&oh=00_AQPyhT-f8mhPgSlURF8iYAA4EsIYtnQT5crW24i3EMFbEA&oe=6AC276F3"
+    },
+    {
+      "n": 5,
+      "shareUrl": "https://www.threads.com/share/BAVY8tesMI/",
+      "sourceUrl": "https://www.threads.com/@rizkyy.muhammadwiky/post/Dd_aKr5D5Bw",
+      "author": "@rizkyy.muhammadwiky",
+      "caption": "night drive with the orange hero",
+      "label": "synth",
+      "labelWhy": "caption ends with 'promt di bawah' (prompt in comments) — author-confirmed generation; garbled WellSin/VeilSide sticker lettering; dream-scene framing (Han's car)",
+      "badge": "raffle-04",
+      "videoFile": "/tmp/raffle/clip_5.mp4",
+      "videoSpec": "720x1280, 30.3s, 3.7MB",
+      "videoUrl": "https://scontent-hkg1-2.cdninstagram.com/o1/v/t16/f2/m84/AQOsrpSYdI2N8-LboeVvS96TFAfC8p96Vw0FTXW1nib6-tmU6_shXPEBK4aLRBwFRRTQWpzye5wLvwC0cq6HytFto61zaZ2JVch2WkQ.mp4?_nc_cat=102&_nc_sid=5e9851&_nc_ht=scontent-hkg1-2.cdninstagram.com&_nc_ohc=ME0-T_e3gkkQ7kNvwEmhQuk&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5JTlNUQUdSQU0uRkVFRC5DMy43MjAuZGFzaF9iYXNlbGluZV8xX3YxIiwieHB2X2Fzc2V0X2lkIjoxNzk0OTczMjQzMjMyMDgzMCwiYXNzZXRfYWdlX2RheXMiOjAsInZpX3VzZWNhc2VfaWQiOjEwMTY0LCJkdXJhdGlvbl9zIjozMCwidXJsZ2VuX3NvdXJjZSI6Ind3dyJ9&ccb=17-1&vs=5a385398a1a9feb8&_nc_vs=HBksFQIYTGlnX2JhY2tmaWxsX3RpbWVsaW5lX3ZvZC82N0Y5MkI0QjQ3MDg0MERBQTMxM0VCMTJFQTE2RjI3Nl92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYUWlnX3hwdl9wbGFjZW1lbnRfcGVybWFuZW50X3YyLzI0REIxRjY5NUMzNzQyMURCNjRFQzZFNDFBQ0E1NTM0X2F1ZGlvX2Rhc2hpbml0Lm1wNBUCAsgBEgAoABgAGwKIB3VzZV9vaWwBMRJwcm9ncmVzc2l2ZV9yZWNpcGUBMRUAACb85IiX-MviPxUCKAJDMywXQD4Q5WBBiTcYEmRhc2hfYmFzZWxpbmVfMV92MREAdeoHZeieAQA&_nc_gid=DBEcTaPZlV-0wbX7ThdkNQ&_nc_ss=7f289&_nc_zt=28&oh=00_AQPxc4kZPReOXjzCdFs9J1YiJM_Q52EKsdd3YNpBMsqRDA&oe=6AC267DA"
+    }
+  ]
+}

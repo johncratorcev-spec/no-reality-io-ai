@@ -1,27 +1,31 @@
 #!/usr/bin/env node
 /**
- * Selftest v7: GOOGLE SIGN-IN — против работающего dev-сервера :3000
- * с моком токен-эндпоинта Google (:9998, GOOGLE_TOKEN_URL):
+ * Selftest v16: GOOGLE SIGN-IN через passport-google-oauth20 — против
+ * работающего dev-сервера :3000 с моком Google (:9998):
  *
  *   GOOGLE_TOKEN_URL=http://127.0.0.1:9998/token
+ *   GOOGLE_USERINFO_URL=http://127.0.0.1:9998/userinfo
  *   (.env должен содержать GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET)
  *
- * Проверяет ПОЛНЫЙ app-side OAuth-флоу (единственное, что не эмулируется —
- * сам consent-экран Google, внешний сервис):
+ * passport идёт: code → токен (client_secret) → userinfo (Bearer) →
+ * профиль → наш verify → signInWithGoogle. Мок обслуживает ОБА эндпоинта.
+ * Единственное, что не эмулируется — сам consent-экран Google (внешний
+ * сервис).
+ *
  *  A. статус и start:
  *     1. GET /api/auth/google/status → enabled:true (ключи подхвачены)
  *     2. GET /api/auth/google/start → 303 на accounts.google.com/o/oauth2/v2/auth
  *     3. в URL есть client_id, response_type=code, scope openid email profile
  *     4. redirect_uri = <base>/api/auth/google/callback
  *     5. state-cookie nr_g_state: HttpOnly + SameSite=Lax
- *     6. state в cookie === state в URL (binding)
+ *     6. state в cookie === state в URL (binding; state в опциях passport)
  *  B. безопасность:
  *     7. callback с чужим state → /bet?auth=google_state, сессии нет
  *     8. callback без state-cookie → google_state
  *     9. email_verified=false → google_profile, сессии нет
- *    10. aud ≠ наш client_id → google_profile (подделка токена)
+ *    10. code чужого client_id → мок токена 401 → google_failed
  *    11. открытый редирект ?next=//evil.com → санитизирован до /bet
- *  C. вход/регистрация (мок токен-эндпоинта):
+ *  C. вход/регистрация (моки токена и userinfo):
  *    12. регистрация новым email → 303 + nr_uid-cookie (uuid)
  *    13. DB: Account(email).passTier = 1
  *    14. DB: LedgerTxn signup_bonus = +100 (регистрационный бонус, v11)
@@ -34,7 +38,7 @@
  *    19. лавина GET /start → 429
  *
  * Запуск: node scripts/google_selftest.mjs   (перед этим dev :3000 с
- * GOOGLE_TOKEN_URL=http://127.0.0.1:9998/token)
+ * GOOGLE_TOKEN_URL/GOOGLE_USERINFO_URL на мок)
  */
 
 import { spawn } from "node:child_process";
@@ -93,38 +97,56 @@ function ok(name, cond, extra = "") {
   }
 }
 
-/* ---------- мок Google token-эндпоинта (:9998) ----------
-   code имеет формат "mock:<email>:<aud>:<verified>" — мок собирает
-   id_token (подпись не проверяется приложением: токен получен напрямую
-   от токен-эндпоинта по TLS, проверяется только aud — см. google.ts). */
-function b64url(obj) {
-  return Buffer.from(JSON.stringify(obj), "utf-8")
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
+/* ---------- мок Google (:9998): токен + userinfo ----------
+   code имеет формат "mock:<email>:<aud>:<verified>" — токен-эндпоинт
+   отдаёт access_token "at:<email>:<verified>" (или 401 invalid_client
+   при чужом aud); userinfo по Bearer возвращает профиль. Так
+   passport-google-oauth20 проходит оба реальных запроса. */
 function startMockGoogle() {
   const server = http.createServer((req, res) => {
-    if (req.method === "POST" && (req.url || "").includes("/token")) {
+    const url = req.url || "";
+    if (req.method === "POST" && url.includes("/token")) {
       let raw = "";
       req.on("data", (c) => (raw += c));
       req.on("end", () => {
         const params = new URLSearchParams(raw);
         const code = params.get("code") || "";
         const [, email, aud, verified] = code.split(":");
-        const header = b64url({ alg: "none", typ: "JWT" });
-        const payload = b64url({
+        if (aud !== CLIENT_ID) {
+          res.writeHead(401, { "content-type": "application/json" });
+          res.end(JSON.stringify({ error: "invalid_client" }));
+          return;
+        }
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            access_token: `at:${email}:${verified}`,
+            token_type: "Bearer",
+            expires_in: 3600,
+          })
+        );
+      });
+      return;
+    }
+    if (req.method === "GET" && url.includes("/userinfo")) {
+      const auth = req.headers.authorization || "";
+      const token = auth.replace(/^Bearer\s+/i, "");
+      const [, email, verified] = token.split(":");
+      if (!email) {
+        res.writeHead(401, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "invalid_token" }));
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          sub: `mock-${Buffer.from(email).toString("base64url").slice(0, 12)}`,
           email,
           email_verified: verified === "1",
-          aud,
-          exp: Math.floor(Date.now() / 1000) + 600,
-        });
-        const body = JSON.stringify({ id_token: `${header}.${payload}.mocksig` });
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(body);
-      });
+          name: email.split("@")[0],
+          picture: "",
+        })
+      );
       return;
     }
     res.writeHead(200, { "content-type": "text/plain" });
@@ -228,7 +250,7 @@ async function run() {
 
   const wrongAud = makeClient("wrong-aud");
   const r10 = await googleFlow(wrongAud, { email: "evil@test.local", aud: "attacker-client-id.apps.googleusercontent.com", verified: true });
-  ok("10. aud чужой → google_profile (токен подделки отклонён)", (r10.cb.location || "").includes("auth=google_profile") && !wrongAud.cookies.get("nr_uid"), r10.cb.location || "");
+  ok("10. code чужого client_id → мок токена 401 → google_failed (токен не выдан)", (r10.cb.location || "").includes("auth=google_failed") && !wrongAud.cookies.get("nr_uid"), r10.cb.location || "");
 
   const openRedir = makeClient("open-redirect");
   const r11 = await googleFlow(openRedir, { email: "redir@test.local", verified: true, next: "//evil.com", promo: SEED[0] });
@@ -333,6 +355,22 @@ async function run() {
   ok(
     "22. start?promo=<мусор> → cookie НЕ выставлен",
     !pend2.cookies.get("nr_promo_pending")
+  );
+
+  /* 22b. v14/v16: атрибуция через cookie nr_ref при google-входе */
+  const refHost = await one('SELECT "refCode" FROM "Account" WHERE id = $1', [uid1]);
+  const refNew = makeClient("ref-new");
+  if (refHost?.refCode) refNew.cookies.set("nr_ref", refHost.refCode);
+  const emailRef = "g-ref-attr@test.local";
+  cleanupEmails.add(emailRef);
+  const rRef = await googleFlow(refNew, { email: emailRef, verified: true });
+  const uidRef = rRef.cb.cookies.get("nr_uid");
+  cleanupAccounts.push(uidRef);
+  const refRow = await one('SELECT "referredById" FROM "Account" WHERE id = $1', [uidRef]);
+  ok(
+    "22b. атрибуция: cookie nr_ref → referredById = пригласивший",
+    Boolean(refHost?.refCode) && refRow?.referredById === uid1,
+    `${(refRow?.referredById || "").slice(0, 8)} ← host ${(uid1 || "").slice(0, 8)} code=${refHost?.refCode}`
   );
 
   console.log("\n[D] анти-брутфорс start");

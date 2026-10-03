@@ -2,8 +2,10 @@
  * Feature flags (task 44, ТЗ §9): каждая новая механика выключается одной
  * env-переменной без правки кода. Дефолт — «включено» для фич ядра ТЗ
  * (UTM-трекинг, бонусы, нарративные рынки): они безопасны и обратимы.
- * Внешние сервисы (Cloudflare beacon, Magic Link) включаются только при
+ * Внешние сервисы (Cloudflare beacon) включаются только при
  * наличии их ключей — без ключей код даже не монтируется.
+ * v16: magicLink и telegramLogin удалены вместе с методами входа —
+ * единственная дверь Google (GOOGLE_CLIENT_ID/SECRET, lib/auth/google).
  *
  * Значения:
  *   FEATURE_UTM_TRACKING=0        — выключить персональные UTM-переходы
@@ -11,7 +13,6 @@
  *   FEATURE_NARRATIVE_MARKETS=0   — откатить рынки к голым YES/NO
  *   FEATURE_CLICK_WORKER=1        — включить приём кликов от CF Worker
  *   NEXT_PUBLIC_CF_BEACON_TOKEN   — токен Cloudflare Web Analytics
- *   RESEND_API_KEY + FEATURE_MAGIC_LINK!=0 — Magic Link вход
  */
 export const FEATURES = {
   /** Cloudflare Web Analytics beacon (без токена скрипт не ставится) */
@@ -29,11 +30,6 @@ export const FEATURES = {
   /** приём асинхронных кликов от Cloudflare Worker (api/track/click) */
   clickWorker: process.env.FEATURE_CLICK_WORKER === "1",
 
-  /** Magic Link по email — только при настроенном Resend */
-  magicLink:
-    process.env.FEATURE_MAGIC_LINK !== "0" &&
-    Boolean(process.env.RESEND_API_KEY),
-
   /**
    * v11 — ПЛАТЕЖИ ВЫКЛЮЧЕНЫ ПРИКАЗОМ (заморозка на 7 дней, фокус на BD):
    * крипто-пополнения (dp-*), платные бусты (bs-*) и кэшаут (bw-*) закрыты
@@ -41,9 +37,6 @@ export const FEATURES = {
    * экономика без денег. Включение обратно: FEATURE_PAYMENTS=1.
    */
   payments: process.env.FEATURE_PAYMENTS === "1",
-
-  /** v11 — Telegram-вход: кнопка видна, когда задан username бота. */
-  telegramLogin: Boolean(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME),
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

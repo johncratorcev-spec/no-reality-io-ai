@@ -62,7 +62,7 @@ export function authedAccountId(req: NextRequest): string | null {
 
 /**
  * Сессионные cookie входа (nr_uid + подписанный nr_auth).
- * Единая точка для password / google / magic входов.
+ * Единственная точка: google-вход (passport-google-oauth20, v16).
  */
 export function setSessionCookies(
   res: NextResponse,

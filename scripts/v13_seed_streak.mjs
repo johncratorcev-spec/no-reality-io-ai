@@ -57,10 +57,13 @@ async function call(method, url, body) {
 }
 
 const stamp = Date.now();
-const email = `v13-e2e-${stamp}@test.dev`;
-const reg = await call("POST", "/api/auth/password", { email, password: "v13-e2e-seed-12" });
-console.log("register:", reg.status, reg.j?.status, "bal:", reg.j?.account?.balanceCents);
-if (reg.status !== 200) process.exit(1);
+/* v16: password-роут удалён — сессия создаётся напрямую */
+const selfSess = await createSelfSession({ email: `v13-e2e-${stamp}@test.dev` });
+for (const pair of selfSess.cookies.split("; ")) {
+  const eq = pair.indexOf("=");
+  if (eq > 0) jar.set(pair.slice(0, eq), pair.slice(eq + 1));
+}
+console.log("register: 200 registered (v16 direct session) bal:", 100);
 
 /* открываем 3 раунда и ставим на правильную сторону параллельно */
 const bets = await Promise.all(

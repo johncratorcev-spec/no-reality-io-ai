@@ -27,6 +27,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 
 import { q, one, close } from "./lib/supadb.mjs";
+import { createSelfSession, dropSelfSession } from "./lib/selfsession.mjs";
 
 const BASE = process.env.TEST_BASE_URL || "http://localhost:3000";
 const ADMIN_SECRET_ENV = (readFileSync(path.resolve(process.cwd(), ".env"), "utf-8")
@@ -94,29 +95,19 @@ function makeClient(name) {
   return api;
 }
 
-/* v10: ставит только авторизованный — регистрируем игрока с сеяным кодом */
-const BET_ABC = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-function freshCode() {
-  const ts = Date.now().toString(36).toUpperCase().replace(/[01OLI]/g, "X");
-  const rand = Math.random().toString(36).toUpperCase().replace(/[01OLI]/g, "X");
-  const body = ((ts + rand + "XXXXXXXXXXXX").replace(/[^2-9A-HJKMNP-Z]/g, "X")).slice(0, 12);
-  return "NR" + body;
-}
+/* v10: ставит только авторизованный. v16: password-вход удалён —
+   сессии создаём напрямую (Account + signup_bonus + подписанный nr_auth),
+   сам вход покрыт google_selftest/v16_auth_smoke */
 const betAccounts = [];
 async function registerBettor(api, tag) {
-  const code = freshCode();
-  await q(
-    'INSERT INTO "PromoCode" (id, code, batch) VALUES (gen_random_uuid(), $1, \'selftest\') ON CONFLICT (code) DO NOTHING',
-    [code]
-  );
-  const email = `v10-bet-${tag}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@test.dev`;
-  const res = await api("POST", "/api/auth/password", { email, password: "selftest-pass-1", promo: code });
-  if (res.status !== 200 || res.json?.status !== "registered") {
-    console.warn(`[register ${tag}] FAILED:`, res.status, JSON.stringify(res.json));
-  }
-  const accId = res.json?.account?.accountId;
-  if (accId) betAccounts.push(accId);
-  return res;
+  const s = await createSelfSession({
+    email: `v16-bet-${tag}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@test.dev`,
+  });
+  betAccounts.push(s.accountId);
+  const pair = Object.fromEntries(s.cookies.split("; ").map((p) => [p.slice(0, p.indexOf("=")), p.slice(p.indexOf("=") + 1)]));
+  api.cookies.set("nr_uid", pair.nr_uid);
+  api.cookies.set("nr_auth", pair.nr_auth);
+  return { status: 200, json: { status: "registered", account: { accountId: s.accountId } } };
 }
 
 /* ---------- тест ---------- */

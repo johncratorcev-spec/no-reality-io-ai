@@ -44,6 +44,18 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import { q, one, close } from "./lib/supadb.mjs";
+import { createSelfSession } from "./lib/selfsession.mjs";
+
+function giveSession(client, accountId) {
+  const raw = `nr_uid=${accountId}; nr_auth=` + signAuth(accountId);
+  client.cookies.set("nr_uid", accountId);
+  client.cookies.set("nr_auth", raw.split("nr_auth=")[1]);
+}
+
+function signAuth(accountId) {
+  const secret = process.env.ADMIN_SECRET || "no-reality-dev-session-secret";
+  return crypto.createHmac("sha256", secret).update(`nr-auth:${accountId}`).digest("base64url").slice(0, 32);
+}
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 
@@ -152,39 +164,30 @@ async function ledgerSum(accountId) {
 }
 
 async function run() {
-  console.log("\n=== A. Telegram-вход ===");
-  const tgIdA = "9900000001";
-  const tgIdB = "9900000002";
-  const A = makeClient("tg-a");
-  const B = makeClient("tg-b");
+  console.log("\n=== A. Сессии (v16: вход только Google — покрыт google_selftest) ===");
+  const A = makeClient("selftest-a");
+  const B = makeClient("selftest-b");
 
-  const pA = tgPayload(TG_TOKEN, { id: tgIdA, user: "loop_a" });
-  const r1 = await A("POST", "/api/auth/telegram", pA);
-  ok("1 valid payload → 200 ok created", r1.status === 200 && r1.json?.ok === true && r1.json?.created === true, `bal=${r1.json?.account?.balanceCents}`);
-  ok("1b cookies nr_uid+nr_auth выданы", A.cookies.has("nr_uid") && /^v1\./.test(A.cookies.get("nr_auth") || ""));
-  const accA = r1.json?.account?.accountId;
-  ok("1c баланс ровно 100 EYE", r1.json?.account?.balanceCents === 100);
-  ok("1d NR PASS выдан", r1.json?.account?.isPass === true);
-  ok("1e имя в AccountView", (r1.json?.account?.name || "").includes("Loop"));
+  /* v16: сессии создаются напрямую (password/telegram-роуты удалены) */
+  const sA = await createSelfSession({ email: `loop-a-${Date.now()}@test.dev` });
+  const accA = sA.accountId;
+  giveSession(A, accA);
+  ok("1 сессия A создана (+100, passTier=1)", Boolean(accA));
+  ok("1b cookies nr_uid+nr_auth подписаны", A.cookies.has("nr_uid") && /^v1\./.test(A.cookies.get("nr_auth") || ""));
   cleanupAccounts.push(accA);
 
   const dbA = await one(
-    `SELECT a."telegramId", a."tgUsername", t.delta FROM "Account" a
-     JOIN "LedgerTxn" t ON t."accountId" = a.id AND t.kind = 'signup_bonus'
-     WHERE a.id = $1`,
+    `SELECT t.delta FROM "LedgerTxn" t
+     WHERE t."accountId" = $1 AND t.kind = 'signup_bonus'`,
     [accA]
   );
-  ok("2 DB: telegramId + signup_bonus +100", dbA?.telegramId === tgIdA && Number(dbA?.delta) === 100);
+  ok("2 DB: signup_bonus +100", Number(dbA?.delta) === 100, `delta=${dbA?.delta}`);
 
-  const r3 = await makeClient("tg-a2")("POST", "/api/auth/telegram", tgPayload(TG_TOKEN, { id: tgIdA, user: "loop_a" }));
-  ok("3 повторный вход → тот же аккаунт, без welcome", r3.status === 200 && r3.json?.created === false && r3.json?.account?.accountId === accA && r3.json?.account?.balanceCents === 100);
-
-  const bad = await A("POST", "/api/auth/telegram", tgPayload(TG_TOKEN, { id: "9900000009", tamper: true }));
-  ok("4 подделанный hash → 401", bad.status === 401);
-  const old = await A("POST", "/api/auth/telegram", tgPayload(TG_TOKEN, { id: "9900000009", ageSec: 25 * 3600 }));
-  ok("5 просроченный auth_date → 401", old.status === 401);
-  const junk = await A("POST", "/api/auth/telegram", tgPayload(TG_TOKEN, { id: "not-a-number" }));
-  ok("6 мусорный id → 401", junk.status === 401);
+  /* v16: telegram-роут удалён → 404 (метод входа больше не существует) */
+  const tgGone = await A("POST", "/api/auth/telegram", { id: "9900000009" });
+  ok("3 telegram-вход удалён (v16) → 404", tgGone.status === 404, `status=${tgGone.status}`);
+  const pwGone = await makeClient("pw-gone")("POST", "/api/auth/password", { email: `gone-${Date.now()}@test.dev`, password: "12345678" });
+  ok("4 password-вход удалён (v16) → 404", pwGone.status === 404, `status=${pwGone.status}`);
 
   console.log("\n=== B. Петля ставки 10/25/50 → авторезолв → ledger ===");
   /* v14: раунд открывает планировщик из очереди clips. Сеим тестовый клип
@@ -238,9 +241,10 @@ async function run() {
   const betBad = await A("POST", "/api/bet", { round_id: roundId, side: "real", amount_cents: 75, mode: "balance" });
   ok("8 ставка 75 (вне 10..50) → 400", betBad.status === 400);
 
-  const pB = tgPayload(TG_TOKEN, { id: tgIdB, first: "Second", user: "loop_b" });
-  const rB = await B("POST", "/api/auth/telegram", pB);
-  const accB = rB.json?.account?.accountId;
+  /* v16: второй аккаунт сессией напрямую */
+  const sB = await createSelfSession({ email: `loop-b-${Date.now()}@test.dev` });
+  const accB = sB.accountId;
+  giveSession(B, accB);
   cleanupAccounts.push(accB);
   const rv2 = await B("GET", `/api/round?clip=${encodeURIComponent(clipCode)}`);
   const roundId2 = rv2.json?.round?.id || rv2.json?.id;

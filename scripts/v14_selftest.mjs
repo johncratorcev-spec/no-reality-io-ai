@@ -24,6 +24,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import { createHash, createHmac } from "node:crypto";
 import { q, one, close } from "./lib/supadb.mjs";
+import { createSelfSession, dropSelfSession } from "./lib/selfsession.mjs";
 
 const BASE = process.env.TEST_BASE_URL || "http://localhost:3000";
 const env = Object.fromEntries(
@@ -99,15 +100,29 @@ function makeClient(name) {
 }
 
 async function register(api, tag, ref) {
+  /* v16: password-роут удалён — аккаунт создаётся напрямую, атрибуция —
+     зеркальной записью в БД (реальный путь attributeReferral покрыт
+     google_selftest через cookie nr_ref при google-входе) */
   const email = `v14-${tag}-${Date.now()}-${Math.floor(Math.random() * 1e4)}@test.dev`;
-  const res = await api("POST", "/api/auth/password", {
-    email,
-    password: "selftest-pass-1",
-    ...(ref ? { ref } : {}),
-  });
-  const accId = res.json?.account?.accountId;
+  const s = await createSelfSession({ email });
+  const accId = s.accountId;
   if (accId) cleanupIds.accounts.push(accId);
-  return { res, accId, email };
+  if (accId && ref) {
+    await q(
+      `update "Account" set "referredById" = (select id from "Account" where "refCode" = $1)
+       where id = $2 and "referredById" is null
+         and (select id from "Account" where "refCode" = $1) is distinct from $2`,
+      [ref, accId]
+    );
+  }
+  return {
+    res: {
+      status: 200,
+      json: { status: "registered", account: { accountId: accId, balanceCents: 100 } },
+    },
+    accId,
+    email,
+  };
 }
 
 async function tick() {

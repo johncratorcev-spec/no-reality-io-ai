@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Send } from "lucide-react";
 import { useAccount } from "@/hooks/use-account";
 import {
   hydrateFavorites,
@@ -9,16 +8,12 @@ import {
 } from "@/lib/favorites";
 
 /* ================================================================
-   ACCOUNT-кнопка в шапке (v8).
+   ACCOUNT-кнопка в шапке (v16).
 
-   Крипто-кошелёк больше не метод входа: идентичность — мгновенный
-   аккаунт (cookie nr_uid) + СВОЯ ФОРМА (email + пароль, Supabase,
-   без подтверждения почты: есть аккаунт — вошёл, почта уникальна —
-   профиль создан) + опциональный Google Sign-In (email в /api/me).
-
-   Гостю показываем кнопку «email» (всегда) и «G google» (если ключи
-   настроены); авторизованному — чип с email и дропдаун: баланс,
-   бейджи, избранное, пригласительная ссылка, выход.
+   ЕДИНСТВЕННЫЙ метод входа — Google (passport-google-oauth20):
+   идентичность — аккаунт с email (cookie nr_uid + подписанный nr_auth);
+   гость ведётся на премиум-экран /auth. Авторизованному — чип с email
+   и дропдаун: сезон, бонусы, избранное, пригласительная ссылка, выход.
    ================================================================ */
 
 function emailShort(email: string): string {
@@ -47,12 +42,9 @@ export default function WalletButton() {
 
   /* v9: статус Google больше не нужен в шапке — гостевой блок уведён на
      /auth (там свой статус-фетч); здесь остаётся только аккаунт-чип */
-  /* task 44: бонусы/бейджи профиля + доступность Magic Link */
+  /* task 44: бонусы/бейджи профиля */
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [season, setSeason] = useState<SeasonData | null>(null);
-  const [magicEnabled, setMagicEnabled] = useState(false);
-  const [magicEmail, setMagicEmail] = useState("");
-  const [magicState, setMagicState] = useState<"idle" | "sending" | "sent">("idle");
   const [copied, setCopied] = useState(false);
 
   /* панель открыта — профиль (бонусы/бейджи/invite) + флаг Magic Link +
@@ -88,34 +80,9 @@ export default function WalletButton() {
       } catch {
         /* сезон — не критично */
       }
-      try {
-        const r = await fetch("/api/auth/magic/status", { cache: "no-store" });
-        if (r.ok) {
-          const d = (await r.json()) as { enabled?: boolean };
-          setMagicEnabled(Boolean(d.enabled));
-        }
-      } catch {
-        /* magic остаётся выключенным */
-      }
     })();
     void hydrateFavorites();
   }, [open]);
-
-  const sendMagic = async () => {
-    if (!magicEmail.trim() || magicState !== "idle") return;
-    setMagicState("sending");
-    try {
-      const r = await fetch("/api/auth/magic/request", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: magicEmail.trim() }),
-      });
-      if (r.ok) setMagicState("sent");
-      else setMagicState("idle");
-    } catch {
-      setMagicState("idle");
-    }
-  };
 
   const copyInvite = async () => {
     if (!profile?.inviteUrl) return;
@@ -152,13 +119,13 @@ export default function WalletButton() {
 
   const email = account?.email ?? null;
   const name = account?.name ?? null;
-  /* чип: email (google/пароль) или Telegram-имя; гость — кнопка входа */
+  /* чип: email (google-аккаунт) или legacy-имя; гость — кнопка входа */
   const chipLabel = email ? emailShort(email) : name ? (name.length > 14 ? `${name.slice(0, 13)}…` : name) : null;
 
   return (
     <div className="relative">
       {chipLabel ? (
-        /* ----- сессия (google/email/telegram): чип + дропдаун аккаунта ----- */
+        /* ----- сессия (google): чип + дропдаун аккаунта ----- */
         <>
           <button
             onClick={() => setOpen((v) => !v)}
@@ -169,7 +136,7 @@ export default function WalletButton() {
             {email ? (
               <span aria-hidden className="text-[0.8rem] font-black">G</span>
             ) : (
-              <Send aria-hidden className="h-3 w-3 text-[#229ED9]" />
+              <span aria-hidden className="text-[0.8rem] font-black">@</span>
             )}
             {chipLabel}
           </button>
@@ -261,43 +228,6 @@ export default function WalletButton() {
                   >
                     {copied ? "copied ✓" : "copy invite"}
                   </button>
-                </>
-              )}
-
-              {/* ---------- Magic Link (task 44 §6): email-вход как дополнение ---------- */}
-              {magicEnabled && (
-                <>
-                  <p className="mt-3 text-[0.6rem] font-extrabold uppercase tracking-[0.2em] text-[#6d4fc2]">
-                    email sign-in
-                  </p>
-                  {magicState === "sent" ? (
-                    <p className="mt-1.5 text-[0.64rem] font-semibold leading-snug text-[#1d7a3e]">
-                      link sent ✓ — check your inbox, it works once and expires in
-                      15 minutes.
-                    </p>
-                  ) : (
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      <input
-                        type="email"
-                        inputMode="email"
-                        value={magicEmail}
-                        onChange={(e) => setMagicEmail(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") void sendMagic();
-                        }}
-                        placeholder="you@mail.com"
-                        aria-label="Email for magic sign-in link"
-                        className="min-w-0 flex-1 rounded-xl bg-[#10161d]/10 px-3 py-2 text-[0.66rem] font-semibold text-white ring-1 ring-white/15 outline-none placeholder:text-white/40 focus:ring-2 focus:ring-[#a8cfea]"
-                      />
-                      <button
-                        onClick={() => void sendMagic()}
-                        disabled={magicState === "sending" || !magicEmail.trim()}
-                        className="rounded-xl bg-[#10161d]/5 px-3 py-2 text-[0.62rem] font-extrabold text-[#10161d] ring-1 ring-[#10161d]/15 transition-colors hover:bg-[#10161d]/10 disabled:opacity-50"
-                      >
-                        {magicState === "sending" ? "…" : "send link"}
-                      </button>
-                    </div>
-                  )}
                 </>
               )}
 

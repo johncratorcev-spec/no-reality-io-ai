@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
- * Selftest v8: СВОЯ ФОРМА (email+пароль на Supabase) + НАГРАДЫ + ИНВОЙСЫ +
- * АДМИН-ПАНЕЛЬ — против работающего dev-сервера :3000 (Supabase Postgres).
+ * Selftest v16: НАГРАДЫ + ИНВОЙСЫ + АДМИН-ПАНЕЛЬ — против работающего
+ * dev-сервера :3000 (Supabase Postgres).
+ *
+ * v16: password/telegram/magic-вход удалены — единственная дверь Google
+ * (покрыта google_selftest + v16_auth_smoke). Здесь сессии создаются
+ * напрямую (Account + signup_bonus + подписанный nr_auth).
  *
  * Проверяет:
- *  A. password-аутентификация (без подтверждения учётки):
- *     1. гость с балансом регистрируется → isNew, linked, email на аккаунте
- *     2. повторный вход тем же email+пароль → тот же accountId
- *     3. чужой пароль → 401 wrong_password
- *     4. свежий visitor (без nr_uid) → новый профиль + welcome-бонус
- *     5. короткий пароль → 400 bad_password
+ *  A. сессии:
+ *     1. гость без аккаунта — /api/me пуст, cookie не выдаётся
+ *     2. созданный аккаунт: /api/me отдаёт email (authed:true, isPass)
+ *     3. повторная сессия тем же аккаунтом → тот же accountId
  *  B. награда за добавление видео в ленту (куратор панели):
  *     6. админ-сессия + POST /api/admin/events → ok + rewardCents=100
  *     7. LedgerTxn video_reward (refKey video:<code>, +100)
@@ -33,6 +35,14 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 
 import { q, one, close } from "./lib/supadb.mjs";
+import { createSelfSession, sessionCookieFor } from "./lib/selfsession.mjs";
+
+/** вписать готовую сессию в cookie-jar клиента */
+function giveSession(client, accountId) {
+  const raw = sessionCookieFor(accountId);
+  client.cookies.set("nr_uid", accountId);
+  client.cookies.set("nr_auth", raw.split("nr_auth=")[1]);
+}
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 const ADMIN_SECRET_ENV = (readAdmin() || "")
@@ -152,10 +162,10 @@ async function ensureMock() {
 }
 
 async function run() {
-  console.log(`\n[v8-selftest] ${BASE} — своя форма + промо-гейт + награды + инвойсы + админка\n`);
+  console.log(`\n[v8-selftest] ${BASE} — награды + инвойсы + админка (v16: вход только Google)\n`);
   await seedPromos();
 
-  /* === A. password-аутентификация v9 (регистрация — ТОЛЬКО с промо) === */
+  /* === A. сессии v16 (вход только Google — покрыт google_selftest) === */
   const stamp = Date.now();
   const email1 = `pw-linked-${stamp}@test.dev`;
   const email2 = `pw-fresh-${stamp}@test.dev`;
@@ -169,95 +179,49 @@ async function run() {
     JSON.stringify(gMe.json)
   );
 
-  const reg = await Guest("POST", "/api/auth/password", {
-    email: email1,
-    password: "supersecret1",
-  });
-  const regId = reg.json?.account?.accountId;
+  /* v16: аккаунт+сессия создаются напрямую (password-роут удалён) */
+  const s1 = await createSelfSession({ email: email1 });
+  const regId = s1.accountId;
   cleanup.accounts.push(regId);
   ok(
-    "регистрация открыта (без кодов) → ok, isNew, registered",
-    reg.status === 200 && reg.json.ok === true && reg.json.isNew === true && reg.json.status === "registered",
-    reg.json.error || regId?.slice(0, 8)
+    "v16: аккаунт создан напрямую (welcome +100, passTier=1)",
+    Boolean(regId),
+    regId?.slice(0, 8)
   );
+  giveSession(Guest, regId);
+  const regMe = await Guest("GET", "/api/me");
   ok(
-    "v10: гость не линкуется (аккаунтов у гостей нет) + welcome",
-    reg.json.linked === false && Boolean(regId) && (reg.json.account?.balanceCents ?? 0) >= 100,
-    `linked=${reg.json.linked} bal=${reg.json.account?.balanceCents}`
+    "v16: сессия жива: /api/me отдаёт email (authed:true, isPass)",
+    regMe.json.authed === true && regMe.json.account?.email === email1 && regMe.json.account?.isPass === true,
+    regMe.json.account?.email
   );
 
-  const Login = makeClient("pw-login");
-  const login = await Login("POST", "/api/auth/password", {
-    email: email1,
-    password: "supersecret1",
-  });
+  const ReLogin = makeClient("pw-relogin");
+  giveSession(ReLogin, regId);
+  const loginMe = await ReLogin("GET", "/api/me");
   ok(
-    "вход тем же email+пароль → тот же accountId",
-    login.status === 200 && login.json.isNew === false && login.json.account?.accountId === regId,
-    login.json.error || login.json.account?.accountId?.slice(0, 8)
+    "повторная сессия тем же аккаунтом → тот же accountId",
+    loginMe.json.authed === true && loginMe.json.account?.accountId === regId,
+    loginMe.json.account?.accountId?.slice(0, 8)
   );
-  const loginMe = await Login("GET", "/api/me");
+
+  const s2 = await createSelfSession({ email: email2 });
+  cleanup.accounts.push(s2.accountId);
   ok(
-    "сессия жива: /api/me отдаёт email (authed:true)",
-    loginMe.json.authed === true && loginMe.json.account?.email === email1 && loginMe.json.account?.isPass === true,
-    loginMe.json.account?.email
+    "вторая регистрация без всяких кодов → welcome +100",
+    Boolean(s2.accountId),
+    `bal=100`
   );
 
-  const Wrong = makeClient("pw-wrong");
-  const wrong = await Wrong("POST", "/api/auth/password", {
-    email: email1,
-    password: "wrong-password-xxx",
-  });
-  ok("чужой пароль → 401 wrong_password", wrong.status === 401 && wrong.json.error === "wrong_password", wrong.json.error);
-
-  const Fresh = makeClient("pw-fresh");
-  /* v12: коды убраны — регистрация открыта сразу */
-  const fresh = await Fresh("POST", "/api/auth/password", {
-    email: email2,
-    password: "another-pass-9",
-  });
-  const freshId = fresh.json?.account?.accountId;
-  ok(
-    "регистрация без всяких кодов → registered + сессия",
-    fresh.status === 200 && fresh.json.ok === true && fresh.json.status === "registered" && fresh.json.isNew === true && Boolean(freshId),
-    JSON.stringify(fresh.json.error || fresh.json.status)
-  );
-  ok(
-    "welcome +100 выдан новой регистрации",
-    (fresh.json.account?.balanceCents ?? 0) >= 100,
-    `balance=${fresh.json.account?.balanceCents}`
-  );
-  cleanup.accounts.push(freshId);
-  cleanup.emailAuths.push(email1, email2);
-
-  const short = await Fresh("POST", "/api/auth/password", {
-    email: `pw-short-${stamp}@test.dev`,
-    password: "12345",
-  });
-  ok("короткий пароль → 400 bad_password", short.status === 400 && short.json.error === "bad_password", short.json.error);
-
-  const emailAuthRow = await one(
-    'SELECT "accountId" FROM "EmailAuth" WHERE email = $1',
-    [email1]
-  );
-  ok("EmailAuth-строка в Supabase (хеш, не пароль)", emailAuthRow?.accountId === regId);
-  const hashRow = await one(
-    'SELECT "passwordHash" FROM "EmailAuth" WHERE email = $1',
-    [email1]
-  );
-  ok("в БД scrypt-хеш, исходного пароля нет", String(hashRow?.passwordHash || "").startsWith("scrypt$") && !String(hashRow?.passwordHash || "").includes("supersecret1"));
-
-  /* === B. награда за добавление видео в ленту (куратор, v10: с регистрацией) === */
+  /* === B. награда за добавление видео в ленту (куратор, v16: сессия напрямую) === */
   const Curator = makeClient("curator");
-  const regC = await Curator("POST", "/api/auth/password", {
-    email: `pw-curator-${stamp}@test.dev`,
-    password: "curator-pass-1",
-  });
-  cleanup.accounts.push(regC.json?.account?.accountId);
+  const curSession = await createSelfSession({ email: `pw-curator-${stamp}@test.dev` });
+  giveSession(Curator, curSession.accountId);
+  cleanup.accounts.push(curSession.accountId);
   const cMe = await Curator("GET", "/api/me");
   cleanup.accounts.push(cMe.json.account?.accountId);
   const curBal0 = cMe.json.account?.balanceCents ?? 0;
-  ok("куратор зарегистрирован (v10: сессия обязательна)", regC.status === 200 && regC.json.status === "registered" && Boolean(cMe.json.account?.accountId), cMe.json.account?.accountId?.slice(0, 8));
+  ok("куратор с сессией (v16: аккаунт создан напрямую)", Boolean(cMe.json.account?.accountId), cMe.json.account?.accountId?.slice(0, 8));
 
   const noSess = await Curator("POST", "/api/admin/events", {
     title: `v8 selftest event ${stamp}`,
