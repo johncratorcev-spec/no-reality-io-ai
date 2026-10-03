@@ -138,6 +138,9 @@ const row = {
   listed_by: LISTED_BY,
   badge: BADGE,
   featured_until: featuredUntil ? featuredUntil.toISOString() : null,
+  // Prisma @updatedAt — app-level: в БД у колонки НЕТ дефолта (NOT NULL),
+  // сырой pg-INSERT обязан передать её сам (PostgREST-путь тоже).
+  updated_at: now.toISOString(),
 };
 
 if (DRY) {
@@ -182,7 +185,7 @@ if (!inserted) {
   const vals = cols.map((k) => row[k]);
   const phAll = cols.map((_, i) => `$${i + 1}`).join(",");
   const upd = cols
-    .filter((k) => !["id", "source_url", "created_at"].includes(k))
+    .filter((k) => !["id", "source_url", "created_at", "updated_at"].includes(k))
     .map((k) => `"${k}" = EXCLUDED."${k}"`)
     .join(", ");
   await q(
