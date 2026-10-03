@@ -146,7 +146,7 @@ async function run() {
 
   /* регистрации закончены — ТОЛЬКО ТЕПЕРЬ открываем окно (45с мало
      для латентности Supabase × все регистрации) */
-  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`);
   await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET_ENV)}`);
   const seeded = await one(`select status from clips where id = $1`, [code]);
   ok("клип в live (планировщик)", seeded?.status === "live", seeded?.status ?? "");

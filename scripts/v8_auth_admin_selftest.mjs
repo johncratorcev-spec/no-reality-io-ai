@@ -274,7 +274,7 @@ async function run() {
     `SELECT
        (SELECT COUNT(*)::int FROM "DepositOrder" WHERE "accountId" = ANY($1)) AS dep,
        (SELECT COUNT(*)::int FROM "BoostOrder" WHERE "buyerHash" = ANY($1)) AS boost`,
-    [[regId, freshId, cMe.json.account?.accountId].filter(Boolean)]
+    [[regId, s2.accountId, cMe.json.account?.accountId].filter(Boolean)]
   );
   ok("регулярные действия инвойсов не создают", (invRows?.dep ?? 1) === 0 && (invRows?.boost ?? 1) === 0, `dep=${invRows?.dep} boost=${invRows?.boost}`);
 

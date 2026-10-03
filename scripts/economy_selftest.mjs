@@ -319,7 +319,7 @@ async function run() {
     [clipId, `https://example.com/eco/${clipId}`, "https://www.w3schools.com/html/mov_bbb.mp4", "real", commitOf(clipId, "real")]
   );
   cleanup.clips.push(clipId);
-  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`);
   await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET_ENV)}`);
   const seededClip = await one(`select status from clips where id = $1`, [clipId]);
   ok("сеяный клип в live", seededClip?.status === "live", seededClip?.status ?? "");
@@ -396,7 +396,7 @@ async function run() {
     [clipId2, `https://example.com/eco/${clipId2}`, "https://www.w3schools.com/html/mov_bbb.mp4", "synth", commitOf(clipId2, "synth")]
   );
   cleanup.clips.push(clipId2);
-  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`);
   await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET_ENV)}`);
   const poorRound = await Poor("GET", `/api/round?clip=${clipId2}`);
   const targetRound = poorRound.json.round;

@@ -33,7 +33,8 @@ const env = Object.fromEntries(
     .filter((l) => l.includes("=") && !l.trim().startsWith("#"))
     .map((l) => {
       const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+      /* кавычки срезаем — сервер (dev_up.sh) читает значение БЕЗ них */
+      return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^"|"$/g, "")];
     })
 );
 const ADMIN_KEY = env.ADMIN_SECRET;
@@ -107,6 +108,12 @@ async function register(api, tag, ref) {
   const s = await createSelfSession({ email });
   const accId = s.accountId;
   if (accId) cleanupIds.accounts.push(accId);
+  /* сессия = подписанная пара nr_uid/nr_auth из selfsession; без её
+     прикрепления к клиенту все авторизованные запросы дают auth_required */
+  for (const pair of (s.cookies || "").split("; ")) {
+    const eq = pair.indexOf("=");
+    if (eq > 0) api.cookies.set(pair.slice(0, eq), pair.slice(eq + 1));
+  }
   if (accId && ref) {
     await q(
       `update "Account" set "referredById" = (select id from "Account" where "refCode" = $1)
@@ -255,7 +262,7 @@ async function run() {
   cleanupIds.clips.push(c1d?.clip?.id);
 
   /* гигиена: закрыть чужие live-раунды, чтобы планировщик взял именно тестовый клип */
-  await q(`update "Round" set "closesAt" = $1 where status in ('open','locked')`, [
+  await q(`update "Round" set "closesAt" = $1 where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`, [
     new Date(Date.now() - 1000).toISOString(),
   ]);
 
@@ -280,14 +287,14 @@ async function run() {
 
   /* ждём продвижения (чужие раунды могли доживать) */
   let liveClip = null;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 45; i++) {
     liveClip = await one(`select * from clips where id = $1`, [clip1Id]);
     if (liveClip?.status === "live") break;
-    await q(`update "Round" set "closesAt" = $1 where status in ('open','locked')`, [
+    await q(`update "Round" set "closesAt" = $1 where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`, [
       new Date(Date.now() - 1000).toISOString(),
     ]);
     await tick();
-    await new Promise((r) => setTimeout(r, 800));
+    await new Promise((r) => setTimeout(r, 1100));
   }
   ok("клип стал live", liveClip?.status === "live", liveClip?.status ?? "нет");
   ok("opens_at/closes_at выставлены", Boolean(liveClip?.opens_at && liveClip?.closes_at));

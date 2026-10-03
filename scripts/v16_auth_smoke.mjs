@@ -72,12 +72,19 @@ const state2 = good.cookies.get("nr_g_state");
 const r9 = await good(`/api/auth/google/callback?code=mock:smoke@test.local:${"smoke-client-id"}:0&state=${encodeURIComponent(state2 || "")}`);
 ok("9. userinfo-шаг отработал: unverified-email → auth=google_profile", (r9.location || "").includes("auth=google_profile"), r9.location || "");
 
-/* 9b. verified=1 → профиль валиден → signInWithGoogle → БД off → auth=google_failed */
+/* 9b. verified=1 → профиль валиден → signInWithGoogle:
+      БД доступна → вход 303 → /bet + сессия (nr_uid/nr_auth);
+      БД недоступна (сборка без секретов) → auth=google_failed. */
 const good2 = makeClient("good2");
 await good2("/api/auth/google/start");
 const state3 = good2.cookies.get("nr_g_state");
 const r9b = await good2(`/api/auth/google/callback?code=mock:smoke2@test.local:${"smoke-client-id"}:1&state=${encodeURIComponent(state3 || "")}`);
-ok("9b. профиль принят, дошёл до signInWithGoogle (БД off → google_failed)", (r9b.location || "").includes("auth=google_failed"), r9b.location || "");
+const loc9b = r9b.location || "";
+const dbOn = loc9b.includes("/bet");
+const dbOff = loc9b.includes("auth=google_failed");
+const sessionSet = good2.cookies.has("nr_uid") && good2.cookies.has("nr_auth");
+ok("9b. verified-профиль → вход (/bet + сессия) либо google_failed при БД-off",
+   (dbOn && sessionSet) || dbOff, `${loc9b} session=${sessionSet}`);
 
 /* 10. rate limit */
 let got429 = false;

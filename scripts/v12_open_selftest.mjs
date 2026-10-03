@@ -144,7 +144,7 @@ async function run() {
     `len=${(authPage.html || "").length}`
   );
 
-  const start = await Gone("/api/auth/google/start?promo=NR2345GGGGGGGG");
+  const start = await Gone("GET", "/api/auth/google/start?promo=NR2345GGGGGGGG");
   ok(
     "6. start?promo=… → nr_promo_pending НЕ ставится (303/503 по ключам)",
     (start.status === 303 || start.status === 503) && !Gone.cookies.get("nr_promo_pending"),

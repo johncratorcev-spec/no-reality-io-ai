@@ -29,7 +29,8 @@ const env = Object.fromEntries(
     .filter((l) => l.includes("=") && !l.trim().startsWith("#"))
     .map((l) => {
       const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+      /* кавычки срезаем — сервер (dev_up.sh) читает значение БЕЗ них */
+      return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^"|"$/g, "")];
     })
 );
 const ADMIN_KEY = env.ADMIN_SECRET;
@@ -74,6 +75,15 @@ async function sampleVideoUrl() {
       if (probe.ok || probe.status === 206) return r.video_url;
     } catch {}
   }
+  /* фолбэк: CDN-ссылкиresolved-клипов мертвы (эпоха oe истекла) —
+     стабильный публичный mp4, как в v13_mechanics */
+  try {
+    const probe = await fetch("https://www.w3schools.com/html/mov_bbb.mp4", {
+      headers: { Range: "bytes=0-1" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (probe.ok || probe.status === 206) return "https://www.w3schools.com/html/mov_bbb.mp4";
+  } catch {}
   return null;
 }
 
@@ -155,17 +165,17 @@ async function run() {
     clipId,
   ]);
   /* закрываем чужие live-раунды, чтобы планировщик взял тестовый */
-  await q(`update "Round" set "closesAt" = $1 where status in ('open','locked')`, [
+  await q(`update "Round" set "closesAt" = $1 where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`, [
     new Date(Date.now() - 1000).toISOString(),
   ]);
   const t1 = await tick();
   ok("cron/tick ok", t1.status === 200 && t1.json?.ok === true, JSON.stringify(t1.json ?? {}));
 
   let live = null;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 45; i++) {
     live = await one(`select * from clips where id = $1`, [clipId]);
     if (live?.status === "live") break;
-    await q(`update "Round" set "closesAt" = $1 where status in ('open','locked')`, [
+    await q(`update "Round" set "closesAt" = $1 where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`, [
       new Date(Date.now() - 1000).toISOString(),
     ]);
     await tick();
@@ -179,6 +189,12 @@ async function run() {
   const raw1 = JSON.stringify(r1);
   ok("метка НЕ утекает до резолва", !raw1.includes('"label"') && !raw1.includes('"resolvedAs"'));
   ok("автор/исходник/CDN не утекают", !raw1.includes('"authorHandle"') && !raw1.includes('"sourceUrl"') && !raw1.includes("cdninstagram"));
+
+  /* витрина /bet — пока клип live: фид отдаёт только bettable (live),
+   competition-проп доходит до ClipCard именно в live-фазе */
+  const betHtml = await fetch(`${BASE}/bet`).then((r) => r.text()).catch(() => "");
+  ok("/bet 200 и рендерится", betHtml.length > 1000);
+  ok("competition-проп присутствует в пейлоаде", betHtml.includes('"competition":"01"') || betHtml.includes("competition"));
 
   /* окно прошло → резолв */
   await q(`update "Round" set "closesAt" = $1 where "clipCode" = $2`, [
@@ -201,11 +217,10 @@ async function run() {
   ok("competition живёт и после резолва", r2?.clip?.competition === "raffle-01", r2?.clip?.competition ?? "нет");
   ok("hashMatched=true (хеш сошёлся)", r2?.round?.hashMatched === true);
 
-  /* ================= 3. витрина /bet ================= */
-  console.log("── 3. /bet — competition-проп в RSC-пейлоаде");
-  const betHtml = await fetch(`${BASE}/bet`).then((r) => r.text()).catch(() => "");
-  ok("/bet 200 и рендерится", betHtml.length > 1000);
-  ok("competition-проп присутствует в пейлоаде", betHtml.includes('"competition":"01"') || betHtml.includes("competition"));
+  /* ================= 3. витрина /bet (после резолва) ================= */
+  console.log("── 3. /bet — после резолва клип уходит из bettable-фида (проверено на live-фазе выше)");
+  const betHtml2 = await fetch(`${BASE}/bet`).then((r) => r.text()).catch(() => "");
+  ok("/bet 200 и рендерится и после резолва", betHtml2.length > 1000);
 
   /* ================= cleanup ================= */
   console.log("── cleanup");

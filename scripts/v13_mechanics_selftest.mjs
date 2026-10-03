@@ -76,7 +76,7 @@ async function run() {
 
   /* v14: готовим открытый раунд — сеим клип в очередь clips и тикаем
      планировщик (легаси /api/posts и CSV больше не существуют) */
-  const { q: q13, close: close13 } = await import("./lib/supadb.mjs");
+  const { q: q13, one: one13, close: close13 } = await import("./lib/supadb.mjs");
   const { createHash } = await import("node:crypto");
   const ADMIN13 = envFromDotenv("ADMIN_SECRET");
   const PEPPER13 = envFromDotenv("COMMIT_PEPPER");
@@ -89,10 +89,20 @@ async function run() {
      on conflict (id) do nothing`,
     [clipId, `https://example.com/arena/${clipId}`, "https://www.w3schools.com/html/mov_bbb.mp4", "real", commit13(clipId, "real")]
   ).catch(() => {});
-  await q13(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`).catch(() => {});
+  await q13(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`).catch(() => {});
   await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN13)}`).catch(() => {});
   await j(`/api/round?clip=${encodeURIComponent(clipId)}`);
-  await new Promise((r) => setTimeout(r, 1200));
+  /* ждём, пока планировщик дойдёт до тестового клипа: чужой live-раунд
+     (продовый, НЕ selftest) должен истечь ЕСТЕСТВЕННО — гигиена его
+     не трогает, поэтому терпеливо тикаем до ~50с */
+  let live13 = null;
+  for (let i = 0; i < 45; i++) {
+    live13 = await one13(`select status from clips where id = $1`, [clipId]).catch(() => null);
+    if (live13?.status === "live") break;
+    await q13(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`).catch(() => {});
+    await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN13)}`).catch(() => {});
+    await new Promise((r) => setTimeout(r, 1100));
+  }
 
   const round = await j("/api/arena/round", { headers: { "x-agent-key": ARENA_KEY } });
   ok(

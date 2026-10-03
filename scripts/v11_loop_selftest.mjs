@@ -44,17 +44,16 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import { q, one, close } from "./lib/supadb.mjs";
-import { createSelfSession } from "./lib/selfsession.mjs";
+import { createSelfSession, sessionCookieFor } from "./lib/selfsession.mjs";
 
+/* Каноническая подпись сессии — sessionCookieFor из selfsession (v1.HMAC),
+   идентичная lib/auth/session на сервере; локальная копия без префикса
+   v1. ломала ВСЕ авторизованные запросы (сервер отбрасывает cookie без v1.). */
 function giveSession(client, accountId) {
-  const raw = `nr_uid=${accountId}; nr_auth=` + signAuth(accountId);
-  client.cookies.set("nr_uid", accountId);
-  client.cookies.set("nr_auth", raw.split("nr_auth=")[1]);
-}
-
-function signAuth(accountId) {
-  const secret = process.env.ADMIN_SECRET || "no-reality-dev-session-secret";
-  return crypto.createHmac("sha256", secret).update(`nr-auth:${accountId}`).digest("base64url").slice(0, 32);
+  for (const pair of sessionCookieFor(accountId).split("; ")) {
+    const eq = pair.indexOf("=");
+    client.cookies.set(pair.slice(0, eq), pair.slice(eq + 1));
+  }
 }
 
 const BASE = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
@@ -204,13 +203,13 @@ async function run() {
     [loopClipId, `https://example.com/loop/${loopClipId}`, sampleVideo, "real", commitOf(loopClipId, "real")]
   );
   cleanupClips.push(loopClipId);
-  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+  await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`);
   const tickRes = await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET)}`);
   ok("6b cron/tick 200", tickRes.status === 200);
 
   /* ждём, пока планировщик дойдёт до нашего клипа (чужие queued могли быть старше) */
   let clipCode = null;
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 45; i++) {
     const row = await one(`select id, status from clips where id = $1`, [loopClipId]);
     if (row?.status === "live") {
       clipCode = loopClipId;
@@ -218,7 +217,7 @@ async function run() {
     }
     if (row?.status === "queued") {
       /* наш клип ещё не первый — подрежем created_at и тикнем снова */
-      await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked')`);
+      await q(`update "Round" set "closesAt" = now() - interval '1 sec' where status in ('open','locked') and "clipCode" in (select id from clips where listed_by = 'selftest')`);
       await fetch(`${BASE}/api/cron/tick?key=${encodeURIComponent(ADMIN_SECRET)}`);
     } else break;
     await new Promise((r) => setTimeout(r, 700));

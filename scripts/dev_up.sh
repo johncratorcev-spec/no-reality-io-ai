@@ -18,8 +18,10 @@ while IFS= read -r line || [ -n "$line" ]; do
 done < .env
 # Selftest-режим (v8/v9): мок-эндпоинты Google/2328, если ещё не заданы.
 # Без GOOGLE_TOKEN_URL exchange уйдёт на настоящий Google и google-сценарии
-# selftest'ов упадут; без TWOTHOUSAND328_* депозиты пойдут в demo-режим.
+# selftest'ов упадут; GOOGLE_USERINFO_URL — то же самое (passport ходит за
+# профилем отдельно от токена; без перекрытия — реальный www.googleapis.com).
 export GOOGLE_TOKEN_URL="${GOOGLE_TOKEN_URL:-http://127.0.0.1:9998/token}"
+export GOOGLE_USERINFO_URL="${GOOGLE_USERINFO_URL:-http://127.0.0.1:9998/userinfo}"
 export TWOTHOUSAND328_API_BASE="${TWOTHOUSAND328_API_BASE:-http://127.0.0.1:9999/api}"
 export TWOTHOUSAND328_PAYMENT_API_KEY="${TWOTHOUSAND328_PAYMENT_API_KEY:-test-payment-key}"
 export TWOTHOUSAND328_PAYOUT_API_KEY="${TWOTHOUSAND328_PAYOUT_API_KEY:-test-payout-key}"
