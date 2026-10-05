@@ -1363,3 +1363,25 @@ Stage Summary:
 - 4 соревнования (raffle-01..04) в очереди прода, метки synth, label_commit сходится, золотое оформление raffle-01..04 активируется при выходе в live; raffle-05 (@mmayrday) ждёт разблокировки Meta/прямого mp4 от bd.
 - Самотест-прогон v16 полностью зелёный на живой БД (370/0), все фиксы запушены (32b7b41) и задеплоены (чанки совпадают).
 - БЛОКЕР ПРОДА (действие bd в Vercel, из песочницы недоступно): 1) DATABASE_URL=postgresql://postgres.arwdhvfffzdljctryjfw:moon7009A%2A56@aws-1-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true&connection_limit=1 (Production-скоуп!); 2) DIRECT_URL=…aws-1-eu-west-3.pooler.supabase.com:5432/postgres?sslmode=require; 3) проверить, что GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET стоят в Production (сейчас прод их не видит — status enabled:false); 4) COMMIT_PEPPER=nrs-commit-pepper-v14-7t4qz9x2m6b8k3w5 и PUBLIC_BASE_URL=https://no-reality.fun на месте; 5) Redeploy. Google Console → redirect URI https://no-reality.fun/api/auth/google/callback (как в v7). После этого health → db:up, /auth рисует кнопку Google, планировщик сам откроет raffle-01.
+
+---
+Task ID: 18 (v17 hotfix — prod 500 «Application error» digest 1559654748)
+Agent: Super Z (main agent)
+Task: «Application error: a server-side exception has occurred while loading no-reality.fun. Digest: 1559654748» после коммита на проде.
+
+Work Log:
+- ДИАГНОЗ: prod health → db:down/auth:down; / → 500, /bet и /auth → 200. Единственный негардед-SSR DB-рид — лендинг: SeasonLanding → seasonInfo() → db.season.findFirst() БЕЗ catch; при недоступной БД PrismaError ронял весь SSR главной (bet/feed/collab/v-code выживают — там getRankedPosts().catch(() => [])).
+- КОРЕНЬ НЕДОСТУПНОСТИ БД НА ВЕРСЕЛЕ (доказано DNS): пользовательский direct-хост db.arwdhvfffzdljctryjfw.supabase.co НЕ ИМЕЕТ A-записи (ENODATA), только AAAA (IPv6-only) → Vercel serverless (IPv4-only) физически не может подключиться. Пулер aws-1-eu-west-3.pooler.supabase.com имеет IPv4 (13.36.13.135…) — работает.
+- ПРОВЕРКА СТРОК (scripts/verify_pooler_v17.mjs, пароль только argv): TXN :6543 + pgbouncer → OK accounts=266, rafflesQueued=4, activeSeasons=1; SESSION :5432 → OK (те же цифры — совпадают с Task 17). Нюанс песочницы: egress MITM-ит TLS → в URL sslmode=require роняет verify-full на цепочке прокси; для проверки пароля ssl:{rejectUnauthorized:false}; на Vercel (чистая сеть) sslmode=require валиден.
+- ФИКС: src/components/landing/SeasonLanding.tsx — seasonInfo().catch(() => null) → лендинг отдаёт 200 с fallback (hasSeason=false, daysLeft=7, snapshotIn-строка) даже при мёртвой БД. Клиент уже умел hasSeason=false (проверено).
+- GIT: локальный 8cd33f1 diverged от origin b404084 (обе — «worklog: Task 17» поверх 32b7b41; локальный нёс ещё bun.lock c passport). rebase --onto b404084 32b7b41 → повтор 8cd33f1 выпал в bun.lock-only (worklog-хунки уже применены), reword → fe35970 «bun.lock: passport-google deps». Поверх — 726d77c (хотфикс + probe). Пуш 726d77c → Vercel автодеплой.
+- СРЕДА: .env восстановлен пулер-стрингами (session :5432 из-за MITM/IPv6; txn :6543 для прода) + COMMIT_PEPPER v14 + PUBLIC_BASE_URL + NR_SEASON_SUPPLY. Прямой хост из песочницы недоступен (IPv6).
+- tsc 0, eslint 0, next build OK.
+
+Stage Summary:
+- Главная больше не 500-ит при недоступной БД (гвард + fallback). Корень прод-инцидента — IPv6-only direct-хост в DATABASE_URL на Vercel.
+- ДЛЯ ПРОДА (действие bd в Vercel, Production scope, затем Redeploy):
+  DATABASE_URL=postgresql://postgres.arwdhvfffzdljctryjfw:moon7009A%2A56@aws-1-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true&connection_limit=1
+  DIRECT_URL=postgresql://postgres.arwdhvfffzdljctryjfw:moon7009A%2A56@aws-1-eu-west-3.pooler.supabase.com:5432/postgres?sslmode=require
+  (пароль moon7009A*56 URL-encoded как %2A; юзер пула — postgres.<ref>, НЕ postgres; прямой db.…supabase.co:5432 — НЕ использовать: IPv6-only)
+  После редеплоя health должен стать db:up/auth:up. Заодно проверить GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET в Production (v16-проверка показывала enabled:false).
