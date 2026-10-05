@@ -9,7 +9,11 @@ import SeasonLandingClient from "./SeasonLandingClient";
  * лексики). Старый карнавал-манифест (Landing.tsx) заморожен.
  */
 export default async function SeasonLanding() {
-  const season = await seasonInfo();
+  /* БД недоступна (ингресс/пулер/деплой с кривым env) — лендинг всё равно
+     должен отдавать 200: fallback hasSeason=false, daysLeft=7.
+     (500 «server-side exception» на проп-травле PrismaError — фикс hotfix
+     prod-инцидента digest 1559654748.) */
+  const season = await seasonInfo().catch(() => null);
   const daysLeft = season?.daysLeft ?? 7;
 
   return (
