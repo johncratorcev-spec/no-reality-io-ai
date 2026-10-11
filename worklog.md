@@ -1406,3 +1406,25 @@ Work Log:
 Stage Summary:
 - Код v18 полностью готов: сезонная хэллоуин-тема (включится сама на проде), бейдж halloween-party с тыква-чипом, копирайт «сервис предикта на медиа-контент» + Google-only везде, двуязычные юридические страницы и чистые языки в UI.
 - БЛОКЕРЫ (действия bd): 1) ⚠ Supabase-проект исчез из DNS (NXDOMAIN) — проверить дашборд Supabase: если paused → Resume; если удалён → создать заново (266 аккаунтов/клипы не восстановить, но раффлы/хэллоуин вставятся заново манифестами raffle_batch_v16.json + halloween_batch_v18_resolved.json через add_raffle_batch.sh / add_halloween_batch.sh) и прислать новый пулер-пароль; 2) после восстановления БД: bash scripts/add_halloween_batch.sh → 7 хэллоуин-клипов в очереди (сразу после 4 раффлов, окна по 45 с); 3) Vercel env: DATABASE_URL/DIRECT_URL (пулер, %2A в пароле), GOOGLE_CLIENT_ID/SECRET в Production, Redeploy.
+
+---
+Task ID: 20 (v18 завершение — Supabase восстановлен, 7 хэллоуин-клипов вставлены)
+Agent: Super Z (main agent)
+Task: Пользователь прислал креды пулера (host=aws-1-eu-west-3.pooler.supabase.com, port=6543, user=postgres.arwdhvfffzdljctryjfw, password=moon7009A*(). Вставить хэллоуин-батч после восстановления БД.
+
+Work Log:
+- DNS: arwdhvfffzdljctryjfw.supabase.co снова резолвится (104.18.38.10) — проект был PAUSED, не удалён; все данные целы.
+- Пароль moon7009A*( (ОТЛИЧАЕТСЯ от прежнего moon7009A*56 — видимо, сброшен при resume) подтверждён verify_pooler_v17.mjs на ОБОИХ пулерах: TXN :6543 и SESSION :5432 → accounts=266, rafflesQueued=4, activeSeasons=1.
+- .env обновлён: обе строки (DATABASE_URL=txn :6543, DIRECT_URL=session :5432) с новым паролем, URL-encode: * → %2A, '(' — legal sub-delim, остаётся как есть.
+- CDN-ссылки манифеста halloween_batch_v18_resolved.json перепроверены Range-пробами — все 7 живы (206 video/mp4).
+- ВСТАВКА: bash scripts/add_halloween_batch.sh (после --dry) → 7/7 клипов через DIRECT_URL-fallback; ids: uinu6kmriw, xewit89nej, weykmrtd7c, i8szu9ez5x, dyu8cir923, k9qjmi4ggk, x3gpq8c6hz; все synth, badge=halloween-party, status=queued, featured до 2026-10-18.
+- ВЕРИФИКАЦИЯ В БД: 7/7 label_commit пересчитан с перцем v14 — MATCH; итог clips: queued=11 (4 raffle + 7 halloween), resolved=8, void=45.
+- ПРОД: лендинг 200, <html class="nr-halloween"> — v18-тема активна; health db:down/auth:down (env Vercel ещё старый); google status enabled=false.
+- ОПАСНОСТЬ ОБХОДЕНА: локальный дев-сервер против живой БД НЕ запускался (ленивый тик планировщика мог бы прожечь raffle-01 окно с 0 ставок). raffle_status.mjs: 0 live/open rounds.
+
+Stage Summary:
+- БД полностью восстановлена и наполнена: 11 queued в пайплайне (порядок: raffle-01..04 → 7 Halloween Party), хэллоуин-тема на проде работает.
+- ОСТАЛОСЬ (действия bd в Vercel, Production scope, затем Redeploy):
+  DATABASE_URL=postgresql://postgres.arwdhvfffzdljctryjfw:moon7009A%2A(@aws-1-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true&connection_limit=1
+  DIRECT_URL=postgresql://postgres.arwdhvfffzdljctryjfw:moon7009A%2A(@aws-1-eu-west-3.pooler.supabase.com:5432/postgres?sslmode=require
+  + GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET в Production (сейчас прод их не видит → enabled:false). После редеплоя: health db:up/auth:up, планировщик сам откроет raffle-01, /feed покажет тыква-чипы Halloween Party.
