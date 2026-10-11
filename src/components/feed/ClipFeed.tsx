@@ -37,7 +37,7 @@ const MOODS: Array<{ key: MoodFilter; label: string; color: string }> = [
  * Обычная лента (watch) осталась нетронутой.
  */
 export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const containerRef = useRef<HTMLDivElement>(null);
   const isBet = mode === "bet";
 
@@ -199,10 +199,13 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
     return (
       <div className="flex h-full items-center justify-center px-6">
         <div className="max-w-sm rounded-3xl border border-white/10 bg-[rgba(16,13,22,0.8)] px-8 py-10 text-center backdrop-blur-md">
-          <p className="text-lg font-extrabold tracking-tight text-white">the feed is empty</p>
+          <p className="text-lg font-extrabold tracking-tight text-white">
+            {lang === "ru" ? "лента пуста" : "the feed is empty"}
+          </p>
           <p className="mt-2 text-sm font-semibold text-white/55">
-            BD-панель добавляет клипы в очередь <code className="font-mono text-white/75">/admin/bd</code> — they
-            will appear here
+            {lang === "ru"
+              ? "новые клипы уже в пути — ночь длинная, загляни чуть позже"
+              : "new clips are already on the way — the night is long, check back soon"}
           </p>
         </div>
       </div>

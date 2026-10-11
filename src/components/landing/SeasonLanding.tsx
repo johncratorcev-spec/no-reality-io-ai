@@ -1,30 +1,23 @@
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 import { seasonInfo } from "@/lib/season";
-import SeasonLandingClient from "./SeasonLandingClient";
+import HalloweenLanding from "./HalloweenLanding";
 
 /**
- * v13 — ЛЕНДИНГ КАМПАНИИ: server shell (данные сезона из БД) +
- * клиентский i18n-рендер (ru/en, дерзкий тон, ноль кураторской
- * лексики). Старый карнавал-манифест (Landing.tsx) заморожен.
+ * v19 — ЛЕНДИНГ «СУДНАЯ НОЧЬ»: server shell (данные сезона из БД,
+ * гвард от недоступной БД — hotfix digest 1559654748) + клиентский
+ * анимированный онбординг → /auth. v13-текстовая кампания (SeasonLanding-
+ * Client) и карнавал-манифест (Landing.tsx) заморожены.
  */
 export default async function SeasonLanding() {
   /* БД недоступна (ингресс/пулер/деплой с кривым env) — лендинг всё равно
-     должен отдавать 200: fallback hasSeason=false, daysLeft=7.
-     (500 «server-side exception» на проп-травле PrismaError — фикс hotfix
-     prod-инцидента digest 1559654748.) */
+     должен отдавать 200: fallback hasSeason=false, daysLeft=7. */
   const season = await seasonInfo().catch(() => null);
   const daysLeft = season?.daysLeft ?? 7;
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0B0910]">
-      <Header />
-      <SeasonLandingClient
-        snapshotLabel={season?.snapshotLabel ?? ""}
-        hasSeason={Boolean(season)}
-        dayOf={daysLeft > 0 ? 8 - daysLeft : 0}
-      />
-      <Footer />
-    </div>
+    <HalloweenLanding
+      snapshotLabel={season?.snapshotLabel ?? ""}
+      hasSeason={Boolean(season)}
+      dayOf={daysLeft > 0 ? 8 - daysLeft : 0}
+    />
   );
 }

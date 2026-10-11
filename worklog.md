@@ -1428,3 +1428,22 @@ Stage Summary:
   DATABASE_URL=postgresql://postgres.arwdhvfffzdljctryjfw:moon7009A%2A(@aws-1-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true&connection_limit=1
   DIRECT_URL=postgresql://postgres.arwdhvfffzdljctryjfw:moon7009A%2A(@aws-1-eu-west-3.pooler.supabase.com:5432/postgres?sslmode=require
   + GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET в Production (сейчас прод их не видит → enabled:false). После редеплоя: health db:up/auth:up, планировщик сам откроет raffle-01, /feed покажет тыква-чипы Halloween Party.
+
+---
+Task ID: 21 (v19 — хэллоуин-лендинг: онбординг-скримеры → /auth; минус BD-упоминания)
+Agent: Super Z (main agent)
+Task: «Сделать красивый чистый лендинг главную страницу с стилизованным под хэллуин и анимациями онбординг, перебрасывающий на страницу входа органично. Всё в скелетах векторы, шерховато, интересные элементы дизайна со скримерами. Убрать упоминания BD панели».
+
+Work Log:
+- НОВЫЙ ЛЕНДИНГ: src/components/landing/HalloweenLanding.tsx (client) — 6 сцен-стейт-машина (герой → смотри → назови → ставь → делёж → дверь), каждая сцена — интерактивный мини-макет продукта: череп-судья с тлеющими зрачками, тыква-банк (чип летит в рот, тыква «жует»), REAL/SYNTH с печатью «вердикт принят», делёж банка с монетным дождём, финал — дверь с черепом и светом из-под → CTA «вход через google · +100 EYE» → /auth (органичный конец онбординга; skip/back/точки/стрелки клавиатуры).
+- ВЕКТОРЫ «ШЕРХОВАТО»: hwArt.tsx — инлайн-SVG (череп, тыква, мышь, скелет-кисть, луна, монета EYE, рваный шов) с общим displacement-фильтром #hwRough (feTurbulence+feDisplacementMap, статичный) + hand-drawn неровные border-radius коробки/кнопки (.hw-box/.hw-btn). halloween-landing.css (~830 строк): зерно/виньетка/туман уже от глобальной .nr-halloween.
+- СКРИМЕРЫ: глобальный — полноэкранный череп с красными глазами + тряска корня (≤2 за визит, 240мс, таймер 9–23с); мини-скример — глаза в темноте телевизора сцены 1 (мигают и гаснут на 1.7–6с); стая мышей перелетает при каждом шаге вперёд. ВСЁ движение transform/opacity; prefers-reduced-motion гасит всё (скримеры не планируются вообще).
+- СЕРВЕР: SeasonLanding.tsx — только seasonInfo().catch + рендер HalloweenLanding (гвард 500-инцидента сохранён). Мёртвый SeasonLandingClient.tsx удалён (git rm). page.tsx/metadata/jsonLd не тронуты (SEO/OG прежние).
+- i18n: новый раздел hwl (44 ключа) EN+RU; RU-пилюля «судная ночь · сезон 1 идёт» (без SEASON-микса), ТВ-тег «нет сигнала» по lang. ClipFeed empty-state: «BD-панель добавляет клипы в очередь /admin/bd» → нейтральная двуязычная фраза (единственное публичное упоминание BD; /admin/* под секретом — не публичные).
+- Е2Э (agent-browser, живой дев): герой/штамп/тыква/делёж/дверь скриншоты (download/v19-*.png), скример пойман MutationObserver-ом (элемент .hwl-scream реально монтируется), RU/EN без миксов, мобильный 390px — шапка (brand+lang), пилюля в герое, низ 390/390 без обрезаний. Ловушка: Турбопак+браузер кэшировали старый CSS-чанк после правок — лечится новой сессией браузера/чисткой .next; «1 Issue» оверлея — артефакт HMR-чурнинга, в чистой сессии консоль чистая.
+- tsc 0, eslint 0, next build OK (разовый spawn EAGAIN — не воспроизвёлся).
+
+Stage Summary:
+- Главная — иммерсивный хэллоуин-онбординг из 6 сцен с rough-векторной графикой и скримерами, органично ведущий на /auth (Google-only вход). BD-упоминания из публичного UI убраны.
+- Клавиши i18n: t.hwl.* (EN+RU). Арт-компоненты: HwSkull/HwPumpkin/HwBat/HwHand/HwMoon/HwCoin/HwSeam + HwFilters в hwArt.tsx.
+- Не тронуто: scheduler/БД (клиповые страницы не открывались локально, чтобы не прожечь raffle-окно), метаданные, /bet /feed логика.
