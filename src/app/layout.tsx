@@ -7,6 +7,7 @@ import TrackVisit from "@/components/track/TrackVisit";
 import { LangProvider } from "@/lib/i18n";
 import { FEATURES } from "@/lib/features";
 import { SITE } from "@/lib/site";
+import { activeSeasonTheme, seasonThemeClass } from "@/lib/theme";
 import "./globals.css";
 // кровавый карнавал (nrld-*) — лендинг + шим легаси-страниц
 import "@/components/landing/landing.css";
@@ -21,14 +22,17 @@ const manrope = Manrope({
 });
 
 /* SEO/GEO base (v3 hub): позиционирование — интерактивный хаб
-   AI-контента и предсказаний; hreflang en/ru с первого дня. */
+   AI-контента и предсказаний; hreflang en/ru с первого дня.
+   v18: описание — «сервис предикта на медиа-контент», вход Google
+   (Telegram-виджет удалён в v16 — миксы упоминаний недопустимы). */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
   title: {
     default: SITE.title,
     template: "%s — no reality.",
   },
-  description: SITE.description,
+  description:
+    "no reality. is a media-content prediction service: watch a short video, call REAL or SYNTH, stake 10–50 EYE and split the pari-mutuel bank in under a minute. Human eye vs machine on the synthetic-media battleground — streaks, Daily Challenge, season leaderboard. Sign in with Google, get 100 EYE, no wallet needed.",
   applicationName: SITE.name,
   authors: [{ name: "no reality.", url: SITE.url }],
   creator: "no reality.",
@@ -43,8 +47,8 @@ export const metadata: Metadata = {
     "spot AI video",
     "AI video feed",
     "prediction game",
+    "media prediction service",
     "pari-mutuel betting",
-    "crypto predictions",
     "internal balance",
   ],
   alternates: {
@@ -113,8 +117,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  /* v18: сезонная тема на <html> — сервер решает (ноль CLS/мерцания) */
+  const themeClass = seasonThemeClass(activeSeasonTheme());
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={themeClass}>
       <body
         className={`${manrope.variable} antialiased bg-[#08070b] text-white font-[family-name:var(--font-manrope)]`}
       >

@@ -92,7 +92,7 @@ const jsonLd = {
       url: SITE.url,
       slogan: SITE.tagline,
       description:
-        "no reality. runs one game this week: watch a clip, call REAL or SYNTH, stake 10–50 EYE — winners split the pari-mutuel bank. Telegram sign-in, 100 EYE welcome, Season 1 snapshot in 7 days.",
+        "no reality. — a media-content prediction service: watch a clip, call REAL or SYNTH, stake 10–50 EYE — winners split the pari-mutuel bank. Sign in with Google, 100 EYE welcome, Season 1 snapshot in 7 days.",
       sameAs: SOCIALS.map((s) => s.url),
     },
     {

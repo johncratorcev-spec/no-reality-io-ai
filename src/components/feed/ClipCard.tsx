@@ -216,6 +216,12 @@ export default function ClipCard({
               )}
             </span>
           )}
+          {/* v18: сезонный хэллоуин-чип (badge=halloween-party, без механики соревнования) */}
+          {post.badge === "halloween-party" && (
+            <span className="nr-halloween-badge" aria-label={t.feed.halloweenParty}>
+              {t.feed.halloweenParty}
+            </span>
+          )}
           {/* v5: платное размещение (Boosted / Featured Clip) */}
           {post.featured && (
             <span

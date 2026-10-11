@@ -245,10 +245,10 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
               background: "rgba(16,13,22,0.6)",
             }}
             aria-pressed={hardOn}
-            title="самые сложные клипы дня"
+            title={t.feed.hardHint}
           >
             <Flame className="h-3 w-3" aria-hidden />
-            {hardLoading ? "…" : hardOn ? "HARD MODE" : "HARD"}
+            {hardLoading ? "…" : hardOn ? t.feed.hardModeOn : t.feed.hardMode}
           </button>
 
           <div className="ml-1.5 flex shrink-0 items-center gap-1.5 sm:ml-auto">
@@ -261,7 +261,7 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
                   color: "var(--nb-poison)",
                   background: "rgba(16,13,22,0.6)",
                 }}
-                title="ставят прямо сейчас"
+                title={t.feed.liveHint}
               >
                 <Users className="h-3 w-3" aria-hidden />
                 {liveBettors}
@@ -276,10 +276,10 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
                 color: "rgba(242,237,228,.7)",
                 background: "rgba(16,13,22,0.6)",
               }}
-              aria-label="best eyes leaderboard"
+              aria-label={t.feed.leaderboardAria}
             >
               <Trophy className="h-3 w-3" aria-hidden />
-              eyes
+              {t.feed.eyesChip}
             </button>
           </div>
         </div>
@@ -289,9 +289,9 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
       {isBet && hardOn && hardCodes && filteredPosts.length === 0 ? (
         <div className="flex h-full items-center justify-center px-6">
           <div className="max-w-sm rounded-3xl border border-white/10 bg-[rgba(16,13,22,0.8)] px-8 py-10 text-center backdrop-blur-md">
-            <p className="text-lg font-extrabold tracking-tight text-white">hard mode остыл</p>
+            <p className="text-lg font-extrabold tracking-tight text-white">{t.feed.hardCold}</p>
             <p className="mt-2 text-sm font-semibold text-white/55">
-              за последние 48 часов толпа ещё не ошибалась достаточно — заходи позже
+              {t.feed.hardColdHint}
             </p>
           </div>
         </div>

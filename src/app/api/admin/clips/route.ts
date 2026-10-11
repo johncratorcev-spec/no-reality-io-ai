@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasAdminSession, legacyKeyMatches, adminCodeMatches } from "@/lib/admin/session";
 import { rateLimit } from "@/lib/rateLimit";
 import { db } from "@/lib/db";
-import { labelCommitOf, scrubCaption, competitionOf } from "@/lib/clips";
+import { labelCommitOf, scrubCaption, competitionOf, isHalloweenBadge } from "@/lib/clips";
 import { checkVideoAlive } from "@/lib/bet/core";
 import { parsePostInput, jinaMeta, verifyVideoUrl } from "@/lib/panel_extract";
 
@@ -167,14 +167,16 @@ export async function POST(req: NextRequest) {
   const initialStatus = body.status === "draft" ? "draft" : "queued";
 
   /* v15 — бейдж соревнования: признаётся ТОЛЬКО шаблон raffle-NN;
+     v18 — сезонный косметический halloween-party (тыква-чип, без механики);
      произвольный текст бейджем не становится (косметика витрины — отдельно) */
   const badgeRaw = typeof body.badge === "string" ? body.badge.trim().toLowerCase() : "";
   const competition = competitionOf(badgeRaw);
-  if (badgeRaw && !competition) {
+  const halloween = isHalloweenBadge(badgeRaw);
+  if (badgeRaw && !competition && !halloween) {
     return NextResponse.json(
       {
         error: "bad_badge",
-        message: "badge must match raffle-<number> (competition) or be omitted",
+        message: "badge must match raffle-<number> (competition) or halloween-party (seasonal), or be omitted",
       },
       { status: 400 }
     );
@@ -195,7 +197,7 @@ export async function POST(req: NextRequest) {
         labelCommit: labelCommitOf(id, label),
         status: initialStatus,
         listedBy,
-        badge: competition ?? "",
+        badge: competition ?? (halloween ? "halloween-party" : ""),
       },
     });
     return NextResponse.json({

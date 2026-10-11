@@ -2,9 +2,13 @@ import "server-only";
 
 import { createHash, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
-import { competitionCodeOf as competitionOf, competitionNumberOf } from "@/lib/competition";
+import {
+  competitionCodeOf as competitionOf,
+  competitionNumberOf,
+  isHalloweenBadge,
+} from "@/lib/competition";
 
-export { competitionOf, competitionNumberOf };
+export { competitionOf, competitionNumberOf, isHalloweenBadge };
 
 /**
  * v14 — таблица clips как ЕДИНСТВЕННЫЙ источник контента (CSV удалён).

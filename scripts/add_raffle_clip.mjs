@@ -58,8 +58,8 @@ if (LABEL !== "real" && LABEL !== "synth") {
   console.error("нужен --label real|synth (без метки — 400 по ТЗ)");
   process.exit(1);
 }
-if (!/^raffle-\d{1,2}$/.test(BADGE)) {
-  console.error("--badge должен быть вида raffle-<номер> (например raffle-01)");
+if (!/^(raffle-\d{1,2}|halloween-party)$/.test(BADGE)) {
+  console.error("--badge должен быть raffle-<номер> (соревнование) или halloween-party (сезонный чип)");
   process.exit(1);
 }
 
@@ -210,8 +210,12 @@ if (!inserted) {
 
 console.log("---- ГОТОВО ----");
 console.log(`clip id:      ${row.id}`);
-console.log(`badge:        ${row.badge} (соревнование №${row.badge.replace("raffle-", "")})`);
+console.log(`badge:        ${row.badge}${row.badge.startsWith("raffle-") ? ` (соревнование №${row.badge.replace("raffle-", "")})` : " (сезонный)"}`);
 console.log(`label:        ${row.label} (до резолва сервер не отдаст)`);
 console.log(`status:       queued — планировщик откроет раунд сам (ленивый тик /api/round или /api/cron/tick)`);
 console.log(`featured:     ${row.featured_until ?? "нет"}`);
-console.log(`check:        https://no-reality.fun/bet  → золотой бейдж «competition ${row.badge.replace("raffle-", "").padStart(2, "0")}»`);
+if (row.badge.startsWith("raffle-")) {
+  console.log(`check:        https://no-reality.fun/bet  → золотой бейдж «competition ${row.badge.replace("raffle-", "").padStart(2, "0")}»`);
+} else {
+  console.log(`check:        https://no-reality.fun/feed  → тыква-чип «Halloween Party»`);
+}

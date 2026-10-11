@@ -282,7 +282,7 @@ export default function BdConsole() {
         <input
           value={badge}
           onChange={(e) => setBadge(e.target.value)}
-          placeholder="competition badge (optional): raffle-01 — золотое оформление первого соревнования"
+          placeholder="badge (optional): raffle-01 — соревнование · halloween-party — сезонный тыква-чип"
           className="mt-2 w-full rounded-xl border border-[#ffd24a]/25 bg-black/40 px-3.5 py-2.5 text-[0.78rem] font-bold text-white outline-none focus:border-[#ffd24a]/60"
         />
         <div className="mt-2 flex items-center gap-2">

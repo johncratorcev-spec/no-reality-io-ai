@@ -28,6 +28,8 @@ export default function SeasonLandingClient({
       <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(200,255,0,0.35)] bg-[rgba(200,255,0,0.08)] px-3.5 py-1.5 text-[0.64rem] font-black uppercase tracking-[0.22em] text-[#c8ff00]">
         <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#c8ff00]" />
         {t.land.pill}
+        {/* v18: сезонная тыква (тема .nr-halloween активна весь сезон) */}
+        <span aria-hidden className="nr-hw-pill-pumpkin">🎃</span>
       </p>
 
       <h1 className="mt-6 text-[2.6rem] font-black leading-[0.98] tracking-tight text-[#f2ede4] sm:text-6xl">

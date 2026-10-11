@@ -1,8 +1,23 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useLang } from "@/lib/i18n";
 
 interface LegalSection {
   heading: string;
-  body: string[];
+  body: readonly string[];
+}
+
+/** RU-вариант всего документа (v18: язык страницы = выбранный язык) */
+interface LegalLocale {
+  kicker?: string;
+  title: string;
+  updated: string;
+  intro: string;
+  contactName?: string;
+  contactNote?: string;
+  backToFeed?: string;
+  motto?: string;
+  sections: readonly LegalSection[];
 }
 
 interface LegalShellProps {
@@ -10,24 +25,35 @@ interface LegalShellProps {
   title: string;
   updated: string;
   intro: string;
-  sections: LegalSection[];
   contactName: string;
   contactHandle: string;
+  /** v18: полный русский вариант — активируется при выбранном RU */
+  ru?: LegalLocale;
+  sections: readonly LegalSection[];
 }
 
 /**
  * Общий шелл юридических страниц: кровавый карнавал (nrld-page — ночь,
  * белый текст, кровь), Manrope, узкая колонка для чтения.
+ *
+ * v18 — двуязычие: страница передаёт EN-контент и опциональный `ru`
+ * вариант; показывается тот, что совпадает с выбранным языком. Без `ru`
+ * документ остаётся EN (юридический оригинал).
  */
 export default function LegalShell({
   kicker,
   title,
   updated,
   intro,
-  sections,
   contactName,
   contactHandle,
+  ru,
+  sections,
 }: LegalShellProps) {
+  const { lang } = useLang();
+  const useRu = lang === "ru" && Boolean(ru);
+  const L: LegalLocale = useRu && ru ? ru : { title, updated, intro, sections };
+
   return (
     <div className="nrld-page min-h-screen text-white">
       {/* верхняя панель */}
@@ -43,28 +69,29 @@ export default function LegalShell({
             href="/"
             className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/45 transition-colors hover:text-[#ff4d6e]"
           >
-            ← back to feed
+            ← {useRu ? "назад в ленту" : "back to feed"}
           </a>
         </div>
       </header>
 
       <main className="mx-auto max-w-2xl px-5 pb-24 pt-14">
         <p className="text-[0.7rem] font-bold uppercase tracking-[0.28em] text-[#ff4d6e]">
-          {kicker}
+          {useRu && ru?.kicker ? ru.kicker : kicker}
         </p>
         <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-          {title}
+          {L.title}
         </h1>
         <p className="mt-3 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[0.7rem] font-semibold text-white/55">
-          last updated: {updated}
+          {useRu ? "обновлено: " : "last updated: "}
+          {L.updated}
         </p>
 
         <p className="mt-8 text-[0.95rem] font-medium leading-relaxed text-white/85">
-          {intro}
+          {L.intro}
         </p>
 
         <div className="mt-10 space-y-10">
-          {sections.map((section, i) => (
+          {L.sections.map((section, i) => (
             <section key={section.heading}>
               <h2 className="flex items-baseline gap-2.5 text-[1.02rem] font-extrabold tracking-tight text-white">
                 <span className="font-mono text-[0.72rem] font-bold text-[#ff4d6e]">
@@ -89,10 +116,12 @@ export default function LegalShell({
         {/* контакт */}
         <section className="mt-14 rounded-3xl border border-white/10 bg-white/[0.04] px-6 py-7">
           <h2 className="text-[0.95rem] font-extrabold tracking-tight text-white">
-            {contactName}
+            {useRu && ru?.contactName ? ru.contactName : contactName}
           </h2>
           <p className="mt-2 text-[0.85rem] leading-relaxed text-white/70">
-            Questions, takedown requests, licensing and removal notices:{" "}
+            {useRu && ru?.contactNote
+              ? ru.contactNote
+              : "Questions, takedown requests, licensing and removal notices: "}{" "}
             <a
               href="https://t.me/your_betfriend"
               target="_blank"
@@ -106,7 +135,7 @@ export default function LegalShell({
         </section>
 
         <p className="mt-10 text-center text-[0.7rem] font-semibold tracking-tight text-white/35">
-          your only limit is mind
+          {useRu && ru?.motto ? ru.motto : "your only limit is mind"}
         </p>
       </main>
     </div>

@@ -1,0 +1,68 @@
+{
+  "note": "v18 — Halloween Party: 7 клипов в фид, бейдж halloween-party (косметический, БЕЗ раффл-механики). Метки — кураторское решение: все SYNTH (см. основания в worklog Task 19). Капшены без запрещённых слов (seedance/higgsfield/kling/runway/prompt/нейро/ai/veo).",
+  "clips": [
+    {
+      "sourceUrl": "https://www.threads.com/@aimohos/post/DeW_I66kryZ",
+      "videoUrl": "FROM_FILE:/tmp/halloween/vurl_1.txt",
+      "label": "synth",
+      "badge": "halloween-party",
+      "caption": "Run, you foo....!",
+      "author": "@aimohos",
+      "basis": "сюрреал с невозможной анатомией (гигантская венная голова), сон-логика сцены — генератив"
+    },
+    {
+      "sourceUrl": "https://www.threads.com/@hgzx_26/post/DeUzikgkzFN",
+      "videoUrl": "FROM_FILE:/tmp/halloween/vurl_2.txt",
+      "label": "synth",
+      "badge": "halloween-party",
+      "caption": "Day 1: making a spooky short film",
+      "author": "@hgzx_26",
+      "basis": "подпись автора: «making money with AI short film»"
+    },
+    {
+      "sourceUrl": "https://www.threads.com/@aicreator_vera/post/DePUYu4jZug",
+      "videoUrl": "FROM_FILE:/tmp/halloween/vurl_3.txt",
+      "label": "synth",
+      "badge": "halloween-party",
+      "caption": "Агов, креатори, показуйте, що робили вже до Хеловіну)) Влаштуємо гарбузовий спам 🎃",
+      "author": "@aicreator_vera",
+      "basis": "автор — AI-креаторский аккаунт, сборник генеративных работ к Хэллоуину"
+    },
+    {
+      "sourceUrl": "https://www.threads.com/@velenai.official/post/DeMsBIgjJlQ",
+      "videoUrl": "FROM_FILE:/tmp/halloween/vurl_4.txt",
+      "label": "synth",
+      "badge": "halloween-party",
+      "caption": "The ballroom is collapsing, the shadows are waking… and the dance has only begun. One last spin. Keep dancing until the nightmare takes everything. 🎃",
+      "author": "@velenai.official",
+      "basis": "кадр — гиперстилизованные генеративные персонажи; проект VELENAi (генеративные визуалы/музыка)"
+    },
+    {
+      "sourceUrl": "https://www.threads.com/@2314.agency/post/DeHcFCXiQo6",
+      "videoUrl": "FROM_FILE:/tmp/halloween/vurl_5.txt",
+      "label": "synth",
+      "badge": "halloween-party",
+      "caption": "He crawled out of the grave... and he's coming for you 💀 #greenscreen #halloween",
+      "author": "@2314.agency",
+      "basis": "подпись автора: «Free chroma-key jump-scare footage … Full AI prompt» — агентство генератив-заготовок"
+    },
+    {
+      "sourceUrl": "https://www.threads.com/@jurassicworld/post/Dd9gspBCMf-",
+      "videoUrl": "FROM_FILE:/tmp/halloween/vurl_6.txt",
+      "label": "synth",
+      "badge": "halloween-party",
+      "caption": "Welcome to spooky season.",
+      "author": "@jurassicworld",
+      "basis": "официальный аккаунт франшизы: CG-диноозавр на крыше — студийный CGI, не реальная съёмка"
+    },
+    {
+      "sourceUrl": "https://www.threads.com/@halloweenvibesofficial/post/Dcj-iuFEmHM",
+      "videoUrl": "FROM_FILE:/tmp/halloween/vurl_7.txt",
+      "label": "synth",
+      "badge": "halloween-party",
+      "caption": "Every Halloween night, the black cat guards the last glowing jack-o'-lantern until the candle burns out at midnight.",
+      "author": "@halloweenvibesofficial",
+      "basis": "коzy-horror диффузная эстетика, идеальный свет — классическая генератив-картинка, амбиент-канал"
+    }
+  ]
+}

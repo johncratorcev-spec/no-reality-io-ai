@@ -55,10 +55,10 @@ export const HUB_FAQ: HubFaqItem[] = [
   },
   {
     q: "How do I sign in and get EYE?",
-    a: "Sign in with Telegram (one tap) or email — the site is open to everyone, no invite codes. Every new account gets 100 EYE once. You earn more by watching the feed, calling verdicts right and adding clips. EYE are game points: earned inside the game, never for sale during Season 1.",
+    a: "Sign in with Google (one tap) — the site is open to everyone, no invite codes. Every new account gets 100 EYE once. You earn more by watching the feed, calling verdicts right and adding clips. EYE are game points: earned inside the game, never for sale during Season 1.",
     ru: {
       q: "Как войти и получить EYE?",
-      a: "Вход через Telegram (один тап) или email — сайт открыт для всех, никаких кодов. Каждый новый аккаунт получает 100 EYE один раз. Больше можно заработать: смотри ленту, верно называй вердикты, добавляй клипы. EYE — игровые очки: зарабатываются внутри игры и не продаются в Season 1.",
+      a: "Вход через Google (один тап) — сайт открыт для всех, никаких кодов. Каждый новый аккаунт получает 100 EYE один раз. Больше можно заработать: смотри ленту, верно называй вердикты, добавляй клипы. EYE — игровые очки: зарабатываются внутри игры и не продаются в Season 1.",
     },
   },
   {

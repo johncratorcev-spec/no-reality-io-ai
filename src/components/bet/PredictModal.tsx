@@ -329,7 +329,7 @@ export default function PredictModal({
           </div>
           <button
             onClick={onClose}
-            aria-label="Закрыть"
+            aria-label={t.feed.close}
             className="rounded-full p-2"
             style={{ color: "rgba(242,237,228,.55)" }}
           >

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminConfigured, hasAdminSession } from "@/lib/admin/session";
 import { jinaMeta, parsePostInput, verifyVideoUrl } from "@/lib/panel_extract";
 import { db } from "@/lib/db";
-import { labelCommitOf, scrubCaption, competitionOf } from "@/lib/clips";
+import { labelCommitOf, scrubCaption, competitionOf, isHalloweenBadge } from "@/lib/clips";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -149,16 +149,18 @@ export async function POST(req: NextRequest) {
   }
 
   /* v15 — бейдж соревнования: ТОЛЬКО шаблон raffle-NN (иначе 400);
-     пустой бейдж = обычный клип без золота */
+     v18 — сезонный косметический halloween-party (тыква-чип, без механики);
+     пустой бейдж = обычный клип без оформления */
   const badgeRaw = (body?.badge ?? "").trim().toLowerCase();
   const competition = competitionOf(badgeRaw);
-  if (badgeRaw && !competition) {
+  const halloween = isHalloweenBadge(badgeRaw);
+  if (badgeRaw && !competition && !halloween) {
     return NextResponse.json(
-      { ok: false, error: "badge must match raffle-<number> (e.g. raffle-01) or be empty" },
+      { ok: false, error: "badge must match raffle-<number> (e.g. raffle-01) or halloween-party, or be empty" },
       { status: 400 }
     );
   }
-  const badge = competition ?? "";
+  const badge = competition ?? (halloween ? "halloween-party" : "");
   const id = generateClipId();
 
   /* --- дубли по уникальному source_url + запись в clips --- */
