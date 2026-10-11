@@ -1447,3 +1447,5 @@ Stage Summary:
 - Главная — иммерсивный хэллоуин-онбординг из 6 сцен с rough-векторной графикой и скримерами, органично ведущий на /auth (Google-only вход). BD-упоминания из публичного UI убраны.
 - Клавиши i18n: t.hwl.* (EN+RU). Арт-компоненты: HwSkull/HwPumpkin/HwBat/HwHand/HwMoon/HwCoin/HwSeam + HwFilters в hwArt.tsx.
 - Не тронуто: scheduler/БД (клиповые страницы не открывались локально, чтобы не прожечь raffle-окно), метаданные, /bet /feed логика.
+
+Addendum (Task 21): после next build ловушка песочницы снова перезаписала .env системным «DATABASE_URL=file:» — восстановлен полностью (пулер-строки с паролем moon7009A*(, перец v14, PUBLIC_BASE_URL, NR_SEASON_SUPPLY). raffle_status: 0 live rounds, queued=11 (4 raffle + 7 halloween). Прод после деплоя 72c1903: / 200 с hwl-лендингом + nr-halloween; health db:up/auth:up (bd обновил env) — планировщик откроет raffle-01 при первом тике; google/status enabled=false — GOOGLE_CLIENT_ID/SECRET по-прежнему не видны в Production-скоупе (последнее действие bd). Дев-сервер убит, чтобы случайный локальный тик не прожёг raffle-окно на живой БД.
