@@ -14,6 +14,7 @@ import AuthGateOverlay from "./AuthGateOverlay";
 import { useLang } from "@/lib/i18n";
 import ShareSeam from "./ShareSeam";
 import ShareRow, { buildShareText } from "./ShareRow";
+import ShareEyeCta from "./ShareEyeCta";
 import PackRow from "./PackRow";
 
 /**
@@ -571,7 +572,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
               </svg>
             )}
 
-            {/* CTA (v13): следующий + 6 целей шеринга + ещё шов */}
+            {/* CTA (v13): следующий + EYE за шеринга (v20) + 6 целей шеринга + ещё шов */}
             <div className="flex w-full flex-col items-stretch gap-2">
               {onNext && (
                 <button
@@ -582,6 +583,8 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                   {t.bet.next}
                 </button>
               )}
+              {/* v20 — крючковая воронка: шаришь → +EYE (раз в день) */}
+              <ShareEyeCta won={result.mine === "won"} streak={streak} shareUrl={shareUrl} />
               <ShareRow
                 url={shareUrl}
                 text={shareText}

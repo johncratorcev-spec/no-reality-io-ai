@@ -78,15 +78,59 @@ export interface PlayerWeight {
   earlyCorrect: number;
   /** сумма betWeightMilli по верным ставкам, EYE (int через милли) */
   weightMilli: number;
+  /* ---- v20 — крючковые множители (ТЗ §3: вес зависит от активности,
+         стриков, рефералов и winrate). Опциональны: снапшот их доставляет. */
+  /** эффективный daily-стрик (сгорает без входа; щит спасает) */
+  streakDays?: number;
+  /** активированные рефералы (сделавшие первую ставку) */
+  activatedRefs?: number;
+  /** winrate в процентах 0..100 (won/(won+lost)) */
+  winratePct?: number;
+}
+
+/* ---- v20 — параметры крючковых множителей (env перекрывает) ---- */
+function pctNum(name: string, def: number): number {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v >= 0 && v <= 1 ? v : def;
+}
+export const HOOK_MULT = {
+  /** +1% веса за каждый день daily-стрика, максимум 30 дней */
+  streakStep: pctNum("HOOK_STREAK_STEP", 0.01),
+  streakCapDays: 30,
+  /** +0.4% веса за каждого активированного реферала, максимум 50 */
+  refStep: pctNum("HOOK_REF_STEP", 0.004),
+  refCap: 50,
+  /** +0.5% веса за каждый % winrate выше 50, максимум +25% */
+  winrateStep: pctNum("HOOK_WINRATE_STEP", 0.005),
+  winrateBasePct: 50,
+  /** суммарный потолок множителя */
+  totalCap: 2.0,
+} as const;
+
+/** суммарный крючковый множитель (1.0..HOOK_MULT.totalCap) */
+export function hookMultiplierOf(p: Pick<PlayerWeight, "streakDays" | "activatedRefs" | "winratePct">): number {
+  const streakMult =
+    1 + Math.min(Math.max(p.streakDays ?? 0, 0), HOOK_MULT.streakCapDays) * HOOK_MULT.streakStep;
+  const refMult =
+    1 + Math.min(Math.max(p.activatedRefs ?? 0, 0), HOOK_MULT.refCap) * HOOK_MULT.refStep;
+  const wr = Math.min(Math.max(p.winratePct ?? 0, 0), 100);
+  const wrMult =
+    1 + Math.max(0, wr - HOOK_MULT.winrateBasePct) * HOOK_MULT.winrateStep;
+  return Math.min(streakMult * refMult * wrMult, HOOK_MULT.totalCap);
 }
 
 /**
  * Итоговый вес игрока: ноль при < MIN_CORRECT_ROUNDS верных раундов.
- * Ввод — агрегаты по won-ставкам сезона.
+ * Ввод — агрегаты по won-ставкам сезона. v20: умножается на крючковый
+ * множитель (стрики/рефералы/winrate — ТЗ §3), потолок ×2.0.
  */
 export function finalWeightMilli(p: PlayerWeight): number {
   if (p.correctRounds < MIN_CORRECT_ROUNDS) return 0;
-  return Math.max(0, Math.round(p.weightMilli));
+  const mult =
+    p.streakDays === undefined && p.activatedRefs === undefined && p.winratePct === undefined
+      ? 1
+      : hookMultiplierOf(p);
+  return Math.max(0, Math.round(p.weightMilli * mult));
 }
 
 export interface SnapshotParams {

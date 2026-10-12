@@ -1,114 +1,95 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rateLimit";
-import {
-  hasAdminSession,
-  legacyKeyMatches,
-  adminConfigured,
-} from "@/lib/admin/session";
 import { db } from "@/lib/db";
-import { referralRatePct } from "@/lib/referral";
+import { adminCodeMatches, legacyKeyMatches } from "@/lib/admin/session";
+import { rateLimit } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
-/* ================================================================
-   GET /api/admin/referrals?key=<ADMIN_SECRET> — реестр выплат.
-
-   Отдаёт: агрегаты по каждому коду (оплаты, суммы, доля рефереру),
-   профили код→кошелёк и последние события. Выплата — вручную админом
-   через 2328.io payouts на кошелёк из профиля; факт оплаты фиксируйте
-   у себя (или пометьте событие в БД).
-   ================================================================ */
-
+/**
+ * GET /api/admin/referrals?key=<ADMIN_SECRET> — ручная ревизия топ-рефереров
+ * (ТЗ §5 «возможность ручной ревизии топ-рефереров»).
+ *
+ * Топ-20 по числу квалификаций за 7 дней: сколько paid/held, сколько
+ * held по same_device (главный маркер ботоводов), сумма выплаченных EYE,
+ * доли device-совпадений. Дополнительно: свежие held-строки на разбор.
+ */
 export async function GET(req: NextRequest) {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const rl = rateLimit(`admin:referrals:${ip}`, 10, 60_000);
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const rl = rateLimit(`admin-ref:${ip}`, 20, 60_000);
   if (!rl.ok) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    return NextResponse.json({ error: "too many requests" }, { status: 429 });
   }
-
-  /* v7: сессия (cookie nr_admin) или легаси-ключ — оба timing-safe. */
-  if (!adminConfigured()) {
-    return NextResponse.json({ error: "admin_not_configured" }, { status: 503 });
-  }
-  const legacyKey =
-    req.nextUrl.searchParams.get("key") || req.headers.get("x-admin-key");
-  if (!hasAdminSession(req) && !legacyKeyMatches(legacyKey)) {
+  const keyOk =
+    legacyKeyMatches(req.nextUrl.searchParams.get("key")) ||
+    adminCodeMatches(req.headers.get("x-admin-secret") || "");
+  if (!keyOk) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const [events, profiles] = await Promise.all([
-      db.referralEvent.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 500,
-      }),
-      db.referralProfile.findMany({ orderBy: { updatedAt: "desc" } }),
-    ]);
-
-    // агрегаты по кодам: только оплаченные события дают выплату
-    const byCode = new Map<
-      string,
-      { paidCount: number; amountUsdt: number; payoutUsdt: number; wallets: Set<string> }
-    >();
-    for (const e of events) {
-      if (e.kind !== "paid") continue;
-      const agg =
-        byCode.get(e.refCode) ??
-        { paidCount: 0, amountUsdt: 0, payoutUsdt: 0, wallets: new Set<string>() };
-      agg.paidCount += 1;
-      agg.amountUsdt += Number(e.amountUsdt ?? 0);
-      agg.payoutUsdt += Number(e.payoutUsdt ?? 0);
-      byCode.set(e.refCode, agg);
-    }
-
-    const payoutList = [...byCode.entries()]
-      .map(([code, agg]) => ({
-        refCode: code,
-        paidCount: agg.paidCount,
-        amountUsdt: agg.amountUsdt.toFixed(2),
-        payoutUsdt: agg.payoutUsdt.toFixed(2),
-        wallet:
-          profiles.find((p) => p.code === code)?.wallet ??
-          null, // код без профиля: выведем детерминированный хинт ниже
-        hint: null as string | null,
-      }))
-      .sort((a, b) => b.payoutUsdt.localeCompare(a.payoutUsdt));
-
-    // профили могли не доехать до БД (serverless) — тогда код→кошелёк
-    // берём у приглашённого: код детерминирован, проверяем хинт для админа
-    for (const row of payoutList) {
-      if (!row.wallet) row.hint = "code without a profile — request the wallet from the owner";
-    }
-
-    return NextResponse.json({
-      ok: true,
-      ratePct: referralRatePct(),
-      totals: {
-        paidEvents: payoutList.reduce((s, r) => s + r.paidCount, 0),
-        payoutUsdt: payoutList
-          .reduce((s, r) => s + Number(r.payoutUsdt), 0)
-          .toFixed(2),
-      },
-      payouts: payoutList,
-      profiles: profiles.map((p) => ({
-        refCode: p.code,
-        wallet: p.wallet,
-        createdAt: p.createdAt,
-      })),
-      events: events.slice(0, 100),
+    const since = new Date(Date.now() - 7 * 86_400_000);
+    const rows = await db.referralReward.groupBy({
+      by: ["referrerId", "status"],
+      where: { createdAt: { gte: since } },
+      _count: { _all: true },
+      _sum: { eyeReferrer: true },
     });
-  } catch (e) {
-    console.error(
-      "[admin/referrals] db unavailable:",
-      e instanceof Error ? e.message : e
-    );
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "DB unavailable — reconcile from orderIds at 2328.io dashboard",
+
+    const agg = new Map<string, { paid: number; held: number; eye: number }>();
+    for (const r of rows) {
+      const cur = agg.get(r.referrerId) ?? { paid: 0, held: 0, eye: 0 };
+      if (r.status === "paid") {
+        cur.paid += r._count._all;
+        cur.eye += r._sum.eyeReferrer ?? 0;
+      } else {
+        cur.held += r._count._all;
+      }
+      agg.set(r.referrerId, cur);
+    }
+
+    const ids = [...agg.keys()];
+    const accounts = await db.account.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, refCode: true, email: true, displayName: true, signupIpHash: true, createdAt: true },
+    });
+    const accOf = new Map(accounts.map((a) => [a.id, a]));
+
+    const top = [...agg.entries()]
+      .map(([id, v]) => {
+        const a = accOf.get(id);
+        return {
+          accountId: id,
+          refCode: a?.refCode ?? null,
+          email: a?.email ?? null,
+          name: a?.displayName ?? null,
+          createdAt: a?.createdAt?.toISOString() ?? null,
+          paid: v.paid,
+          held: v.held,
+          eyePaid: v.eye,
+          /** сигнал для ревизии: доля заблокированных квалификаций */
+          heldRatio: v.paid + v.held > 0 ? Math.round((v.held / (v.paid + v.held)) * 100) : 0,
+        };
+      })
+      .sort((x, y) => y.paid + y.held - (x.paid + x.held))
+      .slice(0, 20);
+
+    const recentHeld = await db.referralReward.findMany({
+      where: { status: "held", createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      select: {
+        referrerId: true,
+        refereeId: true,
+        reason: true,
+        refereeFp: true,
+        referrerFp: true,
+        createdAt: true,
       },
-      { status: 503 }
-    );
+    });
+
+    return NextResponse.json({ top, recentHeld });
+  } catch (e) {
+    console.error("[admin/referrals] failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "admin_referrals_failed" }, { status: 500 });
   }
 }

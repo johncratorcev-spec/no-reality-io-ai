@@ -6,6 +6,8 @@ import { applyLedger, ECON, streakBonusFor } from "@/lib/account";
 import { betWeightMilli, decayMilliFor } from "@/lib/nr";
 import { winStreakOf } from "./stats";
 import { ensureActiveSeason } from "@/lib/season";
+import { awardBadge, WINSTREAK_BADGE_MILESTONES } from "@/lib/badges";
+import { qualifyReferral, type RefAntifraudContext } from "@/lib/hook";
 
 /**
  * Ядро ставок REAL/SYNTH (v14 — ТЗ «Клипы»/«Авторезолв»). Пари-мьютюэль:
@@ -141,8 +143,16 @@ export async function promoteNextClip(): Promise<{ promoted: boolean; clipId: st
 /**
  * Тик игры: резолв просроченных + (если нет live) продвижение очереди.
  * Вызывается лениво из каждого запроса игры и внешним кроном /api/cron/tick.
+ *
+ * v20 — ПАУЗА ПЛАНИРОВЩИКА (NR_SCHEDULER_PAUSE=1): режим самотестов против
+ * живой БД — продвижение очереди ВЫКЛЮЧЕНО (raffle-окна не прожигаются),
+ * резолвится только клипы с префиксом selftest-. Прод НЕ ставит эту переменную.
  */
 export async function tickGame(): Promise<{ resolved: number; promoted: boolean; clipId: string | null }> {
+  if (process.env.NR_SCHEDULER_PAUSE === "1") {
+    const resolved = await resolveExpiredRounds(10, "selftest-");
+    return { resolved, promoted: false, clipId: null };
+  }
   const resolved = await resolveExpiredRounds(10);
   const p = await promoteNextClip();
   return { resolved, promoted: p.promoted, clipId: p.clipId };
@@ -255,11 +265,15 @@ export interface PlaceBetInput {
   side: unknown;
   amountCents: unknown;
   bettorId: string;
+  accountId: string;
   fingerprint: string;
   refCode?: string | null;
   /** кошелёк из сессии (v5): заполняется всегда, когда игрок подключён —
      нужна Best Eyes Leaderboard */
   wallet?: string | null;
+  /** v20: антфрод-контекст для реферальной квалификации (первая ставка друга);
+     задаётся роутом из canonical visitorHash (identity.authFingerprint) */
+  antifraud?: RefAntifraudContext;
 }
 
 export interface PlaceBetResult {
@@ -276,16 +290,7 @@ export interface PlaceBetResult {
  * insufficient_balance (402) и никакого следа в пуле. Ставка активна
  * мгновенно — депонирование уже случилось ранее (крипто-инвойс → webhook).
  */
-export async function placeBetBalance(input: {
-  roundId: string;
-  side: unknown;
-  amountCents: unknown;
-  bettorId: string;
-  accountId: string;
-  fingerprint: string;
-  refCode?: string | null;
-  wallet?: string | null;
-}): Promise<PlaceBetResult> {
+export async function placeBetBalance(input: PlaceBetInput): Promise<PlaceBetResult> {
   const side = input.side === "real" || input.side === "synth" ? input.side : null;
   if (!side) throw new BetError("side must be real|synth", 400, "bad_side");
 
@@ -402,6 +407,13 @@ export async function placeBetBalance(input: {
       clipCode: round.clipCode,
       meta: { ref: input.refCode, betId: bet.id },
     });
+  }
+
+  /* v20 — REFERAL QUALIFYING ACTION: первая ставка друга активирует
+     награду referrer'у (ТЗ §5). Идемпотентно (unique refereeId),
+     после успешной ставки, не блокирует её. */
+  if (input.accountId && input.antifraud) {
+    void qualifyReferral(input.accountId, input.antifraud).catch(() => null);
   }
 
   return { betId: bet.id, status: "active", mode: "balance", balanceCents };
@@ -652,6 +664,14 @@ export async function resolveRound(roundId: string): Promise<ResolveSummary | nu
           moneyLog("streak_bonus", { betId: b.id, accountId: b.accountId, streak, cents: bonus });
         }
       }
+
+      /* v20 — бейджи: первая победа + вехи вин-стрика (идемпотентно) */
+      void awardBadge(b.accountId, "first_win", { betId: b.id }).catch(() => null);
+      for (const m of WINSTREAK_BADGE_MILESTONES) {
+        if (streak >= m.at) {
+          void awardBadge(b.accountId, m.code, { streak }).catch(() => null);
+        }
+      }
     }
 
     void trackEvent(won ? "bet_won" : "bet_lost", {
@@ -785,10 +805,15 @@ export async function voidRound(
   };
 }
 
-/** ленивый cron: резолвим всё просроченное; вызывается из tickGame */
-export async function resolveExpiredRounds(limit = 8): Promise<number> {
+/** ленивый cron: резолвим всё просроченное; вызывается из tickGame.
+ *  clipPrefix — v20: если задан (selftest-), резолвятся ТОЛЬКО такие клипы. */
+export async function resolveExpiredRounds(limit = 8, clipPrefix?: string): Promise<number> {
   const expired = await db.round.findMany({
-    where: { status: { in: ["open", "locked"] }, closesAt: { lte: new Date() } },
+    where: {
+      status: { in: ["open", "locked"] },
+      closesAt: { lte: new Date() },
+      ...(clipPrefix ? { clipCode: { startsWith: clipPrefix } } : {}),
+    },
     orderBy: { closesAt: "asc" },
     take: limit,
     select: { id: true },

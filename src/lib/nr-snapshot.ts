@@ -14,6 +14,8 @@ import {
   type PlayerWeight,
 } from "@/lib/nr";
 import { BET } from "@/lib/bet/config";
+import { effectiveDailyStreak } from "@/lib/account";
+import { awardSeasonBadges } from "@/lib/badges";
 
 /**
  * v14 — снапшот сезона для раздачи $NR (ТЗ §Раздача $NR).
@@ -176,10 +178,56 @@ export async function buildSeasonArtifact(season: {
   const params = snapshotParams(seasonSupply());
   const playersRaw = await collectPlayers(season);
 
-  const enriched = playersRaw.map((p) => ({
-    ...p,
-    finalMilli: finalWeightMilli(p),
-  }));
+  /* ---- v20 — крючковые множители: стрик (эффективный, со щитом),
+         активированные рефералы, winrate — ТЗ §3 «вес зависит от
+         активности, стриков, рефералов и winrate» ---- */
+  const ids = playersRaw.map((p) => p.accountId);
+  const [accounts, refCounts, winRows] = await Promise.all([
+    db.account.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, streakDays: true, lastDailyAt: true, streakShieldUntil: true },
+    }),
+    db.referralReward
+      .groupBy({ by: ["referrerId"], where: { referrerId: { in: ids }, status: "paid" }, _count: { _all: true } })
+      .catch(() => [] as Array<{ referrerId: string; _count: { _all: number } }>),
+    db.bet
+      .groupBy({
+        by: ["accountId", "status"],
+        where: { accountId: { in: ids }, status: { in: ["won", "lost"] } },
+        _count: { _all: true },
+      })
+      .catch(() => [] as Array<{ accountId: string; status: string; _count: { _all: number } }>),
+  ]);
+  const streakOf = new Map<string, number>(
+    accounts.map((a) => [a.id, effectiveDailyStreak(a) as number]),
+  );
+  const refsOf = new Map<string, number>();
+  for (const r of refCounts) {
+    refsOf.set(r.referrerId ?? "", r._count._all);
+  }
+  const wrOf = new Map<string, { won: number; lost: number }>();
+  for (const r of winRows) {
+    if (!r.accountId) continue;
+    const cur = wrOf.get(r.accountId) ?? { won: 0, lost: 0 };
+    if (r.status === "won") cur.won += r._count._all;
+    else cur.lost += r._count._all;
+    wrOf.set(r.accountId, cur);
+  }
+  const wrPctOf = (accountId: string): number => {
+    const w = wrOf.get(accountId);
+    if (!w) return 0;
+    const total = w.won + w.lost;
+    return total > 0 ? Math.round((w.won / total) * 100) : 0;
+  };
+
+  const enriched = playersRaw.map((p) => {
+    const hook = {
+      streakDays: streakOf.get(p.accountId) ?? 0,
+      activatedRefs: refsOf.get(p.accountId) ?? 0,
+      winratePct: wrPctOf(p.accountId),
+    };
+    return { ...p, ...hook, finalMilli: finalWeightMilli({ ...p, ...hook }) };
+  });
   const amounts = distributeGamePack(enriched, params.gamePack, params.accountCap);
 
   const withNames = await db.account.findMany({
@@ -204,6 +252,11 @@ export async function buildSeasonArtifact(season: {
     }))
     .sort((a, b) => b.weightEye - a.weightEye || a.accountId.localeCompare(b.accountId))
     .map((p, i) => ({ ...p, rank: i + 1 }));
+
+  /* v20 — сезонные бейджи: №1 → god_eye, топ-10 → top_season (идемпотентно) */
+  await awardSeasonBadges(players.map((p) => ({ accountId: p.accountId, rank: p.rank }))).catch(
+    () => 0
+  );
 
   const authors = await collectAuthors(season);
 

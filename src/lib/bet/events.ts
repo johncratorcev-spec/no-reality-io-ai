@@ -57,7 +57,16 @@ export type TrackName =
   | "onboarding_done"
   | "onboarding_skip"
   | "hard_mode_open"
-  | "prediction_upsell";
+  | "prediction_upsell"
+  /* v20 — крючковая экономика */
+  | "auth_signin"
+  | "auth_signup"
+  | "badge_awarded"
+  | "share_rewarded"
+  | "ref_qualify"
+  | "freebet_telegram"
+  | "shop_bought"
+  | "withdraw_attempt";
 
 const NAMES = new Set<string>([
   "clip_view",
@@ -99,6 +108,15 @@ const NAMES = new Set<string>([
   "onboarding_skip",
   "hard_mode_open",
   "prediction_upsell",
+  /* v20 — крючковая экономика */
+  "auth_signin",
+  "auth_signup",
+  "badge_awarded",
+  "share_rewarded",
+  "ref_qualify",
+  "freebet_telegram",
+  "shop_bought",
+  "withdraw_attempt",
 ]);
 
 export function isValidTrackName(raw: unknown): raw is TrackName {

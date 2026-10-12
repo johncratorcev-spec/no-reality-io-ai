@@ -14,6 +14,7 @@ import {
   accountView,
 } from "@/lib/account";
 import { authedAccountId } from "@/lib/auth/session";
+import { authIpHash } from "@/lib/auth/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,12 @@ export async function POST(req: NextRequest) {
         fingerprint,
         refCode,
         wallet: walletCookie,
+        /* v20: антфрод-контекст реферальной квалификации — тот же канонический
+           хеш, что и signupFp (один device/IP не может быть ref и referee) */
+        antifraud: {
+          refereeFp: fingerprint,
+          refereeIpHash: authIpHash(ip),
+        },
       });
 
       const fresh = await ensureAccount(account.id);

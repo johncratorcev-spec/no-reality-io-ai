@@ -241,11 +241,117 @@ model Account {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  // v20 — крючковая экономика: антфрод-отпечатки при регистрации,
+  // щит от сгорания daily-стрика (шоп),EYE-бейджи — отдельной таблицей.
+  signupIpHash      String?   @map("signup_ip_hash") // sha256(ip+соль) в момент регистрации
+  signupFp          String?   @map("signup_fp")      // sha256(ip+ua+соль) в момент регистрации
+  streakShieldUntil DateTime? @map("streak_shield_until") // до этой даты daily-стрик не сгорает
+
   txns   LedgerTxn[]
   deposits DepositOrder[]
   emailAuth EmailAuth?
+  badges    Badge[]
+  freebets  Freebet[]
+  shopBuys  ShopPurchase[]
 
   @@index([wallet])
+  @@index([referredById])
+}
+
+// v20 — бейджи игрока (ТЗ §Бейджи): автоматическая выдача по триггерам,
+// идемпотентная (unique accountId+code). Отображаются в кабинете и
+// выборочно в лидерборде. Косметика из шопа — тем же механизмом.
+// code: first_win | winstreak_3/5/7/10 | refs_3/10/25/50 |
+//       early_bird | god_eye | top_season | pumpkin | …
+model Badge {
+  id        String   @id @default(uuid())
+  accountId String
+  code      String
+  meta      String   @default("{}") // {roundId, streak, refs, …}
+  awardedAt DateTime @default(now()) @map("awarded_at")
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, code])
+  @@index([accountId])
+  @@index([code])
+  @@map("badges")
+}
+
+// v20 — фрибет за Telegram-ник (ТЗ §Фрибеты): без проверки владения,
+// один раз на аккаунт И на ник (глобально). EYE сразу в баланс
+// (ledger kind freebet_telegram) — а EYE в принципе не выводится,
+// так что «только на ставки» выполнено самой экономикой.
+model Freebet {
+  id          String    @id @default(uuid())
+  accountId   String
+  source      String    @default("telegram")
+  username    String // нижний регистр, без @, 4–32
+  amountCents Int       @map("amount_cents")
+  status      String    @default("granted") // granted | used
+  betId       String?   @map("bet_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  usedAt      DateTime? @map("used_at")
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, source]) // один фрибет на аккаунт
+  @@unique([source, username])  // и один на ник (глобально)
+  @@map("freebets")
+}
+
+// v20 — начисление рефереру за QUALIFYING ACTION (первая ставка друга).
+// Двустороннее: рефереру REF_QUALIFY_EYE, referee получил welcome+X при
+// регистрации. Антфрод-контекст снимается в момент атрибуции.
+// status: paid | held (ручная ревизия топ-рефереров).
+model ReferralReward {
+  id            String   @id @default(uuid())
+  referrerId    String   @map("referrer_id")
+  refereeId     String   @unique @map("referee_id")
+  reason        String   @default("first_bet")
+  status        String   @default("paid") // paid | held
+  eyeReferrer   Int      @default(0) @map("eye_referrer")
+  eyeReferee    Int      @default(0) @map("eye_referee")
+  refereeFp     String   @default("") @map("referee_fp")
+  referrerFp    String   @default("") @map("referrer_fp")
+  refereeIpHash String   @default("") @map("referee_ip_hash")
+  referrerIpHash String  @default("") @map("referrer_ip_hash")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([referrerId, createdAt])
+  @@map("referral_rewards")
+}
+
+// v20 — журнал ПОПЫТОК вывода EYE (крючковая экономика: вывода нет;
+// единственный выход ценности — сезонный snapshot → $NR). Каждая
+// попытка пишется: видно спрос на вывод + честная блокировка.
+model WithdrawAttempt {
+  id        String   @id @default(uuid())
+  accountId String
+  kind      String // cashout | eye_withdraw | …
+  ipHash    String   @default("") @map("ip_hash")
+  meta      String   @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([accountId, createdAt])
+  @@map("withdraw_attempts")
+}
+
+// v20 — покупки за EYE (шоп кабинета): косметика (бейджи) и щит стрика.
+// unique(accountId, sku) — товары одноразовые. Оплата — ledger-списание
+// shop_buy:<id> атомарно (нет денег — 402 insufficient_balance).
+model ShopPurchase {
+  id         String   @id @default(uuid())
+  accountId  String   @map("account_id")
+  sku        String // badge:pumpkin | streak_shield | …
+  priceCents Int      @map("price_cents")
+  meta       String   @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, sku])
+  @@map("shop_purchases")
 }
 
 // Двусторонний журнал внутренней валюты — ЕДИНСТВЕННЫЙ источник истины.
@@ -626,6 +732,12 @@ model Clip {
   featuredUntil DateTime? @map("featured_until")
   badge         String    @default("")
   pin           Int       @default(0)
+  // v20 — медиа-типы ленты (ТЗ §Карусели/голосовые): video (по умолчанию),
+  // carousel (фото-карусель Threads: mediaJson.photos[], порядок как в посте),
+  // audio (голосовая по прямой ссылке: mediaJson.audioUrl). videoUrl остаётся
+  // обязательным: для carousel — постер, для audio — обложка (может быть "")
+  mediaType String @default("video") @map("media_type")
+  mediaJson String @default("{}") @map("media_json") // {photos:[], audioUrl, poster}
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 

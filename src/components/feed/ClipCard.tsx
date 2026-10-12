@@ -6,6 +6,7 @@ import { useLang } from "@/lib/i18n";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
 import BetPanel from "@/components/bet/BetPanel";
+import { CarouselSlide, AudioClip } from "./ClipMedia";
 import type { ClientRankedPost } from "@/lib/posts";
 
 /* ================================================================
@@ -52,13 +53,26 @@ export default function ClipCard({
   const [copied, setCopied] = useState(false);
 
   const isBet = mode === "bet";
+  const isCarousel = post.mediaType === "carousel";
+  const isAudio = post.mediaType === "audio";
 
   /* активное видео играет, ушедшее — ставится на паузу и перематывается.
      Состояние paused синхронизируется событиями onPlay/onPause —
-     без setState внутри эффекта. */
+     без setState внутри эффекта.
+     v20: для carousel/audio видео нет — награда за просмотр шлётся
+     по активации карточки. */
   useEffect(() => {
     const v = videoRef.current;
-    if (!v) return;
+    if (!v) {
+      if (isActive && !isBet && (isCarousel || isAudio)) {
+        void fetch("/api/reward/watch", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ clipCode: post.utmCode }),
+        }).catch(() => {});
+      }
+      return;
+    }
     if (isActive) {
       v.play().catch(() => {});
       /* v8: награда за просмотр ленты (не bet-режим — там шлёт BetPanel);
@@ -76,7 +90,7 @@ export default function ClipCard({
         v.currentTime = 0;
       } catch {}
     }
-  }, [isActive, shouldLoad, isBet, post.utmCode]);
+  }, [isActive, shouldLoad, isBet, post.utmCode, isCarousel, isAudio]);
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
@@ -126,8 +140,21 @@ export default function ClipCard({
       aria-label={isBet ? t.feed.meta : post.title || post.utmCode}
       className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-[#0A0A0F]"
     >
-      {/* ---------- видео (монтируется только в окне active±1) ---------- */}
-      {shouldLoad && !error && (
+      {/* ---------- медиа (монтируется только в окне active±1) ----------
+          v20: video | carousel (свайп, порядок фото) | audio (нативный плеер) */}
+      {shouldLoad && isCarousel && !error && (
+        <CarouselSlide
+          clipId={post.utmCode}
+          photos={post.media.photos}
+          active={isActive}
+          muted={muted}
+          onEnded={() => onEnded(index)}
+        />
+      )}
+      {shouldLoad && isAudio && !error && (
+        <AudioClip audioUrl={post.media.audioUrl || ""} title={post.title} />
+      )}
+      {shouldLoad && !isCarousel && !isAudio && !error && (
         <video
           ref={videoRef}
           src={post.videoUrl}
@@ -238,7 +265,9 @@ export default function ClipCard({
           type="button"
           onClick={toggleMute}
           aria-label={muted ? "Unmute video" : "Mute video"}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[rgba(16,13,22,0.72)] text-white backdrop-blur-md transition-transform duration-300 hover:scale-[1.06] active:scale-95"
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[rgba(16,13,22,0.72)] text-white backdrop-blur-md transition-transform duration-300 hover:scale-[1.06] active:scale-95 ${
+            isAudio ? "hidden" : ""
+          }`}
         >
           {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
         </button>

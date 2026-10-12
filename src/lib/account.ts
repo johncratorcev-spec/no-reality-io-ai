@@ -78,6 +78,24 @@ export const ECON = {
    * СВЕРХ пари-мьютюэль выплаты (refKey dcb:<betId>, идемпотентно).
    */
   dailyChallengeBonusCents: Math.round(num("DAILY_CHALLENGE_BONUS_CENTS", 25, 0, 10000)),
+
+  /* ---------------- v20 — крючковая экономика ---------------- */
+  /** xref-бонус referee при регистрации ПО ссылке (к welcome) */
+  refWelcomeExtraCents: Math.round(num("REF_WELCOME_EXTRA_CENTS", 50, 0, 100000)),
+  /** referrer получает EYE ТОЛЬКО после первой ставки друга (qualifying action) */
+  refQualifyEyeCents: Math.round(num("REF_QUALIFY_EYE_CENTS", 100, 0, 100000)),
+  /** шеринг результата победы (раз в UTC-день) */
+  shareWinCents: Math.round(num("SHARE_WIN_EYE", 15, 0, 10000)),
+  /** шеринг стрика (раз в UTC-день) */
+  shareStreakCents: Math.round(num("SHARE_STREAK_EYE", 25, 0, 10000)),
+  /** фрибет за Telegram-ник (один раз, без проверки владения) */
+  freebetTelegramCents: Math.round(num("FREEBET_TELEGRAM_EYE", 25, 0, 10000)),
+  /** шоп: косметика-бейдж pumpkin */
+  shopBadgePumpkinCents: Math.round(num("SHOP_PUMPKIN_EYE", 75, 0, 100000)),
+  /** шоп: щит daily-стрика (сутки защиты от сгорания) */
+  shopStreakShieldCents: Math.round(num("SHOP_STREAK_SHIELD_EYE", 120, 0, 100000)),
+  /** антфрод: максимум квалифицированных рефералов у одного referrer'а в сутки */
+  refQualifyDailyCap: Math.round(num("REF_QUALIFY_DAILY_CAP", 25, 1, 10000)),
 } as const;
 
 /**
@@ -127,7 +145,13 @@ export type LedgerKind =
   | "bet_payout"
   | "deposit"
   | "deposit_bonus"
-  | "deposit_demo";
+  | "deposit_demo"
+  /* v20 — крючковая экономика (EYE замкнут: вывода нет) */
+  | "ref_welcome" // xref-бонус referee при регистрации по ссылке
+  | "ref_qualify" // награда referrer'у за первую ставку друга
+  | "share_reward" // шеринг вердикта (win/streak), раз в UTC-день
+  | "freebet_telegram" // фрибет за @username (один раз)
+  | "shop_buy"; // покупка в шопе (косметика/щит) — списание
 
 function econLog(event: string, fields: Record<string, unknown>) {
   console.log(`[money-op][econ] ${event}`, JSON.stringify(fields));
@@ -319,6 +343,7 @@ export function accountView(a: {
   tgUsername?: string | null;
   streakDays: number;
   lastDailyAt: Date | null;
+  streakShieldUntil?: Date | null;
 }): AccountView {
   return {
     accountId: a.id,
@@ -327,9 +352,34 @@ export function accountView(a: {
     isPass: a.passTier > 0,
     email: a.email ?? null,
     name: a.displayName || (a.tgUsername ? `@${a.tgUsername}` : null),
-    streakDays: a.streakDays,
+    streakDays: effectiveDailyStreak(a),
     dailyAvailable: a.passTier > 0 && !sameUtcDay(a.lastDailyAt, new Date()),
   };
+}
+
+/** щит активен? (шоп: защита от сгорания daily-стрика) */
+function shieldActive(shieldUntil: Date | null | undefined): boolean {
+  return Boolean(shieldUntil && shieldUntil.getTime() > Date.now());
+}
+
+/**
+ * v20 — ЭФФЕКТИВНЫЙ daily-стрик (крючок «стрики сгорают»): если не заходил
+ * ни сегодня, ни вчера — стрик СГОРЕЛ (показываем 0), ЕСЛИ не куплен щит.
+ * В БД храним историческое значение (после щита стрик продолжится с прежней
+ * цифры при следующем клейме).
+ */
+export function effectiveDailyStreak(a: {
+  streakDays: number;
+  lastDailyAt: Date | null;
+  streakShieldUntil?: Date | null;
+}): number {
+  const now = new Date();
+  const yesterday = new Date(Date.now() - 86_400_000);
+  if (sameUtcDay(a.lastDailyAt, now) || sameUtcDay(a.lastDailyAt, yesterday)) {
+    return a.streakDays;
+  }
+  if (shieldActive(a.streakShieldUntil)) return a.streakDays;
+  return 0;
 }
 
 function sameUtcDay(a: Date | null, b: Date): boolean {
@@ -365,7 +415,9 @@ export async function claimDailyBonus(accountId: string): Promise<{
   }
 
   const yesterday = new Date(Date.now() - 86_400_000);
-  const continues = sameUtcDay(me.lastDailyAt, yesterday);
+  /* v20: щит спасает стрик даже после пропуска дня (шоп) */
+  const continues =
+    sameUtcDay(me.lastDailyAt, yesterday) || shieldActive(me.streakShieldUntil);
   const streakDays = continues ? me.streakDays + 1 : 1;
 
   const credited = await applyLedger(

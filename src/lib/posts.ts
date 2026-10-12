@@ -18,6 +18,9 @@ export type ClientRankedPost = {
   /** только у resolved: раскрытая метка для витрины */
   resolvedAs?: "real" | "synth";
   bettable: boolean;
+  /** v20 — медиа-тип: video | carousel | audio (+ фото/аудио через прокси) */
+  mediaType: "video" | "carousel" | "audio";
+  media: { photos: string[]; audioUrl?: string };
 };
 
 /**
@@ -41,6 +44,8 @@ export async function getRankedPosts(): Promise<ClientRankedPost[]> {
     status: c.status,
     resolvedAs: c.resolvedAs,
     bettable: c.status === "live",
+    mediaType: c.mediaType,
+    media: c.media,
   }));
 }
 

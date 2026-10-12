@@ -11,6 +11,8 @@ interface EyeRow {
   wins: number;
   accuracy: number;
   netCents: number;
+  /** v20: витринные бейджи игрока (leaderboard: true), максимум 3 иконки */
+  badges?: string[];
 }
 
 /**
@@ -95,6 +97,48 @@ export async function GET(req: NextRequest) {
         netCents: a.net,
         qualified,
       };
+    }
+
+    /* v20 — витринные бейджи (leaderboard: true) рядом с именем */
+    try {
+      const wallets = rows.map((r) => r.wallet);
+      const accs = await db.account.findMany({
+        where: { wallet: { in: wallets } },
+        select: { wallet: true, badges: { select: { code: true } } },
+      });
+      const LB_BADGES: Record<string, string> = {
+        first_win: "🩸",
+        winstreak_3: "👁",
+        winstreak_5: "🔮",
+        winstreak_7: "⚡",
+        winstreak_10: "🌟",
+        refs_10: "🎭",
+        refs_25: "🧿",
+        refs_50: "🦇",
+        early_bird: "🐦",
+        top_season: "🏆",
+        god_eye: "👑",
+        pumpkin: "🎃",
+      };
+      const badgeMap = new Map(
+        accs.map((a) => [
+          a.wallet ?? "",
+          a.badges
+            .map((b) => LB_BADGES[b.code])
+            .filter(Boolean)
+            .slice(0, 3),
+        ]),
+      );
+      for (const r of rows) {
+        const b = badgeMap.get(r.wallet);
+        if (b && b.length) r.badges = b;
+      }
+      if (mineRow) {
+        const b = badgeMap.get(mineRow.wallet);
+        if (b && b.length) mineRow.badges = b;
+      }
+    } catch {
+      /* бейджи — косметика; лидерборд живёт без них */
     }
 
     return NextResponse.json({ week: true, minBets: MIN_BETS, rows, mine: mineRow });

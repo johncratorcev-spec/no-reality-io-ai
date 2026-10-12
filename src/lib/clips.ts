@@ -111,11 +111,21 @@ export type ClipRow = {
   featuredUntil: Date | null;
   badge: string;
   pin: number;
+  /** v20 — медиа-типы: video | carousel | audio (+ mediaJson) */
+  mediaType: string;
+  mediaJson: string;
   createdAt: Date;
   updatedAt: Date;
 };
 
 /** клиентский/публичный срез — безопасен для RSC-пейлоада */
+export interface PublicClipMedia {
+  /** фото-карусель (порядок как в посте), проксированные URL */
+  photos: string[];
+  /** голосовая (проксированный URL) */
+  audioUrl?: string;
+}
+
 export interface PublicClip {
   id: string;
   caption: string; // caption_public после фильтра
@@ -123,6 +133,10 @@ export interface PublicClip {
   status: "queued" | "live" | "resolved" | "void";
   badge: string;
   featured: boolean;
+  /** v20 — медиа-тип карточки: video (по умолчанию) | carousel | audio */
+  mediaType: "video" | "carousel" | "audio";
+  /** v20 — карусель/аудио (проксированные URL; исходники — server-only) */
+  media: PublicClipMedia;
   /** v15: соревнование (badge вида "raffle-01") — специальное оформление */
   competition?: string;
   /** resolved: раскрытая метка; иначе отсутствует */
@@ -142,6 +156,38 @@ export function clipProxyUrl(id: string): string {
   return `/api/clip/${encodeURIComponent(id)}/video`;
 }
 
+/** прокси фото-слайда карусели (исходная ссылка — server-only) */
+export function clipMediaProxyUrl(id: string, index: number): string {
+  return `/api/clip/${encodeURIComponent(id)}/media?i=${index}`;
+}
+
+/** прокси аудиофайла (исходная ссылка — server-only) */
+export function clipAudioProxyUrl(id: string): string {
+  return `/api/clip/${encodeURIComponent(id)}/audio`;
+}
+
+/** mediaJson → публичный срез (photos→прокси по индексу, audio→прокси) */
+function publicMediaOf(id: string, mediaType: string, mediaJson: string): PublicClipMedia {
+  const out: PublicClipMedia = { photos: [] };
+  try {
+    const raw = JSON.parse(mediaJson || "{}") as { photos?: unknown[]; audioUrl?: unknown };
+    if (Array.isArray(raw.photos)) {
+      out.photos = raw.photos
+        .filter((u): u is string => typeof u === "string" && u.length > 0)
+        .slice(0, 10)
+        .map((_, i) => clipMediaProxyUrl(id, i));
+    }
+    if (typeof raw.audioUrl === "string" && raw.audioUrl) {
+      out.audioUrl = clipAudioProxyUrl(id);
+    }
+  } catch {
+    /* битый JSON — пустой срез */
+  }
+  if (mediaType !== "carousel") out.photos = [];
+  if (mediaType !== "audio") out.audioUrl = undefined;
+  return out;
+}
+
 /** публичный срез строки БД (метка/автор/исходник/CDN остаются на сервере) */
 export function toPublicClip(c: {
   id: string;
@@ -151,8 +197,12 @@ export function toPublicClip(c: {
   labelCommit: string;
   badge: string;
   featuredUntil: Date | null;
+  mediaType?: string;
+  mediaJson?: string;
 }): PublicClip {
   const status = (c.status || "queued") as PublicClip["status"];
+  const mediaType =
+    c.mediaType === "carousel" || c.mediaType === "audio" ? c.mediaType : "video";
   const out: PublicClip = {
     id: c.id,
     caption: scrubCaption(c.captionPublic),
@@ -160,6 +210,8 @@ export function toPublicClip(c: {
     status,
     badge: (c.badge || "").trim(),
     featured: c.featuredUntil ? c.featuredUntil.getTime() > Date.now() : false,
+    mediaType,
+    media: publicMediaOf(c.id, mediaType, c.mediaJson ?? ""),
   };
   const competition = competitionOf(out.badge);
   if (competition) out.competition = competition;
@@ -208,6 +260,8 @@ export async function feedClips(limit = 60): Promise<Array<PublicClip & { score:
       badge: true,
       featuredUntil: true,
       pin: true,
+      mediaType: true,
+      mediaJson: true,
       createdAt: true,
     },
     take: 300,
