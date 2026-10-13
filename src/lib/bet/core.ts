@@ -60,20 +60,28 @@ function moneyLog(event: string, fields: Record<string, unknown>) {
 /**
  * живая проба видео: битая ссылка → void (ставки назад, метка не раскрывается)
  * v23 — быстрый вариант для bulk-промоции: таймаут 4с и без кэша.
+ * ФОЛБЕК БЕЗ RANGE: часть CDN (Threads/Instagram) отвечает 403 на
+ * «Range: bytes=0-1», но нормально стримит без заголовка (урок v22
+ * про фото — теперь и для видео). Вторая проба без Range спасает
+ * живые клипы от ложного void.
  */
 export async function checkVideoAlive(url: string, timeoutMs = 8000): Promise<boolean> {
   if (!url) return false;
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { Range: "bytes=0-1" },
-      signal: AbortSignal.timeout(timeoutMs),
-      cache: "no-store",
-    });
-    return res.ok || res.status === 206;
-  } catch {
-    return false;
-  }
+  const probe = async (headers: Record<string, string>): Promise<boolean> => {
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
+        cache: "no-store",
+      });
+      return res.ok || res.status === 206;
+    } catch {
+      return false;
+    }
+  };
+  if (await probe({ Range: "bytes=0-1" })) return true;
+  return probe({});
 }
 
 /** параллельная проба пачки ссылок (v23 — bulk-промоция без минутных ожиданий) */
