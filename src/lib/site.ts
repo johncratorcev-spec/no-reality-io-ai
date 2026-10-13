@@ -12,7 +12,7 @@ export const SITE = {
   tagline: "your eyes vs the machine. call it. win the pool.",
   title: "no reality. — the REAL or SYNTH game: your eyes vs the machine",
   description:
-    "no reality. is a media-content prediction service: watch a short video, call REAL or SYNTH, stake 10–50 EYE and split the pari-mutuel bank in under a minute. Human eye vs machine on the synthetic-media battleground — streaks, Daily Challenge, season leaderboard. Sign in with Google, get 100 EYE, no wallet needed.",
+    "no reality. is a media-content prediction service: watch a short video, call REAL or SYNTH, stake 10–50 EYE and split the pari-mutuel bank in under a minute. Human eye vs machine on the synthetic-media battleground — streaks, Daily Challenge, season leaderboard. One email and password, get 100 EYE, no wallet needed.",
   /** короткие слоганы для тикеров и OG */
   tickerLines: [
     "watch what shouldn’t exist",

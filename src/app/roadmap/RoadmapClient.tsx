@@ -29,7 +29,7 @@ const CONTENT = {
         title: "Season 1 — the eye decides",
         accent: "lime" as const,
         items: [
-          "sign in with Google in one tap — 100 EYE on the house, once",
+          "one email + password — 100 EYE on the house, once",
           "blind REAL or SYNTH rounds on live clips: 10 / 25 / 50 EYE into the pari-mutuel bank",
           "God Eye leaderboard: winrate, streaks, volume — your rank is always visible",
           "streaks pay: 3 / 5 / 7 / 10 straight wins stack bonuses",
@@ -75,7 +75,7 @@ const CONTENT = {
         title: "Season 1 — решает глаз",
         accent: "lime" as const,
         items: [
-          "вход через Google в один тап — 100 EYE в подарок, один раз",
+          "email + пароль — 100 EYE в подарок, один раз",
           "слепые раунды РЕАЛ/СИНТИК на живых клипах: 10 / 25 / 50 EYE в пари-мьютюэль банк",
           "лидерборд «Глаз бога»: винрейт, серии, объём — твоя позиция видна всегда",
           "серии платят: 3 / 5 / 7 / 10 побед подряд — бонусы растут",

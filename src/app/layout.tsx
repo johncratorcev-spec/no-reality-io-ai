@@ -23,7 +23,7 @@ const manrope = Manrope({
 
 /* SEO/GEO base (v3 hub): позиционирование — интерактивный хаб
    AI-контента и предсказаний; hreflang en/ru с первого дня.
-   v18: описание — «сервис предикта на медиа-контент», вход Google
+   v21: описание — «сервис предикта на медиа-контент», вход email+пароль
    (Telegram-виджет удалён в v16 — миксы упоминаний недопустимы). */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     template: "%s — no reality.",
   },
   description:
-    "no reality. is a media-content prediction service: watch a short video, call REAL or SYNTH, stake 10–50 EYE and split the pari-mutuel bank in under a minute. Human eye vs machine on the synthetic-media battleground — streaks, Daily Challenge, season leaderboard. Sign in with Google, get 100 EYE, no wallet needed.",
+    "no reality. is a media-content prediction service: watch a short video, call REAL or SYNTH, stake 10–50 EYE and split the pari-mutuel bank in under a minute. Human eye vs machine on the synthetic-media battleground — streaks, Daily Challenge, season leaderboard. One email and password, get 100 EYE, no wallet needed.",
   applicationName: SITE.name,
   authors: [{ name: "no reality.", url: SITE.url }],
   creator: "no reality.",
