@@ -17,14 +17,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: now,
     changeFrequency,
     priority,
-    ...(path !== "/" && path !== "/feed"
+    ...(path !== "/" && path !== "/bet"
       ? { alternates: { languages: { en: SITE.url + path, ru: `${SITE.url}${path}?lang=ru` } } }
       : {}),
   });
 
   return [
     p("/", 1, "daily"),
-    p("/feed", 0.9, "hourly"),
+    p("/bet", 0.9, "hourly"),
     p("/bet", 0.9, "hourly"),
     p("/leaderboard", 0.8, "hourly"),
     p("/real-or-synth", 0.9, "weekly"),

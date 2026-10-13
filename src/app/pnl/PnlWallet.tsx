@@ -128,7 +128,7 @@ export default function PnlWallet() {
           ledger above. old demo positions (if any) would show up here.
         </p>
         <a
-          href="/feed"
+          href="/bet"
           className="mt-6 inline-block rounded-full bg-[#0a0a0a] px-6 py-3 text-[0.8rem] font-extrabold text-white transition-transform hover:scale-105 active:scale-95"
         >
           ▸ open the feed
@@ -160,7 +160,7 @@ export default function PnlWallet() {
           and payouts will live here.
         </p>
         <a
-          href="/feed"
+          href="/bet"
           className="mt-6 inline-block rounded-full bg-[#0a0a0a] px-6 py-3 text-[0.8rem] font-extrabold text-white transition-transform hover:scale-105 active:scale-95"
         >
           ▸ open the feed

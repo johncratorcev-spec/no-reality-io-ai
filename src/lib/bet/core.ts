@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { truthOf, labelCommitOf } from "@/lib/clips";
+import { broadcastRound } from "@/lib/realtime";
 import { BET } from "./config";
 import { trackEvent } from "./events";
 import { applyLedger, ECON, streakBonusFor } from "@/lib/account";
@@ -56,14 +57,17 @@ function moneyLog(event: string, fields: Record<string, unknown>) {
 /*  Планировщик игры (v14): queued → live → resolved                    */
 /* ------------------------------------------------------------------ */
 
-/** живая проба видео: битая ссылка → void (ставки назад, метка не раскрывается) */
-export async function checkVideoAlive(url: string): Promise<boolean> {
+/**
+ * живая проба видео: битая ссылка → void (ставки назад, метка не раскрывается)
+ * v23 — быстрый вариант для bulk-промоции: таймаут 4с и без кэша.
+ */
+export async function checkVideoAlive(url: string, timeoutMs = 8000): Promise<boolean> {
   if (!url) return false;
   try {
     const res = await fetch(url, {
       method: "GET",
       headers: { Range: "bytes=0-1" },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });
     return res.ok || res.status === 206;
@@ -72,41 +76,70 @@ export async function checkVideoAlive(url: string): Promise<boolean> {
   }
 }
 
+/** параллельная проба пачки ссылок (v23 — bulk-промоция без минутных ожиданий) */
+async function aliveInParallel(urls: string[], concurrency = 8): Promise<Map<string, boolean>> {
+  const out = new Map<string, boolean>();
+  let idx = 0;
+  const worker = async () => {
+    while (idx < urls.length) {
+      const u = urls[idx++];
+      out.set(u, await checkVideoAlive(u, 4000));
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, urls.length) }, worker)
+  );
+  return out;
+}
+
 /**
- * Планировщик: если НЕТ live-раунда — берёт самый старый queued клип,
- * атомарно переводит queued → live (гонка двух процессов гасится guard'ом
- * по статусу) и открывает окно BET_WINDOW_SEC.
- * Битая ссылка → клип сразу void (ставок ещё нет — возвращать нечего) и
- * берём следующий; максимум 5 попыток за вызов.
+ * Планировщик v23 — ВСЕ клипы в раффлы сразу.
+ *
+ * Каждый queued-клип атомарно переводится queued → live с окном
+ * BET.raffleWindowSec (по умолчанию НЕДЕЛЯ): пул копится всю неделю,
+ * авторезолв по closes_at (resolveExpiredRounds). Лента ставок от этого
+ * никогда не пуста — все видео и карусели доступны для ставки
+ * одновременно («раффл лента с возможностью ставить — все видео»).
+ *
+ * Битая ссылка → клип сразу void (ставок ещё нет — возвращать нечего).
+ * Лимит за вызов — 50 клипов (очередь разгребается за один тик,
+ * повторный тик доберёт остаток).
+ *
+ * v23 — NR_SCHEDULER_PAUSE=1: продвигаются ТОЛЬКО клипы selftest-*,
+ * живая очередь прода не трогается (режим самотестов).
  */
-export async function promoteNextClip(): Promise<{ promoted: boolean; clipId: string | null }> {
+export async function promoteQueuedClips(limit = 50): Promise<{ promoted: number; voided: number }> {
+  const paused = process.env.NR_SCHEDULER_PAUSE === "1";
   const now = new Date();
-  const live = await db.round.findFirst({
-    where: { status: "open", closesAt: { gt: now } },
-    select: { id: true },
+  const batch = await db.clip.findMany({
+    where: {
+      status: "queued",
+      ...(paused ? { id: { startsWith: "selftest-" } } : {}),
+    },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+    select: { id: true, videoUrl: true },
   });
-  if (live) return { promoted: false, clipId: null };
+  if (!batch.length) return { promoted: 0, voided: 0 };
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const next = await db.clip.findFirst({
-      where: { status: "queued" },
-      orderBy: { createdAt: "asc" },
-    });
-    if (!next) return { promoted: false, clipId: null };
+  const alive = await aliveInParallel(batch.map((c) => c.videoUrl));
 
-    /* битая ссылка → void до открытия окна (ставок нет) */
-    const healthy = await checkVideoAlive(next.videoUrl);
-    if (!healthy) {
+  let promoted = 0;
+  let voided = 0;
+  const closesAt = new Date(now.getTime() + BET.raffleWindowSec * 1000);
+
+  for (const next of batch) {
+    if (!alive.get(next.videoUrl)) {
       console.warn("[money-op][bet] clip_void_dead_link", JSON.stringify({ clip: next.id }));
-      await db.clip.updateMany({
+      const v = await db.clip.updateMany({
         where: { id: next.id, status: "queued" },
-        data: { status: "void", resolvedAt: new Date() },
+        data: { status: "void", resolvedAt: now },
       });
+      voided += v.count;
       continue;
     }
 
     /* атомарный захват: ровно один процесс переводит queued → live */
-    const closesAt = new Date(now.getTime() + BET.windowSec * 1000);
     const claimed = await db.clip.updateMany({
       where: { id: next.id, status: "queued" },
       data: { status: "live", opensAt: now, closesAt },
@@ -132,30 +165,35 @@ export async function promoteNextClip(): Promise<{ promoted: boolean; clipId: st
     moneyLog("clip_promoted", {
       clip: next.id,
       roundId: next.id,
-      windowSec: BET.windowSec,
+      windowSec: BET.raffleWindowSec,
       closesAt: closesAt.toISOString(),
     });
-    return { promoted: true, clipId: next.id };
+    promoted++;
   }
-  return { promoted: false, clipId: null };
+  return { promoted, voided };
 }
 
 /**
- * Тик игры: резолв просроченных + (если нет live) продвижение очереди.
+ * Тик игры: резолв просроченных (авторезолв по closes_at — у раффлов
+ * это конец недельного окна) + продвижение очереди в раффлы.
  * Вызывается лениво из каждого запроса игры и внешним кроном /api/cron/tick.
  *
  * v20 — ПАУЗА ПЛАНИРОВЩИКА (NR_SCHEDULER_PAUSE=1): режим самотестов против
  * живой БД — продвижение очереди ВЫКЛЮЧЕНО (raffle-окна не прожигаются),
  * резолвится только клипы с префиксом selftest-. Прод НЕ ставит эту переменную.
+ * v23 — promoteQueuedClips: ВСЕ queued → live с недельным окном.
  */
 export async function tickGame(): Promise<{ resolved: number; promoted: boolean; clipId: string | null }> {
   if (process.env.NR_SCHEDULER_PAUSE === "1") {
     const resolved = await resolveExpiredRounds(10, "selftest-");
-    return { resolved, promoted: false, clipId: null };
+    /* v23 — selftest-промоция: самотесты проверяют bulk-promote на
+       selftest-клипах, живая очередь не трогается */
+    const p = await promoteQueuedClips(10);
+    return { resolved, promoted: p.promoted > 0, clipId: p.promoted > 0 ? "selftest-bulk" : null };
   }
   const resolved = await resolveExpiredRounds(10);
-  const p = await promoteNextClip();
-  return { resolved, promoted: p.promoted, clipId: p.clipId };
+  const p = await promoteQueuedClips();
+  return { resolved, promoted: p.promoted > 0, clipId: p.promoted > 0 ? "bulk" : null };
 }
 
 export interface RoundBetView {
@@ -223,6 +261,13 @@ export function roundView(
   bettors?: number
 ): RoundView {
   const resolved = round.status === "resolved";
+  /* v23 — окно из фактических времён раунда: у недельного раффла это
+     604800с, у легаси-раундов — прежние 45с. Клиентский прогресс-бар и
+     таймер считаются от этой цифры. */
+  const actualWindowSec = Math.max(
+    1,
+    Math.round((round.closesAt.getTime() - round.opensAt.getTime()) / 1000)
+  );
   const view: RoundView = {
     id: round.id,
     clipCode: round.clipCode,
@@ -230,7 +275,7 @@ export function roundView(
     opensAt: round.opensAt.toISOString(),
     closesAt: round.closesAt.toISOString(),
     serverNow: new Date().toISOString(),
-    windowSec: BET.windowSec,
+    windowSec: actualWindowSec,
     poolRealCents: round.poolRealCents,
     poolSynthCents: round.poolSynthCents,
     poolTotalCents: round.poolRealCents + round.poolSynthCents,
@@ -309,7 +354,8 @@ export async function placeBetBalance(input: PlaceBetInput): Promise<PlaceBetRes
 
   const round = await db.round.findUnique({ where: { id: input.roundId } });
   if (!round) throw new BetError("round not found", 404, "round_not_found");
-  if (!truthOf(round.clipCode)) {
+  /* v23 fix: раньше truthOf (async) вызывался без await — проверка была no-op */
+  if (!(await truthOf(round.clipCode))) {
     throw new BetError("clip is not bettable", 409, "not_bettable");
   }
   if (round.status !== "open" || round.closesAt.getTime() <= Date.now()) {
@@ -401,6 +447,25 @@ export async function placeBetBalance(input: PlaceBetInput): Promise<PlaceBetRes
     balanceCents,
     ref: input.refCode ?? null,
   });
+
+  /* v23 — Supabase Realtime: пул в эфир мгновенно (клиенты без поллинга) */
+  void db.bet
+    .count({ where: { roundId: round.id, status: "active" } })
+    .then((n) =>
+      broadcastRound({
+        id: round.id,
+        clipCode: round.clipCode,
+        status: "open",
+        poolRealCents: round.poolRealCents + (side === "real" ? amount : 0),
+        poolSynthCents: round.poolSynthCents + (side === "synth" ? amount : 0),
+        poolTotalCents:
+          round.poolRealCents + round.poolSynthCents + amount,
+        bettors: n,
+        closesAt: round.closesAt.toISOString(),
+      })
+    )
+    .catch(() => null);
+
   void trackEvent("bet_placed", {
     clipCode: round.clipCode,
     visitorHash: input.fingerprint,
@@ -559,6 +624,15 @@ export async function resolveRound(roundId: string): Promise<ResolveSummary | nu
   const prize = total - rake;
   const winPool = truth === "real" ? round.poolRealCents : round.poolSynthCents;
 
+  /* v23 — горизонт скоростного веса: у недельного раффла бонус «быстрого
+     глаза» считается в первый час, а не растягивается на неделю;
+     у коротких (легаси) раундов — само окно. */
+  const roundWindowSec = Math.max(
+    1,
+    Math.round((round.closesAt.getTime() - round.opensAt.getTime()) / 1000)
+  );
+  const weightHorizon = Math.min(roundWindowSec, BET.weightHorizonSec);
+
   const season = await ensureActiveSeason().catch(() => null);
   const seasonCode = season?.code ?? "s";
 
@@ -592,7 +666,7 @@ export async function resolveRound(roundId: string): Promise<ResolveSummary | nu
         0,
         Math.round((b.createdAt.getTime() - round.opensAt.getTime()) / 1000)
       );
-    const wMilli = won ? betWeightMilli(b.amountCents, betSec, BET.windowSec) : 0;
+    const wMilli = won ? betWeightMilli(b.amountCents, betSec, weightHorizon) : 0;
     if (won) weightSumMilli += wMilli;
 
     await db.bet.updateMany({
@@ -602,7 +676,7 @@ export async function resolveRound(roundId: string): Promise<ResolveSummary | nu
         payoutCents: payout,
         betSec,
         weightMilli: wMilli,
-        decayMilli: won ? decayMilliFor(betSec, BET.windowSec) : 0,
+        decayMilli: won ? decayMilliFor(betSec, weightHorizon) : 0,
       },
     });
 
@@ -719,6 +793,20 @@ export async function resolveRound(roundId: string): Promise<ResolveSummary | nu
     weightMilli: weightSumMilli,
   });
 
+  /* v23 — realtime: раскрытие вердикта в эфир (все открытые ленты узнут
+     исход раффла в ту же секунду) */
+  broadcastRound({
+    id: round.id,
+    clipCode: round.clipCode,
+    status: "resolved",
+    poolRealCents: round.poolRealCents,
+    poolSynthCents: round.poolSynthCents,
+    poolTotalCents: total,
+    bettors: bets.length,
+    resolvedAs: truth,
+    closesAt: round.closesAt.toISOString(),
+  });
+
   return {
     roundId: round.id,
     clipCode: round.clipCode,
@@ -789,6 +877,19 @@ export async function voidRound(
     clip: round.clipCode,
     reason,
     bets: bets.length,
+  });
+
+  /* v23 — realtime: ставки вернули, пулы обнулились */
+  broadcastRound({
+    id: round.id,
+    clipCode: round.clipCode,
+    status: "void",
+    poolRealCents: 0,
+    poolSynthCents: 0,
+    poolTotalCents: 0,
+    bettors: 0,
+    resolvedAs: null,
+    closesAt: round.closesAt.toISOString(),
   });
 
   void trackEvent("round_void", {

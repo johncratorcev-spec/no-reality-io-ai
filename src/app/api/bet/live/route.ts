@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
+import { cacheWrap } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +21,20 @@ export async function GET(req: NextRequest) {
   try {
     const since = new Date(Date.now() - 10 * 60_000);
     const [bettingRows, openRounds] = await Promise.all([
-      db.bet.findMany({
-        where: { createdAt: { gte: since }, status: { in: ["active", "pending", "won", "lost"] } },
-        select: { bettorId: true },
-        distinct: ["bettorId"],
-      }),
-      db.round.count({
-        where: { status: "open", opensAt: { gte: new Date(Date.now() - 2 * 60_000) } },
-      }),
+      /* v23 — кэш 10с: индикатор дёргается каждые 15с с каждой ленты;
+         честные цифры, но без шторма distinct-запросов по БД */
+      cacheWrap("betlive:bettors", 10, () =>
+        db.bet.findMany({
+          where: { createdAt: { gte: since }, status: { in: ["active", "pending", "won", "lost"] } },
+          select: { bettorId: true },
+          distinct: ["bettorId"],
+        })
+      ),
+      cacheWrap("betlive:rounds", 10, () =>
+        db.round.count({
+          where: { status: "open", opensAt: { gte: new Date(Date.now() - 2 * 60_000) } },
+        })
+      ),
     ]);
 
     const bettors = bettingRows.length;

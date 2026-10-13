@@ -289,7 +289,7 @@ export default function FuturePage() {
       <section className="mx-auto max-w-4xl px-5 pb-20 pt-10 text-center sm:pb-24">
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
-            href="/feed"
+            href="/bet"
             className="nr-btn-glow inline-flex items-center gap-2 rounded-full bg-[#0a0a0a] px-6 py-3 text-[0.82rem] font-extrabold tracking-tight text-white transition-transform duration-300 hover:scale-[1.04] active:scale-95"
           >
             meanwhile — watch the feed

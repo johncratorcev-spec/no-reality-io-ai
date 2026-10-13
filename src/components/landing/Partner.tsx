@@ -92,7 +92,7 @@ export default function Partner() {
                 />
                 {/* их пост закреплён первым в ленте */}
                 <a
-                  href="/feed"
+                  href="/bet"
                   onClick={playMeow}
                   className="nrld-cat-pin absolute -left-4 top-5 inline-flex -rotate-6 items-center gap-1.5 rounded-full bg-[#FF003C] px-3.5 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_10px_24px_rgba(255,0,60,0.45)] transition-transform duration-300 hover:rotate-0 hover:scale-105"
                 >

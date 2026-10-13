@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Coins, Gift, Lock, Trophy } from "lucide-react";
-import { BET, fmtUsd } from "@/lib/bet/config";
+import { BET, fmtUsd, fmtCountdown } from "@/lib/bet/config";
 import { fmtBalance, DAILY_CHALLENGE_BONUS_CENTS } from "@/lib/econ";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
 import { competitionNumberOf } from "@/lib/competition";
 import { useAccount, type AccountView } from "@/hooks/use-account";
 import type { RoundView } from "@/lib/bet/roundView";
+import { usePoolUpdate, type PoolUpdate } from "@/hooks/use-pool-channel";
 import PredictModal from "./PredictModal";
 import AuthGateOverlay from "./AuthGateOverlay";
 import { useLang } from "@/lib/i18n";
@@ -265,6 +266,50 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
       if (timer) clearTimeout(timer);
     };
   }, [isActive, round?.id, round?.status, round?.poolTotalCents, onSettled]);
+
+  /* ---- v23 — Supabase Realtime: пулы приходят эфиром без поллинга.
+     Серверная правда гасит оптимистичную ставку; поллинг остаётся
+     страхующим каналом (и таймер всё равно тикает локально). ---- */
+  const onAir = useCallback((u: PoolUpdate) => {
+    optimisticRef.current = null;
+    setRound((prev) => {
+      if (!prev || prev.id !== u.id) return prev;
+      return {
+        ...prev,
+        status: u.status as RoundView["status"],
+        poolRealCents: u.poolRealCents,
+        poolSynthCents: u.poolSynthCents,
+        poolTotalCents: u.poolTotalCents,
+        bettors: u.bettors ?? prev.bettors,
+        closesAt: u.closesAt || prev.closesAt,
+      };
+    });
+    setBankKey((k) => k + 1);
+    setSpark((s) => [...s.slice(-47), u.poolTotalCents]);
+  }, []);
+  usePoolUpdate(round?.id ?? null, onAir);
+
+  /* ---- v23 — вердикт пришёл эфиром: дотягиваем полный resolved-срез
+     (myBet/payout/хеш) той же логикой, что и поллинг ---- */
+  useEffect(() => {
+    if (!round || settledRef.current) return;
+    if (round.status !== "resolved" && round.status !== "void") return;
+    settledRef.current = true;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/round/${round.id}`, { cache: "no-store" });
+        if (!r.ok || !alive) return;
+        const d = (await r.json()) as { round?: RoundView };
+        if (alive && d.round) onSettled(d.round);
+      } catch {
+        /* поллинг дотянет */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [round?.status, round?.id, onSettled]);
 
   /* ---- v6: ставка из модалки предикта прошла ---- */
   const onPlaced = useCallback(
@@ -690,7 +735,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
                   fontWeight="900"
                   fill="var(--nb-bone)"
                 >
-                  {round.status === "open" ? Math.ceil(remainingSec) : "·"}
+                  {round.status === "open" ? fmtCountdown(remainingSec) : "·"}
                 </text>
               </svg>
 

@@ -174,20 +174,18 @@ const en = {
     seamClipLabel: "share the frame",
     seamInviteLabel: "bring an eye — 20%",
   },
-  /* v13 — меню: живые разделы (замороженные страницы из меню убраны) */
+  /* v23 — быстрый флоу: три назначения вместо платформы.
+     Лента+раффлы слиты в /bet, рефка и кошелёк живут в кабинете,
+     «что это»/роадмап доступны с лендинга и в футере. */
   menu: {
     explore: "explore",
     account: "account",
     close: "close",
     open: "menu",
     items: [
-      { href: "/feed", icon: "▸", label: "the feed", desc: "endless AI videos — just watch" },
-      { href: "/bet", icon: "◈", label: "the raffles", desc: "call REAL or SYNTH — split the bank" },
+      { href: "/bet", icon: "◈", label: "play", desc: "all raffles — call REAL or SYNTH, split the bank" },
+      { href: "/cabinet", icon: "◉", label: "cabinet", desc: "EYE balance, top-up, PnL, badges, ref link" },
       { href: "/leaderboard", icon: "👁", label: "god eye", desc: "season leaderboard — best eyes ranked" },
-      { href: "/cabinet", icon: "◉", label: "cabinet", desc: "EYE balance, PnL, badges, referrals" },
-      { href: "/real-or-synth", icon: "✦", label: "what is this", desc: "the game explained" },
-      { href: "/ref", icon: "↗", label: "ref link", desc: "EYE for friends' first bets + 20% of packs" },
-      { href: "/roadmap", icon: "◆", label: "roadmap", desc: "what’s next — incl. Human vs AI Arena" },
     ],
   },
   /* v20 — личный кабинет (крючковая экономика) */
@@ -196,6 +194,9 @@ const en = {
     sub: "everything your eye earned — and why it pays to come back",
     balance: "EYE balance",
     playOnly: "for play only — EYE never leaves the game",
+    topup: "top up EYE",
+    topupNote: "via 2328.io · USDT — the invoice opens in a new tab; EYE land on the balance right after the payment webhook",
+    topupFailed: "could not create the invoice — try again in a minute",
     daily: "daily check-in",
     dailyClaim: "claim +50 EYE",
     dailyClaimed: "claimed today — come back tomorrow",
@@ -532,20 +533,16 @@ const ru: Dict = {
     seamClipLabel: "шарить кадр",
     seamInviteLabel: "приведи глаз — 20%",
   },
-  /* v13 — меню: живые разделы */
+  /* v23 — быстрый флоу: три назначения */
   menu: {
     explore: "разделы",
     account: "аккаунт",
     close: "закрыть",
     open: "меню",
     items: [
-      { href: "/feed", icon: "▸", label: "лента", desc: "бесконечные AI-видео — просто смотри" },
-      { href: "/bet", icon: "◈", label: "рафлы", desc: "назови РЕАЛ или СИНТИК — дели банк" },
+      { href: "/bet", icon: "◈", label: "играть", desc: "все раффлы — назови РЕАЛ или СИНТИК, дели банк" },
+      { href: "/cabinet", icon: "◉", label: "кабинет", desc: "баланс EYE, пополнение, PnL, бейджи, реф-ссылка" },
       { href: "/leaderboard", icon: "👁", label: "глаз бога", desc: "лидерборд сезона — лучшие глаза" },
-      { href: "/cabinet", icon: "◉", label: "кабинет", desc: "баланс EYE, PnL, бейджи, рефералы" },
-      { href: "/real-or-synth", icon: "✦", label: "что это", desc: "игра в двух словах" },
-      { href: "/ref", icon: "↗", label: "реф-ссылка", desc: "EYE за первую ставку друзей + 20% с пачек" },
-      { href: "/roadmap", icon: "◆", label: "роадмап", desc: "что дальше — вкл. Human vs AI Arena" },
     ],
   },
   /* v20 — личный кабинет (крючковая экономика) */
@@ -554,6 +551,9 @@ const ru: Dict = {
     sub: "всё, что заработал твой глаз — и почему выгодно возвращаться",
     balance: "баланс EYE",
     playOnly: "только для игры — EYE нельзя вывести из игры",
+    topup: "пополнить EYE",
+    topupNote: "через 2328.io · USDT — инвойс откроется в новой вкладке; EYE упадут на баланс сразу после вебхука оплаты",
+    topupFailed: "не получилось создать инвойс — попробуй через минуту",
     daily: "ежедневный вход",
     dailyClaim: "забрать +50 EYE",
     dailyClaimed: "за сегодня забрано — приходи завтра",

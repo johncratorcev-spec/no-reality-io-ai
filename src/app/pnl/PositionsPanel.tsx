@@ -144,7 +144,7 @@ export default function PositionsPanel() {
           and call it. real or synth, 10 EYE is enough.
         </p>
         <a
-          href="/feed"
+          href="/bet"
           className="nrld-btn-blood nrld-tap mt-5 inline-flex rounded-full px-6 py-2.5 text-[0.72rem] font-extrabold uppercase tracking-[0.18em] text-white"
         >
           bet the seam

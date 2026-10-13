@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import { authedAccountId } from "@/lib/auth/session";
 import { activeSeason, seasonLeaderboard } from "@/lib/bet/stats";
+import { cacheWrap } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,13 @@ export async function GET(req: NextRequest) {
 
     const season = await activeSeason();
     const meId = await authedAccountId(req);
-    const { top, me } = await seasonLeaderboard(season, { meId, limit });
+    /* v23 — кэш 20с на (сезон, лимит, зритель): сезонный топ не меняется
+       поминутно, а агрегат сканирует все settled-ставки сезона. */
+    const { top, me } = await cacheWrap(
+      `lb:${season?.code ?? "-"}:${limit}:${meId ?? "anon"}`,
+      20,
+      () => seasonLeaderboard(season, { meId, limit })
+    );
 
     return NextResponse.json(
       {

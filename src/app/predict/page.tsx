@@ -117,7 +117,7 @@ export default function PredictPage() {
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <a
-              href="/feed"
+              href="/bet"
               className="rounded-full bg-[#0a0a0a] px-6 py-3 text-[0.8rem] font-extrabold text-white transition-transform hover:scale-105 active:scale-95"
             >
               ▸ try it in the feed
@@ -262,7 +262,7 @@ export default function PredictPage() {
             clip will freeze before your eyes. call it.
           </p>
           <a
-            href="/feed"
+            href="/bet"
             className="mt-7 inline-block rounded-full bg-white px-7 py-3.5 text-[0.82rem] font-extrabold text-[#0a0a0a] transition-transform hover:scale-105 active:scale-95"
           >
             ▸ enter the feed

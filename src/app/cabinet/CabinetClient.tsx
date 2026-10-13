@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 import { storeMyRef } from "@/lib/shareRef";
+import PackRow from "@/components/bet/PackRow";
 
 /* ================================================================
    Кабинет игрока (v20, ТЗ §6–§7): баланс EYE с честной пометкой
@@ -47,7 +48,9 @@ interface Summary {
   winStreak: number;
 }
 
-const fmtEYE = (c: number) => (c / 100).toLocaleString("en-US", { maximumFractionDigits: 0 });
+/* v23 fix: 1 единица balanceCents = 1 EYE (как в BET-ленте — fmtCoins).
+   Было c/100 — кабинет показывал «1 EYE» после welcome +100. */
+const fmtEYE = (c: number) => Math.round(c).toLocaleString("en-US");
 const pnlOf = (b: { stakeCents: number; payoutCents: number; bonusCents: number }) =>
   b.payoutCents - b.stakeCents + b.bonusCents;
 
@@ -209,6 +212,25 @@ export default function CabinetClient() {
           </div>
         </div>
         {msg && <p className="mt-3 text-[0.68rem] font-bold text-[#C8FF00]">{msg}</p>}
+      </section>
+
+      {/* ---------- v23 — КАССА 2328.io: завод средств (пачки EYE) ----------
+          Всегда видна в кабинете — не только на нуле после раунда.
+          Инвойс создаёт сервер (POST /api/packs → eye-*), зачисляет ТОЛЬКО
+          подписанный вебхук 2328 (идемпотентно по order_id). */}
+      <section className="nrld-panel-blood rounded-3xl p-6">
+        <p className="text-[0.6rem] font-extrabold uppercase tracking-[0.24em] text-[#ff4d6e]">
+          {t.cab.topup}
+        </p>
+        <p className="mt-2 text-[0.68rem] font-semibold leading-relaxed text-white/50">
+          {t.cab.topupNote}
+        </p>
+        <div className="mt-4">
+          <PackRow
+            compact
+            onPaid={() => void load()}
+          />
+        </div>
       </section>
 
       {/* ---------- PnL ---------- */}

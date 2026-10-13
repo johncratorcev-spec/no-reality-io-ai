@@ -260,7 +260,7 @@ export default function RealOrSynthPage() {
                 ▶ enter the raffles
               </Link>
               <Link
-                href="/feed"
+                href="/bet"
                 className="nrld-btn-ghost inline-flex items-center gap-2 rounded-full px-6 py-3 text-[0.8rem] font-extrabold text-white transition-transform duration-300 hover:scale-[1.03] active:scale-95"
               >
                 just watch the feed

@@ -1,5 +1,6 @@
 import { feedClips, type PublicClip } from "@/lib/clips";
 import { competitionNumberOf } from "@/lib/competition";
+import { cacheWrap } from "@/lib/cache";
 
 export type ClientRankedPost = {
   /** публичный id клипа (= utm_code для мигрированных строк) */
@@ -27,9 +28,15 @@ export type ClientRankedPost = {
  * v14 — лента из таблицы clips (CSV удалён из дерева).
  * truth/label в клиентский срез не попадает никогда; bettable не
  * раскрывает, КАКАЯ метка. Автор и исходная ссылка — server-only.
+ *
+ * v23 — кэш 8с (memory cacheWrap): SSR /bet и /v/[code] не бьют БД
+ * каждым рендером, пулы при этом живут на realtime-эфире и поллинге
+ * /api/round (эти маршруты не кэшируются никогда).
  */
 export async function getRankedPosts(): Promise<ClientRankedPost[]> {
-  const clips = await feedClips(60).catch(() => [] as Array<PublicClip & { score: number }>);
+  const clips = await cacheWrap("feed:v23:60", 8, () =>
+    feedClips(60).catch(() => [] as Array<PublicClip & { score: number }>)
+  );
   return clips.map((c) => ({
     utmCode: c.id,
     title: c.caption,

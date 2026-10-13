@@ -44,13 +44,15 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 
   /* v4: mood-каналы убраны; v6: продажа промптов убрана entirely —
-     старые ссылки /market ведут в предикшен-ленту. */
+     старые ссылки /market ведут в предикшен-ленту.
+     v23 (быстрый флоу): лента и раффлы слиты — /feed теперь /bet. */
   async redirects() {
     return [
-      { source: "/moods", destination: "/feed", permanent: true },
-      { source: "/moods/:mood", destination: "/feed", permanent: true },
+      { source: "/moods", destination: "/bet", permanent: true },
+      { source: "/moods/:mood", destination: "/bet", permanent: true },
       { source: "/market", destination: "/bet", permanent: true },
       { source: "/market/:path*", destination: "/bet", permanent: true },
+      { source: "/feed", destination: "/bet", permanent: true },
     ];
   },
 

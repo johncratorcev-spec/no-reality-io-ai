@@ -32,7 +32,7 @@ const FOOTER_LINKS = [
   ...NAV,
   { href: "/roadmap", label: "◈ roadmap" },
   { href: "/future", label: "◑ in future" },
-  { href: "/feed", label: "▸ the feed" },
+  { href: "/bet", label: "▸ the feed" },
   { href: "/bet", label: "◈ the raffles" },
 ];
 
@@ -247,7 +247,7 @@ export default function Landing() {
             ))}
           </nav>
           <a
-            href="/feed"
+            href="/bet"
             className="nrld-btn-blood ml-2 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[0.75rem] font-extrabold tracking-tight text-white transition-transform duration-300 hover:scale-[1.04] active:scale-[0.97]"
           >
             the feed
@@ -348,7 +348,7 @@ export default function Landing() {
               <IconArrow className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
             </a>
             <a
-              href="/feed"
+              href="/bet"
               className="nrld-btn-ghost inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[0.9rem] font-extrabold tracking-tight text-white transition-transform duration-300 hover:scale-[1.03] active:scale-[0.97]"
             >
               just watch the feed
@@ -714,7 +714,7 @@ export default function Landing() {
                 <a href="/bet" className="text-[0.82rem] font-bold text-white/65 transition-colors hover:text-white">
                   the raffles →
                 </a>
-                <a href="/feed" className="text-[0.82rem] font-bold text-white/65 transition-colors hover:text-white">
+                <a href="/bet" className="text-[0.82rem] font-bold text-white/65 transition-colors hover:text-white">
                   the feed →
                 </a>
               </div>

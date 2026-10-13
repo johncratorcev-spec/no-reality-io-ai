@@ -48,7 +48,7 @@ export default function Menu({ variant = "light" }: { variant?: "light" | "dark"
   const isActive = (href: string) =>
     pathname === href ||
     pathname.startsWith(`${href}/`) ||
-    ((href === "/feed" || href === "/bet") && pathname.startsWith("/v/"));
+    (href === "/bet" && pathname.startsWith("/v/"));
 
   return (
     <div ref={rootRef} className="relative">

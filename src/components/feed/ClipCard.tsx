@@ -234,10 +234,24 @@ export default function ClipCard({
               aria-hidden
             >
               {isBet ? (
-                <>
-                  <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#FF003C] align-middle" />
-                  {t.feed.bettable}
-                </>
+                post.status === "resolved" && post.resolvedAs ? (
+                  /* v23 — вердикт витрины: resolved-клипы идут следом за live */
+                  <span
+                    style={{
+                      color:
+                        post.resolvedAs === "real"
+                          ? "var(--nb-bone)"
+                          : "var(--nb-blood)",
+                    }}
+                  >
+                    {post.resolvedAs === "real" ? t.bet.wasReal : t.bet.wasSynth}
+                  </span>
+                ) : (
+                  <>
+                    <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#FF003C] align-middle" />
+                    {t.feed.bettable}
+                  </>
+                )
               ) : (
                 `${String(index + 1).padStart(2, "0")} / ${total}`
               )}

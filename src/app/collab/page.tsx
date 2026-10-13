@@ -390,7 +390,7 @@ export default async function CollabPage() {
                 label="share the collab"
               />
               <Link
-                href="/feed"
+                href="/bet"
                 className="inline-flex items-center gap-2 rounded-full bg-[#10161d]/6 px-6 py-3 text-[0.82rem] font-extrabold text-[#10161d] transition-colors duration-300 hover:bg-[#10161d]/12"
               >
                 back to the feed
