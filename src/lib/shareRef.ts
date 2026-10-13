@@ -15,7 +15,7 @@ import { REFERRAL } from "@/lib/site";
 const MINE_KEY = "nr-my-ref";
 const CODE_RE = /^r[a-z0-9]{5,11}$/;
 
-/** auth-флоу сохраняет СВОЙ код после успешного входа (v7.1: google) */
+/** auth-флоу сохраняет СВОЙ код после успешного входа (Supabase Auth, v21) */
 export function storeMyRef(code: string | null | undefined): void {
   try {
     if (code && CODE_RE.test(code)) localStorage.setItem(MINE_KEY, code);
