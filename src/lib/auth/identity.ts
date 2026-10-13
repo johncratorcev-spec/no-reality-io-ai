@@ -10,8 +10,8 @@ import { trackEvent } from "@/lib/bet/events";
 import { visitorHashOf } from "@/lib/utm";
 
 /**
- * v21 — ЕДИНАЯ точка входа по подтверждённому email (Supabase Auth:
- * сюда приходят и парольная сессия, и magic-OTP). Google-провайдер
+ * v22 — ЕДИНАЯ точка входа по email (парольная дверь живёт в нашей БД
+ * — EmailAuth scrypt; внешний IdP больше не участвует). Google-провайдер
  * выключен (v21);passport-легаси удалён.
  *
  * Логика связки (наследие v16, сохранено):
@@ -86,7 +86,7 @@ export async function signInWithEmailIdentity(
         data: { signupFp: byEmail.signupFp ?? fp, signupIpHash: byEmail.signupIpHash ?? ipHash },
       })
       .catch(() => null);
-    void trackEvent("auth_signin", { meta: { provider: "supabase", linked: true } });
+    void trackEvent("auth_signin", { meta: { provider: "password_db", linked: true } });
     return { accountId: byEmail.id, linked: false, newAccount: false };
   }
 
@@ -107,13 +107,13 @@ export async function signInWithEmailIdentity(
         if (refRaw) {
           await attributeReferral(guest.id, refRaw).catch(() => null);
         }
-        void trackEvent("auth_signin", { meta: { provider: "supabase", linked: true } });
+        void trackEvent("auth_signin", { meta: { provider: "password_db", linked: true } });
         return { accountId: guest.id, linked: true, newAccount: false };
       }
     }
   }
 
-  /* свежий аккаунт: Supabase = регистрация с порогом 0 */
+  /* свежий аккаунт: парольная регистрация с порогом 0 */
   const refCode = typeof refRaw === "string" ? refRaw : undefined;
   const acc = await ensureAccount(globalThis.crypto.randomUUID(), refCode);
   await db.account.update({
@@ -150,7 +150,7 @@ export async function signInWithEmailIdentity(
     void awardBadge(acc.id, "early_bird", {}).catch(() => null);
   }
 
-  void trackEvent("auth_signup", { meta: { provider: "supabase" } });
+  void trackEvent("auth_signup", { meta: { provider: "password_db" } });
   return { accountId: acc.id, linked: false, newAccount: true };
 }
 

@@ -48,6 +48,10 @@ interface PredictModalProps {
   /** ставка прошла — панель обновляет раунд/пул */
   onPlaced: (resp: PlacedResponse) => void;
   onAccountUpdate: (a: AccountView) => void;
+  /** v22 — optimistic: фишка в банке мгновенно, до ответа сервера */
+  onOptimistic?: (amountCents: number, side: Side) => void;
+  /** v22 — сервер отказал → откат оптимистики к серверной правде */
+  onOptimisticFail?: () => void;
 }
 
 interface PlacedResponse {
@@ -71,6 +75,8 @@ export default function PredictModal({
   onClose,
   onPlaced,
   onAccountUpdate,
+  onOptimistic,
+  onOptimisticFail,
 }: PredictModalProps) {
   const { t } = useLang();
   const [mode, setMode] = useState<"bet" | "topup">(side ? "bet" : "topup");
@@ -108,6 +114,8 @@ export default function PredictModal({
       setBusy(true);
       setError("");
       track("funnel_confirm", clipCode, { side: pendingSide, amount: amountCents });
+      /* v22 — ноль лагов: фишка в банке сразу, сервер подтвердит следом */
+      if (side) onOptimistic?.(amountCents, side);
       try {
         const ref = (() => {
           try {
@@ -129,6 +137,7 @@ export default function PredictModal({
         });
         const d = (await r.json()) as PlacedResponse & { account?: AccountView };
         if (!r.ok || d.error) {
+          if (side) onOptimisticFail?.();
           if (d.error === "insufficient_balance") {
             setPendingAmount(amountCents);
             setMode("topup");
@@ -143,12 +152,13 @@ export default function PredictModal({
         if (d.account) onAccountUpdate(d.account);
         onPlaced(d);
       } catch {
+        if (side) onOptimisticFail?.();
         setError(t.bet.networkDown);
       } finally {
         if (aliveRef.current) setBusy(false);
       }
     },
-    [roundId, clipCode, pendingSide, onAccountUpdate, onPlaced, t]
+    [roundId, clipCode, side, pendingSide, onAccountUpdate, onPlaced, onOptimistic, onOptimisticFail, t]
   );
 
   /** авто-дожим ставки после зачисления баланса (вебхук → источник истины) */

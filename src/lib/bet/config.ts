@@ -32,8 +32,8 @@ export const BET = {
   betPresetsCents: [10, 25, 50],
   /** окно ставок раунда, секунды (15–60 по ТЗ) */
   windowSec: Math.round(num("BET_WINDOW_SEC", 45, 5, 60)),
-  /** опрос раунда клиентом, пока открыт, мс */
-  pollMs: Math.round(num("BET_POLL_MS", 1500, 500, 10000)),
+  /** опрос раунда клиентом, пока открыт, мс (v22 — 1с: пул в реалтайме) */
+  pollMs: Math.round(num("BET_POLL_MS", 1000, 500, 10000)),
   /** целевой баланс real в ленте (контроль куратора, §4.3.7) */
   realRatioTarget: num("REAL_RATIO_TARGET", 0.3, 0, 1),
 } as const;

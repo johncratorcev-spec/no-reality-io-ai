@@ -76,9 +76,17 @@ export async function GET(
         ? labelCommitMatches(clip.id, clip.label, clip.labelCommit)
         : undefined;
 
+    /* v22 — живой счётчик глаз в пуле (только у живого раунда) */
+    const bettors =
+      current.status === "open"
+        ? await db.bet.count({
+            where: { roundId: current.id, status: { in: ["active", "pending"] } },
+          })
+        : undefined;
+
     return bettorResponse(
       bettor,
-      { round: roundView(current, myBet, clip?.labelCommit ?? null, firstCorrectSec, hashMatched) }
+      { round: roundView(current, myBet, clip?.labelCommit ?? null, firstCorrectSec, hashMatched, bettors) }
     );
   } catch (e) {
     console.error("[round:get] failed:", e instanceof Error ? e.message : e);

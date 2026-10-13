@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
 import { rateLimit } from "@/lib/rateLimit";
-import {
-  passwordSignIn,
-  passwordSignUp,
-  otpSend,
-  SupabaseAuthError,
-  verifyTurnstile,
-  SB_OTP_COOKIE,
-} from "@/lib/auth/supabase";
+import { db } from "@/lib/db";
+import { verifyPassword, hashPassword, accessKeyOk, accessKeyRequired } from "@/lib/auth/password";
+import { verifyTurnstile } from "@/lib/auth/turnstile";
 import { signInWithEmailIdentity, reqIp } from "@/lib/auth/identity";
 import { setSessionCookies } from "@/lib/auth/session";
 
@@ -17,19 +11,20 @@ export const dynamic = "force-dynamic";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /**
- * POST /api/auth/password { email, password, turnstileToken? } — v21,
- * ОСНОВНАЯ дверь входа (Supabase Auth):
+ * POST /api/auth/password { email, password, key?, turnstileToken? } — v22,
+ * ЕДИНСТВЕННАЯ дверь входа: ЧИСТАЯ ЛОГИКА БД, без внешнего IdP.
  *
- *   1. Существующий аккаунт → password grant → сессия.
- *   2. Нет аккаунта → /auth/v1/signup → аккаунт создан, +100 EYE welcome
- *      начисляется в signInWithEmailIdentity (ensureAccount) сразу.
- *   3. В проекте включено подтверждение email (сессия не вернулась) →
- *      шлём 6-значный код (otpSend) → { ok:true, mode:"code" } — форма
- *      переключается на ввод кода (тот же verify, что у magic-входа).
+ *   1. Email найден в EmailAuth → scrypt-проверка пароля → сессия
+ *      (cookie nr_uid + подписанный nr_auth, lib/auth/session).
+ *   2. Emailа нет → РЕГИСТРАЦИЯ: профиль создаёт signInWithEmailIdentity
+ *      (welcome +100 EYE, усыновление гостя, ?ref-рефералка, Early Bird),
+ *      поверх — строка EmailAuth с scrypt-хешем. Пока задан NR_ACCESS_KEY,
+ *      регистрация требует КЛЮЧ (вход существующих — без ключа).
  *
- * Грейсфоллбэк: Supabase не настроен/упал → 503 auth_unavailable,
- * НИКОГДА не 500-падение. Turnstile (если настроен) — fail-closed.
- * user_already_exists снаружи неотличим от неверного пароля (anti-enum).
+ * Анти-enum: неверный пароль и «нет такого email» внешне неотличимы
+ * (invalid_credentials). Грейсфолбэк: БД недоступна → 503
+ * auth_unavailable, НИКОГДА не 500-падение. Turnstile (если настроен) —
+ * fail-closed.
  */
 export async function POST(req: NextRequest) {
   const ip = reqIp(req);
@@ -40,15 +35,18 @@ export async function POST(req: NextRequest) {
 
   let email = "";
   let password = "";
+  let key: unknown = null;
   let turnstileToken: unknown = null;
   try {
     const body = (await req.json()) as {
       email?: unknown;
       password?: unknown;
+      key?: unknown;
       turnstileToken?: unknown;
     };
     email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     password = typeof body.password === "string" ? body.password : "";
+    key = body.key;
     turnstileToken = body.turnstileToken;
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
@@ -65,49 +63,56 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    /* --- 1. вход существующего --- */
+    /* --- 1. вход существующего (EmailAuth — парольная таблица БД) --- */
+    const auth = await db.emailAuth.findUnique({
+      where: { email },
+      include: { account: { select: { id: true } } },
+    });
+    if (auth) {
+      if (!(await verifyPassword(password, auth.passwordHash))) {
+        return NextResponse.json({ error: "invalid_credentials" }, { status: 401 });
+      }
+      const outcome = await signInWithEmailIdentity(
+        { email, emailVerified: true },
+        req
+      );
+      const res = NextResponse.json({ ok: true, newAccount: outcome.newAccount });
+      setSessionCookies(res, outcome.accountId);
+      return res;
+    }
+
+    /* --- 2. регистрация нового: ключ доступа (пока включён) --- */
+    if (accessKeyRequired() && !accessKeyOk(key)) {
+      return NextResponse.json({ error: "bad_key" }, { status: 403 });
+    }
+
+    const outcome = await signInWithEmailIdentity({ email, emailVerified: true }, req);
     try {
-      const profile = await passwordSignIn(email, password);
-      const outcome = await signInWithEmailIdentity(profile, req);
-      const res = NextResponse.json({ ok: true, newAccount: outcome.newAccount });
-      setSessionCookies(res, outcome.accountId);
-      return res;
+      await db.emailAuth.create({
+        data: {
+          accountId: outcome.accountId,
+          email,
+          passwordHash: await hashPassword(password),
+        },
+      });
     } catch (e) {
-      /* invalid_credentials → возможно, аккаунта ещё нет — пробуем signup;
-         прочие ошибки — наверх */
-      if (!(e instanceof SupabaseAuthError) || e.code !== "invalid_credentials") {
-        throw e;
+      /* гонка двух регистраций одного email (unique) — снаружи
+         неотличимо от неверного пароля (анти-enum) */
+      if (
+        typeof e === "object" &&
+        e !== null &&
+        "code" in e &&
+        (e as { code?: string }).code === "P2002"
+      ) {
+        return NextResponse.json({ error: "invalid_credentials" }, { status: 401 });
       }
+      throw e;
     }
 
-    /* --- 2. регистрация нового --- */
-    const profile = await passwordSignUp(email, password);
-    if (profile) {
-      const outcome = await signInWithEmailIdentity(profile, req);
-      const res = NextResponse.json({ ok: true, newAccount: outcome.newAccount });
-      setSessionCookies(res, outcome.accountId);
-      return res;
-    }
-
-    /* --- 3. подтверждение email включено: сессии нет — код на почту --- */
-    await otpSend(email);
-    const res = NextResponse.json({ ok: true, mode: "code" });
-    res.cookies.set(
-      SB_OTP_COOKIE,
-      createHash("sha256").update(email).digest("hex").slice(0, 32),
-      {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 1800,
-        path: "/",
-      }
-    );
+    const res = NextResponse.json({ ok: true, newAccount: outcome.newAccount });
+    setSessionCookies(res, outcome.accountId);
     return res;
   } catch (e) {
-    if (e instanceof SupabaseAuthError) {
-      return NextResponse.json({ error: e.code }, { status: e.status });
-    }
     console.error("[auth/password] failed:", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "auth_unavailable" }, { status: 503 });
   }

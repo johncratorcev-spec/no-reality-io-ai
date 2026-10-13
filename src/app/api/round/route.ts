@@ -107,8 +107,17 @@ export async function GET(req: NextRequest) {
         ? labelCommitMatches(clipRow.id, clipRow.label, clipRow.labelCommit)
         : undefined;
 
+    /* v22 — живой счётчик глаз в пуле (только у живого раунда — дёшево:
+       bet @@index([roundId, status])) */
+    const bettors =
+      round.round.status === "open"
+        ? await db.bet.count({
+            where: { roundId: round.round.id, status: { in: ["active", "pending"] } },
+          })
+        : undefined;
+
     return bettorResponse(bettor, {
-      round: roundView(round.round, myBet, clipRow.labelCommit, firstCorrectSec, hashMatched),
+      round: roundView(round.round, myBet, clipRow.labelCommit, firstCorrectSec, hashMatched, bettors),
       clip: toPublicClip(clipRow),
       queueLeft,
     });

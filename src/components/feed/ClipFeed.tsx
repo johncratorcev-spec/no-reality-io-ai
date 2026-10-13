@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Flame, Trophy, Users } from "lucide-react";
 import ClipCard, { type ClipMode } from "./ClipCard";
-import OnboardingOverlay from "@/components/bet/OnboardingOverlay";
 import LeaderboardPanel from "@/components/bet/LeaderboardPanel";
 import { useLang } from "@/lib/i18n";
 import type { ClientRankedPost } from "@/lib/posts";
@@ -16,33 +15,22 @@ interface ClipFeedProps {
   focusCode?: string;
 }
 
-type MoodFilter = "all" | "swag" | "future" | "creepy" | "ufo";
-
-const MOODS: Array<{ key: MoodFilter; label: string; color: string }> = [
-  { key: "all", label: "ALL", color: "#F2EDE4" },
-  { key: "swag", label: "SWAG", color: "#FFD400" },
-  { key: "future", label: "FUTURE", color: "#00E5FF" },
-  { key: "creepy", label: "CREEPY", color: "#FF2BA6" },
-  { key: "ufo", label: "UFO", color: "#7CFF4D" },
-];
-
 /**
  * ClipFeed — бесконечная вертикальная лента (snap-scroll), v5.
  * Легаси-поллеры (cryo/favorites) вырезаны: фид чистый и лёгкий.
  * Активная карточка — IntersectionObserver; по окончании видео —
  * мягкий автопереход к следующей; стрелки ↑/↓ листают.
  *
- * v5 (только предикшен-лента): moods-свитчер, Daily Hard Mode,
- * live-индикатор «сейчас ставят», Best Eyes Leaderboard, онбординг.
- * Обычная лента (watch) осталась нетронутой.
+ * v22 (минимализм): Daily Hard Mode, live-индикатор «сейчас ставят»,
+ * Best Eyes Leaderboard. Moods-чипы (мёртвый фильтр) и 4-шаговый
+ * онбординг удалены — интерфейс говорит сам за себя.
  */
 export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
   const { t, lang } = useLang();
   const containerRef = useRef<HTMLDivElement>(null);
   const isBet = mode === "bet";
 
-  /* ---- v5 контролы предикшен-ленты ---- */
-  const [mood, setMood] = useState<MoodFilter>("all");
+  /* ---- контролы предикшен-ленты (v22 — минимализм: hard + live + топ) ---- */
   const [hardCodes, setHardCodes] = useState<string[] | null>(null);
   const [hardOn, setHardOn] = useState(false);
   const [hardLoading, setHardLoading] = useState(false);
@@ -91,13 +79,12 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
 
   const filteredPosts = useMemo(() => {
     if (!isBet) return posts;
-    let out = posts;
     if (hardOn && hardCodes) {
       const set = new Set(hardCodes);
-      out = out.filter((p) => set.has(p.utmCode));
+      return posts.filter((p) => set.has(p.utmCode));
     }
-    return out;
-  }, [posts, isBet, mood, hardOn, hardCodes]);
+    return posts;
+  }, [posts, isBet, hardOn, hardCodes]);
 
   const findIndex = useCallback(
     (code: string) => filteredPosts.findIndex((p) => p.utmCode === code),
@@ -124,7 +111,7 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
       containerRef.current?.scrollTo({ top: 0 });
     });
     return () => cancelAnimationFrame(raf);
-  }, [mood, hardOn]);
+  }, [hardOn]);
 
   /* мгновенный прыжок к deep-link посту после монтирования */
   useEffect(() => {
@@ -217,28 +204,6 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
       {/* ---------- v5: контролы предикшен-ленты ---------- */}
       {isBet && (
         <div className="pointer-events-auto absolute inset-x-0 top-0 z-30 flex items-center gap-1.5 overflow-x-auto bg-gradient-to-b from-[rgba(6,5,10,0.85)] to-transparent px-3 pb-4 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {MOODS.map((m) => {
-            const active = mood === m.key && !hardOn;
-            return (
-              <button
-                key={m.key}
-                onClick={() => {
-                  setMood(m.key);
-                  setHardOn(false);
-                }}
-                className="shrink-0 rounded-full border px-2.5 py-1.5 text-[0.6rem] font-black uppercase tracking-[0.12em] backdrop-blur-md transition-transform duration-200 hover:scale-[1.05] active:scale-95 sm:px-3 sm:tracking-[0.16em]"
-                style={{
-                  borderColor: active ? m.color : "rgba(242,237,228,.14)",
-                  color: active ? m.color : "rgba(242,237,228,.6)",
-                  background: active ? "rgba(16,13,22,0.85)" : "rgba(16,13,22,0.6)",
-                }}
-                aria-pressed={active}
-              >
-                {m.label}
-              </button>
-            );
-          })}
-
           <button
             onClick={toggleHard}
             className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 text-[0.6rem] font-black uppercase tracking-[0.12em] backdrop-blur-md transition-transform duration-200 hover:scale-[1.05] active:scale-95 sm:px-3 sm:tracking-[0.16em]"
@@ -302,14 +267,10 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
         <div className="flex h-full items-center justify-center px-6">
           <div className="max-w-sm rounded-3xl border border-white/10 bg-[rgba(16,13,22,0.8)] px-8 py-10 text-center backdrop-blur-md">
             <p className="text-lg font-extrabold tracking-tight text-white">
-              {isBet && mood !== "all"
-                ? t.feed.moodEmpty.replace("{m}", mood)
-                : t.feed.empty}
+              {t.feed.empty}
             </p>
             <p className="mt-2 text-sm font-semibold text-white/55">
-              {isBet && mood !== "all"
-                ? t.feed.moodEmptyHint
-                : t.feed.emptyHint}
+              {t.feed.emptyHint}
             </p>
           </div>
         </div>
@@ -342,8 +303,7 @@ export default function ClipFeed({ posts, mode, focusCode }: ClipFeedProps) {
         </div>
       )}
 
-      {/* ---------- v5: онбординг + leaderboard ---------- */}
-      {isBet && <OnboardingOverlay />}
+      {/* ---------- v22: минимализм — онбординг убран, фид говорит сам ---------- */}
       {isBet && lbOpen && <LeaderboardPanel onClose={() => setLbOpen(false)} />}
     </div>
   );

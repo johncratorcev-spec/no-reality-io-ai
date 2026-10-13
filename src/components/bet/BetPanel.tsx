@@ -103,6 +103,8 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
 
   const skewRef = useRef(0);
   const settledRef = useRef(false);
+  /* v22 — optimistic bet: фишка в банке мгновенно, сервер подтвердит тиком */
+  const optimisticRef = useRef<{ side: Side; amount: number } | null>(null);
   const lastModeRef = useRef<string | null>(null);
   const clipRef = useRef(clipCode);
   clipRef.current = clipCode;
@@ -113,6 +115,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
     setActivations((a) => a + 1);
     setStreak(readStreak());
     settledRef.current = false;
+    optimisticRef.current = null;
     setError("");
     setModalOpen(false);
     setChosenSide(null);
@@ -219,15 +222,33 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
           if (r.ok) {
             const d = (await r.json()) as { round?: RoundView };
             if (!stopped && d.round) {
+              /* v22 — optimistic merge: пока ставка в полёте, показываем её
+                 в пуле поверх серверной правды; подтверждение — гасим */
+              const opt = optimisticRef.current;
+              if (opt && d.round.myBet) optimisticRef.current = null;
+              const merged: RoundView =
+                opt && !d.round.myBet && d.round.status === "open"
+                  ? {
+                      ...d.round,
+                      poolRealCents:
+                        d.round.poolRealCents + (opt.side === "real" ? opt.amount : 0),
+                      poolSynthCents:
+                        d.round.poolSynthCents + (opt.side === "synth" ? opt.amount : 0),
+                      poolTotalCents: d.round.poolTotalCents + opt.amount,
+                      bettors: (d.round.bettors ?? 0) + 1,
+                      myBet: { side: opt.side, amountCents: opt.amount, status: "active", payoutCents: null },
+                    }
+                  : d.round;
               const prevTotal = round.poolTotalCents;
-              setRound(d.round);
-              if (d.round.poolTotalCents !== prevTotal) {
+              setRound(merged);
+              if (merged.poolTotalCents !== prevTotal) {
                 setBankKey((k) => k + 1);
-                setSpark((s) => [...s.slice(-47), d.round!.poolTotalCents]);
+                setSpark((s) => [...s.slice(-47), merged.poolTotalCents]);
               }
-              if (d.round.status === "resolved" && !settledRef.current) {
+              if (merged.status === "resolved" && !settledRef.current) {
                 settledRef.current = true;
-                onSettled(d.round);
+                optimisticRef.current = null;
+                onSettled(merged);
               }
             }
           }
@@ -256,6 +277,7 @@ export default function BetPanel({ clipCode, isActive, landHard, onNext }: BetPa
       account?: AccountView;
     }) => {
       setError("");
+      optimisticRef.current = null; // сервер подтвердил — оптимистика погашена
       if (d.round) {
         setRound(d.round);
         setBankKey((k) => k + 1);

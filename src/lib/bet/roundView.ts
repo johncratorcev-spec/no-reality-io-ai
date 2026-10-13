@@ -14,6 +14,8 @@ export interface RoundView {
   poolRealCents: number;
   poolSynthCents: number;
   poolTotalCents: number;
+  /** v22 — сколько глаз в пуле (активные ставки), для живого счётчика */
+  bettors?: number;
   /** v13: Daily Challenge раунда дня */
   challenge?: boolean;
   myBet: {

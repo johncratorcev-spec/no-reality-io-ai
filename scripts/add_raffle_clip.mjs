@@ -38,6 +38,13 @@ const hasFlag = (name) => process.argv.includes(`--${name}`);
 
 const SOURCE = argOf("source");
 const VIDEO = argOf("video");
+/* v22 — фото-карусель: --photos "url1,url2,…" → media_type=carousel,
+   media_json={"photos":[…]}; --video при этом становится постером
+   (может совпадать с первым фото). Без --photos — обычное видео. */
+const PHOTOS = argOf("photos")
+  .split(",")
+  .map((u) => u.trim())
+  .filter(Boolean);
 const LABEL = argOf("label").trim().toLowerCase();
 const BADGE = argOf("badge", "raffle-01").trim().toLowerCase();
 const CAPTION = argOf("caption");
@@ -51,7 +58,7 @@ if (!SOURCE || !/^https?:\/\//i.test(SOURCE)) {
   process.exit(1);
 }
 if (!VIDEO || !/^https?:\/\//i.test(VIDEO)) {
-  console.error("нужен --video https://… (прямой mp4 с CDN Threads)");
+  console.error("нужен --video https://… (прямой mp4 с CDN Threads; для карусели — постер-фото)");
   process.exit(1);
 }
 if (LABEL !== "real" && LABEL !== "synth") {
@@ -112,16 +119,36 @@ async function videoAlive(url) {
     return (r.status === 206 || r.status === 200) && (ct.includes("video") || ct === "" || ct.includes("octet-stream"));
   } catch {
     return false;
+ }
+}
+
+/* v22 — фото карусели: CDN Instagram отдаёт 200 + image/jpeg без Range */
+async function photoAlive(url) {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const ct = r.headers.get("content-type") || "";
+    return r.status === 200 && (ct.includes("image") || ct === "");
+  } catch {
+    return false;
   }
 }
 
-/* ---------- проверка видео ДО вставки (битая ссылка недопустима) ---------- */
-console.log("Range-проба видео…");
-if (!(await videoAlive(VIDEO))) {
-  console.error("видео не отвечает как video (Range) — битая ссылка не вставляется");
-  process.exit(1);
+/* ---------- проверка медиа ДО вставки (битая ссылка недопустима) ---------- */
+if (PHOTOS.length > 0) {
+  console.log(`карусель: ${PHOTOS.length} фото — проба первого…`);
+  if (!(await photoAlive(PHOTOS[0]))) {
+    console.error("первое фото не отвечает (image 200) — битая ссылка не вставляется");
+    process.exit(1);
+  }
+  console.log("фото живо ✓");
+} else {
+  console.log("Range-проба видео…");
+  if (!(await videoAlive(VIDEO))) {
+    console.error("видео не отвечает как video (Range) — битая ссылка не вставляется");
+    process.exit(1);
+  }
+  console.log("видео живо ✓");
 }
-console.log("видео живо ✓");
 
 const id = clipId();
 const now = new Date();
@@ -138,6 +165,9 @@ const row = {
   listed_by: LISTED_BY,
   badge: BADGE,
   featured_until: featuredUntil ? featuredUntil.toISOString() : null,
+  // v22 — медиа-тип: video | carousel (фото-карусель Threads)
+  media_type: PHOTOS.length > 0 ? "carousel" : "video",
+  media_json: PHOTOS.length > 0 ? JSON.stringify({ photos: PHOTOS }) : "{}",
   // Prisma @updatedAt — app-level: в БД у колонки НЕТ дефолта (NOT NULL),
   // сырой pg-INSERT обязан передать её сам (PostgREST-путь тоже).
   updated_at: now.toISOString(),

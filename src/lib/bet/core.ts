@@ -176,6 +176,8 @@ export interface RoundView {
   poolRealCents: number;
   poolSynthCents: number;
   poolTotalCents: number;
+  /** v22 — сколько глаз в пуле (активные ставки), для живого счётчика */
+  bettors?: number;
   /** v13: Daily Challenge раунда дня — бейдж + бонус победителям */
   challenge?: boolean;
   myBet: RoundBetView | null;
@@ -217,7 +219,8 @@ export function roundView(
   } | null,
   labelCommit?: string | null,
   firstCorrectSec?: number | null,
-  hashMatched?: boolean
+  hashMatched?: boolean,
+  bettors?: number
 ): RoundView {
   const resolved = round.status === "resolved";
   const view: RoundView = {
@@ -231,6 +234,7 @@ export function roundView(
     poolRealCents: round.poolRealCents,
     poolSynthCents: round.poolSynthCents,
     poolTotalCents: round.poolRealCents + round.poolSynthCents,
+    bettors: bettors,
     challenge: round.challenge ?? false,
     myBet: myBet
       ? {
