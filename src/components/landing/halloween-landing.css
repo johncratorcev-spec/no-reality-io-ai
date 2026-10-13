@@ -1,843 +1,293 @@
 /* ================================================================
-   v19 — хэллоуин-лендинг «судная ночь»: онбординг 5 сцен → /auth.
-   Стиль: потёртые векторы (rough-SVG + hand-drawn радиусы),
-   зерно/туман уже даёт глобальная тема .nr-halloween (globals.css).
-   Анимации: только transform/opacity (+ короткие draw-in штрихи
-   малых SVG при входе в сцену). prefers-reduced-motion гасит всё.
+   v21 — хэллоуин-лендинг: ОДИН экран (минимализм).
+   Зерно/туман/виньетка уже даёт глобальная тема .nr-halloween;
+   здесь только композиция экрана и его анимации (transform/opacity).
    ================================================================ */
 
-/* ---------- корень ---------- */
 .hwl {
   position: relative;
-  display: flex;
-  flex-direction: column;
   min-height: 100svh;
-  overflow: hidden;
-  background:
-    radial-gradient(120% 90% at 50% -10%, rgba(139, 48, 255, 0.16), transparent 60%),
-    radial-gradient(100% 70% at 50% 115%, rgba(255, 93, 0, 0.12), transparent 62%),
-    linear-gradient(180deg, #08060d 0%, #0b0713 52%, #08060d 100%);
-  color: #f2ede4;
-  font-family: var(--font-manrope), system-ui, sans-serif;
-}
-
-/* лёгкая сцена-виньетка поверх фона (статика) */
-.hwl::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(130% 100% at 50% 40%, transparent 55%, rgba(0, 0, 0, 0.5) 100%);
-}
-
-/* тряска при скримере */
-@keyframes hwlShake {
-  0%, 100% { transform: translate3d(0, 0, 0); }
-  20% { transform: translate3d(-7px, 3px, 0); }
-  40% { transform: translate3d(6px, -4px, 0); }
-  60% { transform: translate3d(-5px, -2px, 0); }
-  80% { transform: translate3d(4px, 3px, 0); }
-}
-.hwl.hwl-shake {
-  animation: hwlShake 0.42s linear both;
-}
-
-/* ---------- верхняя планка ---------- */
-.hwl-top {
-  position: relative;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.9rem 1.25rem;
-}
-.hwl-brand {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.45rem;
-  font-size: 1.12rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #f2ede4;
-  text-decoration: none;
-}
-.hwl-brand .hw-pumpkin {
-  font-size: 0.95em;
-  filter: drop-shadow(0 0 6px rgba(255, 122, 26, 0.7));
-}
-.hwl-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 122, 26, 0.4);
-  background: rgba(255, 122, 26, 0.08);
-  padding: 0.3rem 0.7rem;
-  font-size: 0.56rem;
-  font-weight: 900;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: #ffa64d;
-  white-space: nowrap;
-}
-.hwl-pill i {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: #ff7a1a;
-  animation: hwlSiren 4.2s linear infinite;
-}
-@keyframes hwlSiren {
-  0%, 100% { opacity: 1; box-shadow: 0 0 6px 2px rgba(255, 122, 26, 0.8); }
-  8% { opacity: 0.25; }
-  12% { opacity: 1; box-shadow: 0 0 10px 3px rgba(255, 42, 26, 0.9); }
-  20% { opacity: 0.4; }
-  26% { opacity: 1; }
-  62% { opacity: 1; }
-  66% { opacity: 0.5; }
-  70% { opacity: 1; }
-}
-.hwl-top .hwl-spacer { flex: 1; }
-.hwl-enter-ghost {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border-radius: 9999px;
-  border: 1px solid rgba(242, 237, 228, 0.16);
-  padding: 0.42rem 0.85rem;
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(242, 237, 228, 0.62);
-  text-decoration: none;
-  transition: color 0.25s, border-color 0.25s, transform 0.25s;
-}
-.hwl-enter-ghost:hover {
-  color: #f2ede4;
-  border-color: rgba(255, 122, 26, 0.55);
-  transform: translate3d(0, -1px, 0);
-}
-
-/* ---------- сцены ---------- */
-.hwl-stage {
-  position: relative;
-  z-index: 10;
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem 1.25rem 5.5rem;
+  overflow: hidden;
+  padding: clamp(1.2rem, 4vw, 3rem);
 }
-.hwl-scene {
-  width: 100%;
-  max-width: 34rem;
+
+/* ---------- переключатель языка (угол экрана) ---------- */
+.hwl-lang {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.2rem;
+  z-index: 2;
+  padding: 0.34rem 0.72rem;
+  border-radius: 999px 999px 999px 999px;
+  border: 1px solid rgba(242, 237, 228, 0.18);
+  background: rgba(13, 9, 22, 0.5);
+  color: rgba(242, 237, 228, 0.6);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.hwl-lang:hover {
+  color: #ff7a1a;
+  border-color: rgba(255, 122, 26, 0.6);
+}
+
+/* ---------- мыши-тени ---------- */
+.hwl-bats {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.hwl-bat {
+  position: absolute;
+  width: 44px;
+  opacity: 0;
+  animation: hwl-fly 14s linear infinite;
+}
+.hwl-bat-1 { top: 18%; animation-delay: 2.5s; }
+.hwl-bat-2 { top: 34%; width: 30px; animation-delay: 8s; }
+.hwl-bat-3 { top: 10%; width: 24px; animation-delay: 11.5s; }
+@keyframes hwl-fly {
+  0%   { transform: translate3d(-12vw, 2vh, 0) scale(0.9); opacity: 0; }
+  6%   { opacity: 0.75; }
+  14%  { transform: translate3d(28vw, -1.5vh, 0) scale(1); opacity: 0.55; }
+  22%  { transform: translate3d(60vw, 3vh, 0) scale(0.92); opacity: 0.4; }
+  30%  { transform: translate3d(96vw, -2vh, 0) scale(0.85); opacity: 0; }
+  100% { transform: translate3d(96vw, -2vh, 0); opacity: 0; }
+}
+
+/* ---------- центральная колонна ---------- */
+.hwl-center {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  max-width: 34rem;
+  animation: hwl-rise 0.7s cubic-bezier(0.2, 0.9, 0.25, 1) both;
 }
-@keyframes hwlInR {
-  from { opacity: 0; transform: translate3d(26px, 10px, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-@keyframes hwlInL {
-  from { opacity: 0; transform: translate3d(-26px, 10px, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-.hwl-scene.hwl-in-r { animation: hwlInR 0.5s cubic-bezier(0.2, 0.8, 0.25, 1) both; }
-.hwl-scene.hwl-in-l { animation: hwlInL 0.5s cubic-bezier(0.2, 0.8, 0.25, 1) both; }
-
-/* draw-in контуров при входе */
-@keyframes hwlDraw {
-  to { stroke-dashoffset: 0; }
-}
-.hwl-scene .hwl-draw path,
-.hwl-scene .hwl-draw ellipse,
-.hwl-scene .hwl-draw circle {
-  stroke-dasharray: 340;
-  stroke-dashoffset: 340;
-  animation: hwlDraw 1.1s cubic-bezier(0.5, 0, 0.2, 1) 0.12s forwards;
+@keyframes hwl-rise {
+  from { transform: translateY(14px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 
-/* kicker / заголовки */
-.hwl-kicker {
-  font-size: 0.6rem;
-  font-weight: 900;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
-  color: #ffa64d;
-}
-.hwl-h2 {
-  margin-top: 0.7rem;
-  font-size: clamp(1.7rem, 6vw, 2.5rem);
-  font-weight: 900;
-  line-height: 1.04;
-  letter-spacing: -0.02em;
-  color: #f2ede4;
-}
-.hwl-d {
-  margin-top: 0.85rem;
-  max-width: 30rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  line-height: 1.55;
-  color: rgba(242, 237, 228, 0.62);
-}
-
-/* ---------- герой ---------- */
-.hwl-hero-art {
-  position: relative;
-  width: min(78vw, 380px);
-  height: auto;
-  margin-bottom: 0.6rem;
-}
-.hwl-moon {
-  position: absolute;
-  top: -18%;
-  right: -16%;
-  width: 44%;
-  opacity: 0.9;
-  animation: hwlFloat 9s ease-in-out infinite;
-}
-.hwl-hero-skull {
-  position: relative;
-  width: 56%;
-  margin: 0 auto;
-  animation: hwlFloat 7s ease-in-out infinite;
-}
-.hwl-hero-hand {
-  position: absolute;
-  bottom: 0;
-  left: 1%;
-  width: 33%;
-  transform: translate3d(0, 10%, 0);
-  animation: hwlReachL 6s ease-in-out infinite;
-}
-@keyframes hwlReachL {
-  0%, 100% { transform: translate3d(0, 12%, 0) rotate(-2deg); }
-  50% { transform: translate3d(0, 2%, 0) rotate(1.6deg); }
-}
-@keyframes hwlFloat {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(-0.6deg); }
-  50% { transform: translate3d(0, -9px, 0) rotate(0.8deg); }
-}
-.hwl-h1 {
-  margin-top: 0.4rem;
-  font-size: clamp(2.7rem, 11vw, 4.6rem);
-  font-weight: 900;
-  line-height: 0.96;
-  letter-spacing: -0.03em;
-  text-transform: uppercase;
-  color: #f2ede4;
-}
-.hwl-h1 .hwl-h1-mid {
-  display: inline-block;
-  margin: 0 0.18em;
-  font-size: 0.42em;
-  vertical-align: 0.32em;
-  color: rgba(242, 237, 228, 0.4);
-  letter-spacing: 0.06em;
-}
-.hwl-h1 .hwl-h1-synth {
-  color: transparent;
-  background: linear-gradient(94deg, #ff9a3d 6%, #ff5d00 38%, #ff003c 78%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  filter: drop-shadow(0 0 18px rgba(255, 93, 0, 0.35));
-}
-@keyframes hwlFlicker {
-  0%, 100% { opacity: 1; }
-  8% { opacity: 0.55; }
-  10% { opacity: 1; }
-  26% { opacity: 0.72; }
-  28% { opacity: 1; }
-  74% { opacity: 1; }
-  76% { opacity: 0.6; }
-  80% { opacity: 1; }
-}
-.hwl-h1-synth { animation: hwlFlicker 5.5s linear infinite; }
-
-/* ---------- «шерховатые» коробки/кнопки ---------- */
-.hw-box {
-  border: 2px solid rgba(242, 237, 228, 0.16);
-  border-radius: 255px 18px 225px 18px / 18px 225px 18px 255px;
-  background: rgba(13, 9, 22, 0.66);
-  box-shadow: inset 0 1px 0 rgba(255, 220, 180, 0.06), 0 14px 40px rgba(0, 0, 0, 0.45);
-}
-.hw-box-b {
-  border: 2px solid rgba(255, 122, 26, 0.3);
-  border-radius: 18px 225px 18px 255px / 255px 18px 225px 18px;
-  background: rgba(13, 9, 22, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 220, 180, 0.07), 0 14px 40px rgba(0, 0, 0, 0.45);
-}
-.hw-btn {
+/* ---------- пилюля сезона ---------- */
+.hwl-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 0.5rem;
-  border: 2px solid rgba(255, 122, 26, 0.55);
-  border-radius: 225px 16px 205px 16px / 16px 205px 16px 225px;
-  background: linear-gradient(180deg, #ff9a3d 0%, #ff7a1a 58%, #ff5d00 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 226, 190, 0.55),
-    inset 0 -3px 8px rgba(70, 24, 0, 0.4),
-    0 0 26px rgba(255, 122, 26, 0.3);
-  padding: 0.95rem 1.7rem;
-  font-weight: 900;
-  font-size: 0.95rem;
-  letter-spacing: 0.01em;
-  color: #1c0d02;
-  cursor: pointer;
-  text-decoration: none;
-  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.25, 1), box-shadow 0.22s, filter 0.22s;
-}
-.hw-btn:hover {
-  transform: translate3d(0, -2px, 0) rotate(-0.4deg);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 226, 190, 0.55),
-    inset 0 -3px 8px rgba(70, 24, 0, 0.4),
-    0 0 44px rgba(255, 122, 26, 0.5);
-  filter: brightness(1.04);
-}
-.hw-btn:active { transform: translate3d(0, 1px, 0) scale(0.985); }
-.hw-ghost {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  border: 2px solid rgba(242, 237, 228, 0.15);
-  border-radius: 16px 205px 16px 225px / 225px 16px 205px 16px;
-  padding: 0.72rem 1.3rem;
+  padding: 0.42rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgba(242, 237, 228, 0.16);
+  background: rgba(13, 9, 22, 0.55);
+  color: rgba(242, 237, 228, 0.75);
+  font-size: 0.68rem;
   font-weight: 800;
-  font-size: 0.78rem;
-  color: rgba(242, 237, 228, 0.62);
-  text-decoration: none;
-  cursor: pointer;
-  background: transparent;
-  transition: color 0.25s, border-color 0.25s, transform 0.25s;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
-.hw-ghost:hover {
-  color: #f2ede4;
-  border-color: rgba(242, 237, 228, 0.4);
-  transform: translate3d(0, -1px, 0);
+.hwl-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff7a1a;
+  box-shadow: 0 0 10px rgba(255, 122, 26, 0.9);
+  animation: hwl-pulse 2.2s ease-in-out infinite;
 }
-@keyframes hwlBreathe {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(0, -2px, 0) scale(1.025); }
+@keyframes hwl-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.78); }
 }
-.hwl-cta-breathe { animation: hwlBreathe 2.6s ease-in-out infinite; }
 
-/* ---------- сцена 1: телевизор-скример ---------- */
-.hwl-tv {
-  position: relative;
-  width: min(76vw, 330px);
-  aspect-ratio: 16 / 10.5;
-  overflow: hidden;
-  margin-bottom: 1.4rem;
+/* ---------- череп-судья (глаза мигают — микро-скример без JS) ---------- */
+.hwl-skull {
+  width: clamp(96px, 16vw, 132px);
+  margin-top: 1.4rem;
+  filter: drop-shadow(0 0 26px rgba(255, 122, 26, 0.16));
+  animation: hwl-bob 5.5s ease-in-out infinite;
 }
-.hwl-static {
-  position: absolute;
-  inset: -40%;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
-  background-size: 140px 140px;
-  opacity: 0.2;
-  animation: hwlStatic 0.6s steps(6) infinite;
-  will-change: transform;
+@keyframes hwl-bob {
+  0%, 100% { transform: translateY(0) rotate(-1.2deg); }
+  50%      { transform: translateY(-7px) rotate(1.2deg); }
 }
-@keyframes hwlStatic {
-  0% { transform: translate3d(0, 0, 0); }
-  25% { transform: translate3d(-24px, 14px, 0); }
-  50% { transform: translate3d(18px, -20px, 0); }
-  75% { transform: translate3d(-14px, -10px, 0); }
-  100% { transform: translate3d(0, 0, 0); }
+/* редкое «подмигивание» зрачков: чистый CSS, 1 раз в ~9с */
+.hwl-skull :is(circle, ellipse, path)[fill="#ff7a1a"] {
+  animation: hwl-eyes 9s steps(1, end) infinite;
 }
-.hwl-tv::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(90% 90% at 50% 50%, transparent 46%, rgba(4, 2, 8, 0.8) 100%);
+@keyframes hwl-eyes {
+  0%, 100% { opacity: 1; }
+  86%      { opacity: 1; }
+  87%      { opacity: 0.06; }
+  89%      { opacity: 0.9; }
+  90%      { opacity: 0.06; }
+  91.5%    { opacity: 1; }
 }
-/* глаза в темноте телевизора: мигают и гаснут (один раз, ~4с) */
-.hwl-tv-eyes {
-  position: absolute;
-  inset: 0;
+
+/* ---------- заголовок REAL / или / SYNTH ---------- */
+.hwl-title {
+  margin-top: 1.3rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2.6rem;
-  opacity: 0;
-  animation: hwlEyes 4.6s ease-in-out 1.7s 1 both;
-}
-.hwl-tv-eyes i {
-  width: 12px;
-  height: 12px;
-  border-radius: 9999px;
-  background: #ff7a1a;
-  box-shadow: 0 0 14px 4px rgba(255, 122, 26, 0.65);
-}
-@keyframes hwlEyes {
-  0% { opacity: 0; transform: scale(0.6); }
-  7% { opacity: 1; transform: scale(1); }
-  12% { opacity: 0; transform: scale(0.7); }
-  16% { opacity: 1; transform: scale(1.05); }
-  46% { opacity: 1; }
-  56% { opacity: 0; transform: scale(0.75); }
-  100% { opacity: 0; }
-}
-.hwl-tv-tag {
-  position: absolute;
-  left: 50%;
-  bottom: 8%;
-  transform: translate3d(-50%, 0, 0);
-  font-size: 0.58rem;
+  flex-wrap: wrap;
+  gap: 0.55rem;
   font-weight: 900;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: rgba(242, 237, 228, 0.4);
+  letter-spacing: -0.02em;
+  line-height: 1;
 }
-
-/* ---------- сцена 2: REAL / SYNTH + печать ---------- */
-.hwl-call-row {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 0.9rem;
-  margin-top: 1.5rem;
-}
-.hw-call {
-  min-width: 8.2rem;
-  padding: 1.05rem 1.2rem;
-  font-size: 1.06rem;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
-}
-.hw-call.real {
-  border-color: rgba(242, 237, 228, 0.4);
-  background: linear-gradient(180deg, rgba(242, 237, 228, 0.92), rgba(214, 206, 192, 0.86));
-  color: #14060a;
-}
-.hw-call.synth {
-  border-color: rgba(255, 0, 60, 0.55);
-  background: linear-gradient(180deg, #ff2a52 0%, #ff003c 62%, #c90030 100%);
-  color: #fff1f3;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 200, 210, 0.4),
-    inset 0 -3px 8px rgba(80, 0, 16, 0.45),
-    0 0 26px rgba(255, 0, 60, 0.28);
-}
-.hw-call:hover { transform: translate3d(0, -2px, 0) rotate(-0.5deg); }
-.hw-call:active { transform: scale(0.97); }
-.hw-call.picked { outline: 3px solid rgba(255, 166, 77, 0.8); outline-offset: 3px; }
-.hw-call.dimmed { filter: grayscale(0.55) brightness(0.72); transform: scale(0.97); }
-
-@keyframes hwlStamp {
-  0% { opacity: 0; transform: translate3d(-50%, 0, 0) scale(1.7) rotate(-14deg); }
-  55% { opacity: 1; transform: translate3d(-50%, 0, 0) scale(0.94) rotate(-6deg); }
-  75% { transform: translate3d(-50%, 0, 0) scale(1.04) rotate(-8deg); }
-  100% { opacity: 1; transform: translate3d(-50%, 0, 0) scale(1) rotate(-8deg); }
-}
-.hwl-stamp {
-  position: absolute;
-  left: 50%;
-  top: -1.1rem;
-  transform: translate3d(-50%, 0, 0);
-  border: 3px solid #ff003c;
-  border-radius: 14px 120px 14px 120px / 120px 14px 120px 14px;
-  padding: 0.4rem 0.9rem;
-  font-size: 0.66rem;
-  font-weight: 900;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: #ff2a52;
-  background: rgba(20, 4, 10, 0.85);
-  box-shadow: 0 0 22px rgba(255, 0, 60, 0.35);
-  animation: hwlStamp 0.5s cubic-bezier(0.2, 0.8, 0.25, 1) both;
-  pointer-events: none;
-  white-space: nowrap;
-}
-.hwl-verdict-note {
-  margin-top: 1.1rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #ffa64d;
-  animation: hwlInR 0.4s both;
-}
-
-/* ---------- сцена 3: тыква-банк + чипы ---------- */
-.hwl-bank {
-  position: relative;
-  width: min(62vw, 240px);
-  margin: 0.6rem auto 0.4rem;
-}
-.hwl-bank-pumpkin { width: 100%; transform-origin: 50% 88%; }
-.hwl-bank-pumpkin.hwl-chew { animation: hwlChew 0.55s cubic-bezier(0.2, 0.8, 0.25, 1); }
-@keyframes hwlChew {
-  0% { transform: scale(1, 1); }
-  35% { transform: scale(1.08, 0.88); }
-  62% { transform: scale(0.96, 1.06); }
-  100% { transform: scale(1, 1); }
-}
-.hwl-bank-mouth {
-  position: absolute;
-  left: 50%;
-  bottom: 16%;
-  width: 34%;
-  aspect-ratio: 1.6;
-  transform: translate3d(-50%, 0, 0);
-  border-radius: 0 0 90px 90px / 0 0 60px 60px;
-  background: radial-gradient(80% 100% at 50% 30%, rgba(255, 190, 90, 0.55), rgba(40, 12, 2, 0.9) 78%);
-  opacity: 0;
-}
-.hwl-bank.hwl-fed .hwl-bank-mouth { animation: hwlMouth 0.9s ease-out both; }
-@keyframes hwlMouth {
-  0% { opacity: 0; transform: translate3d(-50%, 10%, 0) scaleY(0.4); }
-  30% { opacity: 1; transform: translate3d(-50%, 0, 0) scaleY(1); }
-  100% { opacity: 0; transform: translate3d(-50%, 6%, 0) scaleY(0.5); }
-}
-@keyframes hwlChipFly {
-  0% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-  60% { opacity: 1; }
-  100% { opacity: 0; transform: translate3d(var(--fly-x, 3rem), -5.6rem, 0) scale(0.35) rotate(14deg); }
-}
-.hwl-chip.flying { animation: hwlChipFly 0.6s cubic-bezier(0.4, 0, 0.7, 0.4) both; }
-.hwl-chips {
-  display: flex;
-  justify-content: center;
-  gap: 0.8rem;
-  margin-top: 1.2rem;
-  min-height: 3.4rem;
+.hwl-or {
+  font-size: clamp(1rem, 2.6vw, 1.3rem);
+  color: rgba(242, 237, 228, 0.55);
+  font-weight: 800;
+  text-transform: lowercase;
 }
 .hwl-chip {
+  display: inline-block;
+  padding: 0.28em 0.72em;
+  border-radius: 14px 9px 15px 8px; /* hand-drawn неровность */
+  font-size: clamp(2rem, 8vw, 3.2rem);
+  text-transform: uppercase;
+}
+.hwl-chip-real {
+  color: #c8ff00;
+  border: 2px solid rgba(200, 255, 0, 0.55);
+  background: rgba(200, 255, 0, 0.07);
+  text-shadow: 0 0 22px rgba(200, 255, 0, 0.35);
+  transform: rotate(-2deg);
+}
+.hwl-chip-synth {
+  color: #ff3d63;
+  border: 2px solid rgba(255, 61, 99, 0.5);
+  background: rgba(255, 61, 99, 0.08);
+  text-shadow: 0 0 22px rgba(255, 61, 99, 0.4);
+  transform: rotate(1.6deg);
+}
+
+.hwl-seam {
+  width: min(320px, 72vw);
+  margin-top: 1.1rem;
+}
+
+.hwl-sub {
+  margin-top: 0.9rem;
+  max-width: 26rem;
+  color: rgba(242, 237, 228, 0.62);
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+/* ---------- 3 микро-шага ---------- */
+.hwl-steps {
+  margin: 1.35rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem 1.1rem;
+}
+.hwl-step {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  border: 2px solid rgba(255, 166, 77, 0.5);
-  border-radius: 9999px 12px 9999px 12px / 12px 9999px 12px 9999px;
-  background: rgba(20, 12, 6, 0.85);
-  color: #ffd9a0;
-  padding: 0.66rem 1.15rem;
-  font-weight: 900;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
-}
-.hwl-chip:hover {
-  transform: translate3d(0, -2px, 0);
-  border-color: #ffa64d;
-  box-shadow: 0 0 20px rgba(255, 122, 26, 0.35);
-}
-.hwl-chip:active { transform: scale(0.96); }
-.hwl-chip.picked { border-color: #ffa64d; box-shadow: 0 0 24px rgba(255, 122, 26, 0.5); }
-.hwl-chip .hw-coin { width: 1.25rem; height: 1.25rem; }
-.hwl-stake-note {
-  margin-top: 0.9rem;
-  font-size: 0.8rem;
+  color: rgba(242, 237, 228, 0.78);
+  font-size: 0.74rem;
   font-weight: 800;
-  color: #ffd9a0;
-  animation: hwlInR 0.4s both;
+  letter-spacing: 0.02em;
 }
-
-/* ---------- сцена 4: делёж банка ---------- */
-.hwl-split {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  width: 100%;
-  max-width: 26rem;
-  margin-top: 1.6rem;
-}
-.hwl-pot {
-  position: relative;
-  padding: 1.15rem 0.8rem 1.3rem;
-  overflow: hidden;
-}
-.hwl-pot .hwl-pot-label {
-  font-size: 0.58rem;
-  font-weight: 900;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: rgba(242, 237, 228, 0.5);
-}
-.hwl-pot .hwl-pot-amount {
-  margin-top: 0.35rem;
-  font-size: 1.7rem;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-}
-.hwl-pot.win {
-  border-color: rgba(255, 122, 26, 0.6);
-  background:
-    radial-gradient(90% 80% at 50% 0%, rgba(255, 122, 26, 0.16), transparent 70%),
-    rgba(13, 9, 22, 0.72);
-  animation: hwlPotWin 2.4s ease-in-out infinite;
-}
-@keyframes hwlPotWin {
-  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 220, 180, 0.07), 0 0 18px rgba(255, 122, 26, 0.2); }
-  50% { box-shadow: inset 0 1px 0 rgba(255, 220, 180, 0.1), 0 0 34px rgba(255, 122, 26, 0.42); }
-}
-.hwl-pot.win .hwl-pot-amount { color: #ffd9a0; }
-.hwl-pot.lose { opacity: 0.75; }
-/* монетный дождь в winners: точки на transform */
-.hwl-rain {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.hwl-rain i {
-  position: absolute;
-  top: -8%;
-  width: 7px;
-  height: 7px;
-  border-radius: 9999px;
-  background: #ffa64d;
-  box-shadow: 0 0 8px rgba(255, 154, 61, 0.8);
-  animation: hwlRain 1.5s linear infinite;
-}
-@keyframes hwlRain {
-  0% { transform: translate3d(0, -10px, 0) scale(1); opacity: 0; }
-  12% { opacity: 1; }
-  100% { transform: translate3d(var(--dx, 8px), 150px, 0) scale(0.7); opacity: 0; }
-}
-.hwl-split-hand {
-  width: 150px;
-  margin-top: 0.9rem;
-  opacity: 0.95;
-}
-
-/* ---------- финал: дверь → /auth ---------- */
-.hwl-door-wrap {
-  position: relative;
-  width: min(70vw, 270px);
-  aspect-ratio: 3 / 4.1;
-  margin-bottom: 1.5rem;
-  display: grid;
+.hwl-step-n {
+  display: inline-grid;
   place-items: center;
-}
-.hwl-door {
-  position: absolute;
-  inset: 0;
-  border: 3px solid rgba(255, 122, 26, 0.5);
-  border-radius: 130px 22px 130px 22px / 26px 150px 24px 150px;
-  background:
-    radial-gradient(120% 90% at 50% 110%, rgba(255, 122, 26, 0.4), transparent 55%),
-    linear-gradient(180deg, #0d0916 0%, #150b20 100%);
-  box-shadow:
-    0 0 46px rgba(255, 122, 26, 0.22),
-    inset 0 0 60px rgba(0, 0, 0, 0.6);
-  overflow: hidden;
-}
-.hwl-door::before {
-  /* свет из-под двери */
-  content: "";
-  position: absolute;
-  left: 12%;
-  right: 12%;
-  bottom: 4.5%;
-  height: 3.5%;
-  border-radius: 9999px;
-  background: linear-gradient(90deg, transparent, #ffb45e 30%, #ff7a1a 55%, transparent);
-  filter: blur(1px);
-  animation: hwlDoorGlow 3.2s ease-in-out infinite;
-}
-@keyframes hwlDoorGlow {
-  0%, 100% { opacity: 0.55; transform: scaleX(0.94); }
-  50% { opacity: 1; transform: scaleX(1.03); }
-}
-.hwl-door-skull {
-  width: 56%;
-  margin-top: 10%;
-  opacity: 0.9;
-  animation: hwlFloat 7.5s ease-in-out infinite;
-}
-.hwl-door-knob {
-  position: absolute;
-  right: 13%;
-  top: 52%;
-  width: 10px;
-  height: 10px;
-  border-radius: 9999px;
-  background: #ffa64d;
-  box-shadow: 0 0 12px rgba(255, 166, 77, 0.9);
-}
-.hwl-fine {
-  margin-top: 1rem;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(242, 237, 228, 0.34);
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50% 42% 55% 45%;
+  border: 1.5px solid rgba(255, 122, 26, 0.7);
+  color: #ff7a1a;
+  font-size: 0.66rem;
+  font-weight: 900;
 }
 
-/* ---------- нижняя планка: назад/точки/дальше ---------- */
-.hwl-bottom {
-  position: absolute;
-  z-index: 20;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 0.8rem 1.25rem 1rem;
-}
-.hwl-dots {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  margin: 0 auto;
-}
-.hwl-dot {
-  width: 10px;
-  height: 10px;
-  padding: 0;
-  border: 2px solid rgba(242, 237, 228, 0.28);
-  border-radius: 14px 4px 14px 4px / 4px 14px 4px 14px;
-  background: transparent;
-  cursor: pointer;
-  transition: transform 0.25s, background-color 0.25s, border-color 0.25s;
-}
-.hwl-dot:hover { transform: scale(1.25); border-color: rgba(255, 166, 77, 0.7); }
-.hwl-dot.on {
-  background: #ff7a1a;
-  border-color: #ff7a1a;
-  box-shadow: 0 0 12px rgba(255, 122, 26, 0.7);
-  transform: scale(1.18);
-}
-.hwl-skip {
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(242, 237, 228, 0.4);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.25s;
-}
-.hwl-skip:hover { color: #ffa64d; }
-.hwl-next {
-  border: none;
-  background: transparent;
+/* ---------- CTA ---------- */
+.hwl-cta {
+  margin-top: 1.7rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.68rem;
+  gap: 0.6rem;
+  padding: 1rem 2.1rem;
+  border-radius: 16px 11px 17px 12px; /* hand-drawn */
+  border: 2px solid #ff7a1a;
+  background: linear-gradient(180deg, rgba(255, 122, 26, 0.22), rgba(255, 122, 26, 0.1));
+  color: #ffd9b8;
+  font-size: 0.98rem;
   font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #ffa64d;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: transform 0.2s, color 0.2s;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  box-shadow: 0 0 0 rgba(255, 122, 26, 0), 0 10px 34px rgba(0, 0, 0, 0.45);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
-.hwl-next:hover { transform: translate3d(2px, 0, 0); color: #ffc38a; }
-.hwl-back {
-  border: none;
-  background: transparent;
-  font-size: 0.68rem;
+.hwl-cta:hover {
+  transform: translateY(-2px) scale(1.02);
+  background: linear-gradient(180deg, rgba(255, 122, 26, 0.34), rgba(255, 122, 26, 0.14));
+  box-shadow: 0 0 34px rgba(255, 122, 26, 0.35), 0 12px 36px rgba(0, 0, 0, 0.5);
+}
+.hwl-cta:active { transform: translateY(0) scale(0.99); }
+.hwl-cta-arrow {
+  font-weight: 900;
+  animation: hwl-nudge 1.6s ease-in-out infinite;
+}
+@keyframes hwl-nudge {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(4px); }
+}
+
+.hwl-ghost {
+  margin-top: 0.85rem;
+  color: rgba(242, 237, 228, 0.4);
+  font-size: 0.74rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(242, 237, 228, 0.42);
-  cursor: pointer;
-  visibility: hidden;
-  white-space: nowrap;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(242, 237, 228, 0.25);
+  padding-bottom: 2px;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
-.hwl-back.show { visibility: visible; }
-.hwl-back:hover { color: #f2ede4; }
-
-/* ---------- скример (глобальный) ---------- */
-.hwl-scream {
-  position: fixed;
-  inset: 0;
-  z-index: 95;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-  background:
-    radial-gradient(80% 80% at 50% 45%, rgba(255, 0, 60, 0.16), rgba(60, 0, 12, 0.42) 100%);
-  animation: hwlScream 0.24s steps(2, jump-none) both;
-}
-@keyframes hwlScream {
-  0% { opacity: 0; }
-  40% { opacity: 1; }
-  100% { opacity: 0; }
-}
-.hwl-scream svg {
-  width: min(64vw, 340px);
-  transform: scale(1.04);
+.hwl-ghost:hover {
+  color: rgba(242, 237, 228, 0.8);
+  border-color: rgba(242, 237, 228, 0.6);
 }
 
-/* ---------- стая мышей на переходах ---------- */
-.hwl-bats {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  pointer-events: none;
-  overflow: hidden;
-}
-.hwl-bats .hwl-bat {
-  position: absolute;
-  width: 44px;
-  opacity: 0;
-}
-@keyframes hwlBatFly {
-  0% { transform: translate3d(-12vw, 0, 0) rotate(-8deg); opacity: 0; }
-  10% { opacity: 1; }
-  85% { opacity: 1; }
-  100% { transform: translate3d(112vw, -8vh, 0) rotate(9deg); opacity: 0; }
-}
-.hwl-bats .hwl-bat.b1 { top: 22%; animation: hwlBatFly 1.35s cubic-bezier(0.3, 0.1, 0.6, 0.9) both; }
-.hwl-bats .hwl-bat.b2 { top: 40%; width: 30px; animation: hwlBatFly 1.15s 0.12s cubic-bezier(0.3, 0.2, 0.7, 0.8) both; }
-.hwl-bats .hwl-bat.b3 { top: 12%; width: 24px; animation: hwlBatFly 1.5s 0.05s cubic-bezier(0.25, 0.1, 0.65, 0.85) both; }
-.hwl-bats .hwl-bat.b4 { top: 58%; width: 36px; animation: hwlBatFly 1.25s 0.2s cubic-bezier(0.35, 0.1, 0.6, 0.9) both; }
-
-/* зрачки черепа живут всегда (лёгкий пульс) */
-@keyframes hwlPupils {
-  0%, 100% { opacity: 0.85; transform: translate3d(0, 0, 0); }
-  50% { opacity: 1; transform: translate3d(0, -1px, 0); }
-}
-.hwl-pupils { animation: hwlPupils 2.8s ease-in-out infinite; transform-origin: center; }
-
-.hwl-pill-hero { display: none; }
-
-/* ---------- mobile ---------- */
-@media (max-width: 640px) {
-  .hwl-top { padding: 0.75rem 1rem; gap: 0.5rem; }
-  .hwl-brand { font-size: 1.02rem; }
-  .hwl-top .hwl-pill,
-  .hwl-top .hwl-enter-ghost { display: none; }
-  .hwl-pill-hero {
-    display: inline-flex;
-    margin-bottom: 0.9rem;
-  }
-  .hwl-stage { padding-bottom: 6rem; }
-  .hwl-call-row { gap: 0.6rem; }
-  .hw-call { min-width: 7rem; }
-  .hwl-split { gap: 0.6rem; }
-  .hwl-bottom { gap: 0.5rem; padding-bottom: 0.85rem; }
-  .hwl-dots { gap: 0.4rem; }
-  .hwl-dot { width: 8px; height: 8px; }
-  .hwl-skip { font-size: 0.56rem; letter-spacing: 0.08em; }
-  .hwl-next { font-size: 0.62rem; }
-  .hwl-back { font-size: 0.62rem; }
+.hwl-fine {
+  margin-top: 1.5rem;
+  max-width: 24rem;
+  color: rgba(242, 237, 228, 0.3);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
 }
 
-/* ---------- доступность: движение выключено ---------- */
+/* ---------- мобильный ---------- */
+@media (max-width: 480px) {
+  .hwl-steps { flex-direction: column; gap: 0.5rem; }
+  .hwl-cta { width: min(100%, 20rem); justify-content: center; }
+}
+
+/* ---------- reduced motion: всё движение гасим ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .hwl *,
-  .hwl *::before,
-  .hwl *::after,
-  .hwl-scream,
-  .hwl-bats .hwl-bat {
+  .hwl-bat,
+  .hwl-pill-dot,
+  .hwl-skull,
+  .hwl-skull :is(circle, ellipse, path)[fill="#ff7a1a"],
+  .hwl-cta-arrow,
+  .hwl-center {
     animation: none !important;
-    transition: none !important;
   }
-  .hwl-scene .hwl-draw path,
-  .hwl-scene .hwl-draw ellipse,
-  .hwl-scene .hwl-draw circle {
-    stroke-dashoffset: 0;
-  }
-  .hwl-tv-eyes { opacity: 0; }
+  .hwl-cta { transition: none; }
 }

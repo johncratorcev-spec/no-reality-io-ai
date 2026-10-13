@@ -10,8 +10,9 @@ import { trackEvent } from "@/lib/bet/events";
 import { visitorHashOf } from "@/lib/utm";
 
 /**
- * v20 — ЕДИНАЯ точка входа по подтверждённому email (Supabase Auth:
- * magic-OTP и Google PKCE приходят сюда). Старый google.ts удалён.
+ * v21 — ЕДИНАЯ точка входа по подтверждённому email (Supabase Auth:
+ * сюда приходят и парольная сессия, и magic-OTP). Google-провайдер
+ * выключен (v21);passport-легаси удалён.
  *
  * Логика связки (наследие v16, сохранено):
  *   - email уже с аккаунтом → вход (+ passTier, поздняя атрибуция ?ref);

@@ -5,7 +5,7 @@
  * Внешние сервисы (Cloudflare beacon) включаются только при
  * наличии их ключей — без ключей код даже не монтируется.
  * v16: magicLink и telegramLogin удалены вместе с методами входа —
- * единственная дверь Google (GOOGLE_CLIENT_ID/SECRET, lib/auth/google).
+ * единственная дверь Supabase Auth (email+пароль / magic-код, v21).
  *
  * Значения:
  *   FEATURE_UTM_TRACKING=0        — выключить персональные UTM-переходы

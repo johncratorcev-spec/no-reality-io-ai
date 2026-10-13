@@ -62,7 +62,8 @@ export function authedAccountId(req: NextRequest): string | null {
 
 /**
  * Сессионные cookie входа (nr_uid + подписанный nr_auth).
- * Единственная точка: google-вход (passport-google-oauth20, v16).
+ * v21: единственная точка — Supabase Auth (email+пароль / magic-код),
+ * вызывается из /api/auth/password и /api/auth/otp/verify.
  */
 export function setSessionCookies(
   res: NextResponse,

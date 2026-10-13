@@ -326,7 +326,7 @@ export interface AccountView {
   balanceCents: number;
   passTier: number;
   isPass: boolean;
-  /** v7.1: email google/magic-сессии — null у мгновенного гостя */
+  /** email подтверждённого входа (Supabase Auth) — null у мгновенного гостя */
   email: string | null;
   /** v11: имя Telegram-аккаунта (displayName/@username) — для чипа в шапке */
   name: string | null;
@@ -393,8 +393,8 @@ function sameUtcDay(a: Date | null, b: Date): boolean {
 
 /* ------------------------------------------------------------------ */
 /*  NR PASS — пасс авторизованного пользователя                        */
-/*  v7.1: пасс выдаётся google/magic-входом (signInWithGoogle и        */
-/*  magic-link); крипто-привязка кошелька удалена с сайта.             */
+/*  пасс выдаётся любым подтверждённым входом (Supabase Auth:          */
+/*  email+пароль / magic-код); крипто-привязка кошелька удалена.       */
 /* ------------------------------------------------------------------ */
 
 /** Daily-бонус NR PASS: раз в UTC-день, streak растёт при непрерывности. */

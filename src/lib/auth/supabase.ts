@@ -1,15 +1,16 @@
 import "server-only";
 
-import { createHash, randomBytes } from "crypto";
-
 /**
- * v20 — Supabase Auth (GoTrue) как ЕДИНСТВЕННАЯ дверь входа (ТЗ §Стек/§Auth):
- *   1. Magic link / email-OTP: POST /auth/v1/otp → письмо от Supabase
- *      (free tier: 3–4 письма/час, достаточно для онбординга) →
- *      POST /auth/v1/verify {type:"email"} → сессия → наш подписанный cookie.
- *   2. Google: /auth/v1/authorize?provider=google (PKCE: code_verifier в
- *      httpOnly-cookie, challenge в URL) → callback ?code →
- *      POST /auth/v1/token?grant_type=pkce → сессия → наш cookie.
+ * v21 — Supabase Auth (GoTrue) как ЕДИНСТВЕННАЯ дверь входа:
+ *   1. Email + пароль (ОСНОВНОЙ путь):
+ *      вход  — POST /auth/v1/token?grant_type=password;
+ *      регистр — POST /auth/v1/signup (новый аккаунт → сразу +100 EYE
+ *      через signInWithEmailIdentity/ensureAccount); если в проекте
+ *      включено подтверждение email и сессия не вернулась —
+ *      дожидаемся 6-значного кода (otpSend → otpVerify).
+ *   2. Magic-код (запасной путь, тем же письмом): POST /auth/v1/otp →
+ *      POST /auth/v1/verify {type:"email"} → сессия → наш cookie.
+ *   Google-провайдер ВЫКЛЮЧЕН (v21): PKCE-флоу и роуты удалены.
  *
  * ЗАЩИТОСТОЙКОСТЬ (ТЗ §Auth): Supabase не настроен / недоступен →
  * { configured:false } / 503 {auth_unavailable} — НИКОГДА не 500-падение:
@@ -22,8 +23,6 @@ import { createHash, randomBytes } from "crypto";
  * SUPABASE_SERVICE_ROLE_KEY сюда НЕ входит (только админ-скрипты).
  */
 
-export const SB_VERIFIER_COOKIE = "nr_sb_cv";
-export const SB_NEXT_COOKIE = "nr_sb_next";
 export const SB_OTP_COOKIE = "nr_sb_otp"; // sha256(email) — защита verify от подмены
 
 export function supabaseUrl(): string {
@@ -188,57 +187,81 @@ export async function otpVerify(email: string, token: string): Promise<AuthProfi
   return profile;
 }
 
-/* ---------------- PKCE (Google через Supabase) ---------------- */
+/* ---------------- Email + пароль (GoTrue) ---------------- */
 
-function pkcePair(): { verifier: string; challenge: string } {
-  const verifier = randomBytes(48).toString("base64url"); // 64 символа
-  const challenge = createHash("sha256").update(verifier).digest("base64url");
-  return { verifier, challenge };
+async function gotrueJson(
+  path: string,
+  body: unknown
+): Promise<{ status: number; json: Record<string, unknown> }> {
+  const r = await fetch(`${supabaseUrl()}${path}`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10_000),
+    cache: "no-store",
+  });
+  const json = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+  return { status: r.status, json };
 }
 
-/** URL consent-экрана Google через Supabase (PKCE S256) */
-export function googleAuthorizeUrl(redirectTo: string): {
-  url: string;
-  verifier: string;
-} {
-  const { verifier, challenge } = pkcePair();
-  const u = new URL(`${supabaseUrl()}/auth/v1/authorize`);
-  u.searchParams.set("provider", "google");
-  u.searchParams.set("redirect_to", redirectTo);
-  u.searchParams.set("code_challenge", challenge);
-  u.searchParams.set("code_challenge_method", "s256");
-  return { url: u.toString(), verifier };
+/** код ошибки GoTrue: invalid_credentials | user_already_exists | weak_password… */
+function gotrueErrorCode(json: Record<string, unknown>): string {
+  return String(json.error_code ?? json.error ?? "").toLowerCase();
 }
 
-/** обмен auth-кода на профиль (PKCE) */
-export async function googleExchangeCode(
-  code: string,
-  verifier: string
+function profileFromUser(json: Record<string, unknown>): AuthProfile | null {
+  const access = typeof json.access_token === "string" ? json.access_token : "";
+  return access ? profileFromSession(access) : null;
+}
+
+/** Вход существующего пользователя по email+пароль. */
+export async function passwordSignIn(
+  email: string,
+  password: string
 ): Promise<AuthProfile> {
-  const r = await fetch(
-    `${supabaseUrl()}/auth/v1/token?grant_type=pkce`,
-    {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
-      signal: AbortSignal.timeout(10_000),
-      cache: "no-store",
+  if (!supabaseConfigured()) {
+    throw new SupabaseAuthError("auth not configured", 503, "auth_unavailable");
+  }
+  const { status, json } = await gotrueJson("/auth/v1/token?grant_type=password", {
+    email,
+    password,
+  });
+  if (status !== 200) {
+    /* 400 invalid_credentials = и неверный пароль, и нет такого email
+       (без раскрытия существования аккаунта) */
+    if (status === 400) {
+      throw new SupabaseAuthError("invalid credentials", 400, "invalid_credentials");
     }
-  );
-  if (!r.ok) {
-    throw new SupabaseAuthError(
-      "code exchange failed",
-      502,
-      "google_exchange_failed"
-    );
+    throw new SupabaseAuthError("password grant failed", 502, "auth_unavailable");
   }
-  const d = (await r.json()) as { access_token?: string };
-  if (!d.access_token) {
-    throw new SupabaseAuthError("no session", 502, "google_exchange_failed");
-  }
-  const profile = profileFromSession(d.access_token);
+  const profile = profileFromUser(json);
   if (!profile) {
     throw new SupabaseAuthError("profile unreadable", 502, "auth_profile");
   }
   return profile;
+}
+
+/** Регистрация email+пароль. null = сессии нет (включено подтверждение
+    email — дальше 6-значный код через otpSend/otpVerify). */
+export async function passwordSignUp(
+  email: string,
+  password: string
+): Promise<AuthProfile | null> {
+  if (!supabaseConfigured()) {
+    throw new SupabaseAuthError("auth not configured", 503, "auth_unavailable");
+  }
+  const { status, json } = await gotrueJson("/auth/v1/signup", { email, password });
+  if (status !== 200) {
+    const code = gotrueErrorCode(json);
+    /* user_already_exists → снаружи выглядит как неверный пароль
+       (не раскрываем, что аккаунт есть) */
+    if (code.includes("already")) {
+      throw new SupabaseAuthError("user exists", 401, "invalid_credentials");
+    }
+    if (code.includes("weak")) {
+      throw new SupabaseAuthError("weak password", 400, "weak_password");
+    }
+    throw new SupabaseAuthError("signup failed", 502, "auth_unavailable");
+  }
+  return profileFromUser(json);
 }
