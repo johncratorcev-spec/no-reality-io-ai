@@ -15,7 +15,8 @@ export type ClientRankedPost = {
   badge?: string;
   /** v15: соревнование (badge="raffle-NN") — номер для оформления */
   competition?: string;
-  status: "queued" | "live" | "resolved" | "void";
+  /** v26 — "soon": тизер (видео в ленте, ставки ещё не открыты) */
+  status: "queued" | "soon" | "live" | "resolved" | "void";
   /** только у resolved: раскрытая метка для витрины */
   resolvedAs?: "real" | "synth";
   bettable: boolean;

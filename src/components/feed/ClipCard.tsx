@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Play, Share2, Sparkles, Trophy, Volume2, VolumeX, WifiOff } from "lucide-react";
+import { Check, Clock, Play, Share2, Sparkles, Trophy, Volume2, VolumeX, WifiOff } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 import { withRef } from "@/lib/shareRef";
 import { track } from "@/lib/bet/trackClient";
@@ -53,6 +53,8 @@ export default function ClipCard({
   const [copied, setCopied] = useState(false);
 
   const isBet = mode === "bet";
+  /* v26 — тизер: видео в ленте, раффл ещё не открыт (status="soon") */
+  const isSoon = isBet && post.status === "soon";
   const isCarousel = post.mediaType === "carousel";
   const isAudio = post.mediaType === "audio";
 
@@ -228,6 +230,14 @@ export default function ClipCard({
               <Trophy className="h-3.5 w-3.5" aria-hidden />
               {t.bet.competitionN.replace("{n}", post.competition)}
             </span>
+          ) : isSoon ? (
+            /* v26 — тизер: янтарный чип «предсказания скоро» */
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-300/15 px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-amber-200 backdrop-blur-md"
+            >
+              <Clock className="h-3.5 w-3.5" aria-hidden />
+              {t.bet.soonChip}
+            </span>
           ) : (
             <span
               className="rounded-full border border-white/10 bg-[rgba(16,13,22,0.72)] px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-white/75 backdrop-blur-md"
@@ -336,8 +346,26 @@ export default function ClipCard({
         </button>
       </div>
 
-      {/* ---------- рафл: панель ставки (только у активной карточки) ---------- */}
-      {isBet && <BetPanel clipCode={post.utmCode} isActive={isActive} onNext={onNext} />}
+      {/* ---------- рафл: панель ставки (только у активной карточки) ----------
+          v26 — у тизера (soon) вместо панели ставки заглушка
+          «скоро будут доступны предсказания» */}
+      {isSoon ? (
+        isActive && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-16 z-30 flex justify-center px-4">
+            <div className="nb-panel pointer-events-auto flex w-full max-w-sm flex-col items-center gap-1.5 rounded-3xl px-6 py-5 text-center">
+              <Clock className="h-5 w-5 text-amber-200/90" aria-hidden />
+              <p className="text-[0.92rem] font-black uppercase tracking-[0.14em] text-white">
+                {t.bet.soonTitle}
+              </p>
+              <p className="text-[0.74rem] font-semibold leading-snug text-white/60">
+                {t.bet.soonNote}
+              </p>
+            </div>
+          </div>
+        )
+      ) : (
+        isBet && <BetPanel clipCode={post.utmCode} isActive={isActive} onNext={onNext} />
+      )}
     </section>
   );
 }

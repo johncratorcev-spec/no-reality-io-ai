@@ -295,6 +295,10 @@ const en = {
     milestones: "bonuses at 3 / 5 / 7 / 10 straight wins",
   },
   bet: {
+    /* v26 — тизеры: раффл ещё не открыт */
+    soonChip: "predictions soon",
+    soonTitle: "predictions coming soon",
+    soonNote: "the footage is live in the feed — the betting window opens here shortly",
     inPool: "YOU'RE IN THE POOL",
     /* v15 — соревнования (первое соревнование) */
     competitionN: "competition {n}",
@@ -652,6 +656,10 @@ const ru: Dict = {
     milestones: "бонусы за 3 / 5 / 7 / 10 побед подряд",
   },
   bet: {
+    /* v26 — тизеры: раффл ещё не открыт */
+    soonChip: "предсказания скоро",
+    soonTitle: "скоро будут доступны предсказания",
+    soonNote: "видео уже в ленте — окно ставок откроется здесь совсем скоро",
     inPool: "ТЫ В ПУЛЕ",
     /* v15 — соревнования (первое соревнование) */
     competitionN: "соревнование {n}",

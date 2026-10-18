@@ -29,13 +29,13 @@ export const metadata: Metadata = {
 
 export default async function BetPage() {
   const posts = await getRankedPosts();
-  /* v23 — ВЕСЬ контент в ленте ставок: каждое видео и карусель — раффл
-     со своим недельным окном. Ставочные (live) идут первыми, resolved
-     витриной с вердиктами следом. queued (ещё не открыт планировщиком)
-     и void не показываем. truth вырезан до клиента — bettable не
-     раскрывает, КАКАЯ правда. */
+  /* v26 — лента: тизеры (soon, «скоро будут доступны предсказания»)
+     первыми, затем ставочные (live), затем resolved витриной с вердиктами.
+     queued (ещё не открыт планировщиком) и void не показываем. truth
+     вырезан до клиента — bettable не раскрывает, КАКАЯ правда. */
   const all = toClientRankedPosts(posts);
   const feed = [
+    ...all.filter((p) => p.status === "soon"),
     ...all.filter((p) => p.status === "live"),
     ...all.filter((p) => p.status === "resolved"),
   ];

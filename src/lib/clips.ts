@@ -130,7 +130,9 @@ export interface PublicClip {
   id: string;
   caption: string; // caption_public после фильтра
   videoUrl: string; // ПРОКСИ (/api/clip/<id>/video), не CDN
-  status: "queued" | "live" | "resolved" | "void";
+  /** v26 — "soon": тизер в ленте без раффла (заглушка «скоро предсказания»);
+   *  планировщик его не продвигает (берёт только queued) */
+  status: "queued" | "soon" | "live" | "resolved" | "void";
   badge: string;
   featured: boolean;
   /** v20 — медиа-тип карточки: video (по умолчанию) | carousel | audio */

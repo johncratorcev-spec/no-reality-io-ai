@@ -75,8 +75,10 @@ export default async function VideoByCodePage({ params }: PageProps) {
   /* searchParams ?donate/?drop устарели — принимаются молча, игнорируются */
 
   /* v14: bet-режим = клип сейчас live (раунд открыл планировщик);
+     v26: тизер (soon) тоже открывается в bet-режиме — карточка покажет
+     заглушку «скоро будут доступны предсказания» вместо панели ставки;
      resolved/queued — обычный просмотр с раскрытием результата */
-  const bettable = post.status === "live";
+  const bettable = post.status === "live" || post.status === "soon";
   return (
     <FeedScreen
       posts={toClientRankedPosts(bettable ? posts : posts)}
